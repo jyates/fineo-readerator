@@ -142,6 +142,7 @@
       <groupId>io.fineo.aws</groupId>
       <artifactId>aws-common</artifactId>
       <version>1.0-SNAPSHOT</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 </project>
