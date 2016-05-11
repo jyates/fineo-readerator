@@ -11,6 +11,7 @@
     <module>serve</module>
     <module>spark</module>
     <module>dynamo</module>
+    <module>tmp</module>
   </modules>
   <packaging>pom</packaging>
 
@@ -18,7 +19,40 @@
     <fineo.ingest.verison>1.0-SNAPSHOT</fineo.ingest.verison>
     <avatica.version>1.7.1</avatica.version>
     <calcite.version>1.7.0</calcite.version>
+
+    <!-- Plugin versions -->
+    <maven.compiler.version>3.3</maven.compiler.version>
   </properties>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <!-- Create the test jar -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>2.6</version>
+          <executions>
+            <execution>
+              <goals>
+                <goal>test-jar</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    <plugins>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven.compiler.version}</version>
+        <configuration>
+          <source>1.8</source>
+          <target>1.8</target>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 
   <dependencyManagement>
     <dependencies>
@@ -34,4 +68,13 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.12</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 </project>
