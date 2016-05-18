@@ -11,16 +11,38 @@
     <module>serve</module>
     <module>spark</module>
     <module>dynamo</module>
+    <module>fineo-adapter</module>
   </modules>
   <packaging>pom</packaging>
 
+  <repositories>
+    <!-- Official amazon dynamo local repository -->
+    <repository>
+      <id>dynamodb-local</id>
+      <name>DynamoDB Local Release Repository</name>
+      <url>http://dynamodb-local.s3-website-us-west-2.amazonaws.com/release</url>
+    </repository>
+  </repositories>
+
   <properties>
+    <aws.java.sdk.version>1.10.48</aws.java.sdk.version>
+    <aws.dynamodb.local.version>1.10.5.1</aws.dynamodb.local.version>
+
     <fineo.ingest.verison>1.0-SNAPSHOT</fineo.ingest.verison>
     <avatica.version>1.7.1</avatica.version>
     <calcite.version>1.7.0</calcite.version>
 
     <!-- Plugin versions -->
     <maven.compiler.version>3.3</maven.compiler.version>
+    <maven.dependency.version>2.10</maven.dependency.version>
+
+    <!-- Test dependencies -->
+    <junit.version>4.12</junit.version>
+    <surefire.version>2.19</surefire.version>
+
+    <!-- Test Running properties -->
+    <test.output.to.file>true</test.output.to.file>
+    <test.exclude.pattern></test.exclude.pattern>
   </properties>
 
   <build>
@@ -39,6 +61,27 @@
             </execution>
           </executions>
         </plugin>
+        <!-- Copy the dependencies into the output directory. Needed for DynamoDB's SQLlite -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-dependency-plugin</artifactId>
+          <version>${maven.dependency.version}</version>
+          <executions>
+            <execution>
+              <!--<id>copy-dependencies</id>-->
+              <phase>process-test-resources</phase>
+              <goals>
+                <goal>copy-dependencies</goal>
+              </goals>
+              <configuration>
+                <outputDirectory>${project.build.directory}/dependencies</outputDirectory>
+                <overWriteReleases>false</overWriteReleases>
+                <overWriteSnapshots>false</overWriteSnapshots>
+                <overWriteIfNewer>true</overWriteIfNewer>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
       </plugins>
     </pluginManagement>
     <plugins>
@@ -48,6 +91,27 @@
         <configuration>
           <source>1.8</source>
           <target>1.8</target>
+        </configuration>
+      </plugin>
+      <plugin>
+        <!-- Configuration for two distinct phases of test execution. First phase just
+         supports local, non-s3 requiring tests. The second phase is just the tests
+         that require a connection to s3 manipulate buckets/files there. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${surefire.version}</version>
+        <!-- Generic testing configuration for all packages -->
+        <configuration>
+          <redirectTestOutputToFile>${test.output.to.file}</redirectTestOutputToFile>
+          <argLine>-enableassertions -Djava.security.egd=file:/dev/./urandom
+            -Dsqlite4java.library.path=${project.build.directory}/dependencies
+          </argLine>
+          <excludes>
+            <!-- users can add -D option to skip particular test classes
+           ex: mvn test -Dtest.exclude.pattern=**/TestFoo.java,**/TestBar.java
+            -->
+            <exclude>${test.exclude.pattern}</exclude>
+          </excludes>
         </configuration>
       </plugin>
     </plugins>
@@ -72,7 +136,7 @@
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
-      <version>4.12</version>
+      <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
