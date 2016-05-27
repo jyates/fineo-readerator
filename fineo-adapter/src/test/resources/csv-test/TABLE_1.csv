@@ -1,0 +1,2 @@
+COMPANYKEY:string,METRICTYPE:string,FIELD1:boolean
+orgid1,metricid1,true

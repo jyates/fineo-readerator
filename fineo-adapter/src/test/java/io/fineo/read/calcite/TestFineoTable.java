@@ -44,7 +44,7 @@ public class TestFineoTable extends BaseDynamoTableTest {
         getCreateTable(tables.getTestTableName()));
     SchemaStore store = new SchemaStore(repository);
 
-    // create a simple schema
+    // create a simple schema and store it
     String org = "orgid1", metric = "metricid2", field = "field1";
     SchemaTestUtils.addNewOrg(store, org, metric, field);
 

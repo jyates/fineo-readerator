@@ -12,7 +12,7 @@ public class FineoLocalSchemaFactory extends FineoSchemaFactory {
 
   @Override
   public AmazonDynamoDBAsyncClient getDynamoDBClient(Map<String, Object> operand) {
-    Map<String, String> dynamo = (Map<String, String>) operand.get("dynamo");
+    Map<String, String> dynamo = getNested(operand, "dynamo");
     String url = dynamo.get("url");
     AwsCredentialResource credentials = new AwsCredentialResource();
     AmazonDynamoDBAsyncClient client = new AmazonDynamoDBAsyncClient(credentials.getFakeProvider());

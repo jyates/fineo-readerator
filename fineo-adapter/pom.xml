@@ -20,6 +20,13 @@
   </build>
 
   <dependencies>
+    <!-- Intra-project -->
+    <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>readerator-dynamo</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>org.apache.calcite</groupId>
       <artifactId>calcite-core</artifactId>
@@ -80,11 +87,12 @@
       <version>1.0-SNAPSHOT</version>
       <scope>test</scope>
     </dependency>
-    <!-- HsqlDB foodmart data -->
+
+    <!-- Testing until we have a dynamo adapter -->
     <dependency>
-      <groupId>net.hydromatic</groupId>
-      <artifactId>foodmart-data-hsqldb</artifactId>
-      <scope>test</scope>
+      <groupId>org.apache.calcite</groupId>
+      <artifactId>calcite-example-csv</artifactId>
+      <version>${calcite.version}</version>
     </dependency>
   </dependencies>
 

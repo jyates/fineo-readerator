@@ -26,13 +26,11 @@ public class DynamoFieldMapper {
   private static final List<String> BASE_FIELDS =
     newArrayList(AvroSchemaEncoder.ORG_ID_KEY, AvroSchemaEncoder.ORG_METRIC_TYPE_KEY,
       AvroSchemaEncoder.TIMESTAMP_KEY);
-  private final SchemaStore store;
   private final String orgId;
   private final String customerMetricName;
   private final Metric metric;
 
   public DynamoFieldMapper(SchemaStore store, String orgId, String customerMetric) {
-    this.store = store;
     this.orgId = orgId;
     this.customerMetricName = customerMetric;
 
