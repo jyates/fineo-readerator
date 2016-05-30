@@ -3,9 +3,6 @@ package io.fineo.read.calcite;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class TableModelBuilder {
 
   private static final String FINEO_MODEL = "{\n"
@@ -15,18 +12,23 @@ public class TableModelBuilder {
                                             + "%s"
                                             + "   ]\n"
                                             + "}";
+
+  private static final String REPOSITORY =
+    "      repository: {\n"
+    + "        table: '%s'\n"
+    + "      }";
+
+  private static final String DYNAMO = "  dynamo: {\n"
+                                       + "  url: '%s'\n"
+                                       + "  }";
+
   private static String FINEO_SCHEMA =
     "  {\n"
     + "    name: 'FINEO',\n"
     + "    type: 'custom',\n"
     + "    factory: '" + FineoLocalSchemaFactory.class.getName() + "',\n"
-    + "    operand: {\n"
-    + "      repository: {\n"
-    + "        table: '%s'\n"
-    + "      }\n"
-    + "      dynamo: {\n"
-    + "        url: '%s'\n"
-    + "      },\n"
+    + "    operand: {\n" + REPOSITORY + ", \n"
+    + "                 " + DYNAMO + "\n"
     + "    }\n"
     + "  }\n";
 
@@ -34,17 +36,12 @@ public class TableModelBuilder {
     "  {\n"
     + "    name: 'FINEO',\n"
     + "    type: 'custom',\n"
-    + "    factory: '" + FineoLocalSchemaFactory.class.getName() + "',\n"
-    + "    operand: {\n"
-    + "      csv-schema: {\n"
-    + "        directory: csv-test'\n"
-    + "      },\n"
-    + "      repository: {\n"
-    + "        table: '%s'\n"
-    + "      },\n"
-    + "      dynamo: {\n"
-    + "        url: '%s'\n"
-    + "      },\n"
+    + "    factory: '" + FineoCsvSchemaFactory.class.getName() + "',\n"
+    + "    operand: {\n" + REPOSITORY + ", \n"
+    + "    " + DYNAMO + ",\n"
+    + "      " + FineoCsvSchemaFactory.CSV_SCHEMA_NAME + ": {\n"
+    + "        directory: 'fineo-adapter/src/test/resources/csv-test'\n"
+    + "      }\n"
     + "    }\n"
     + "  }\n";
 

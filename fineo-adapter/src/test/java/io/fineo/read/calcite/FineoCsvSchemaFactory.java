@@ -12,14 +12,16 @@ import java.util.Map;
  */
 public class FineoCsvSchemaFactory extends FineoLocalSchemaFactory {
 
+  public static final String CSV_SCHEMA_NAME = "csv-schema";
+
   @Override
   public Schema create(SchemaPlus parentSchema, String name, Map<String, Object> operand) {
     CsvSchemaFactory csvFactory = new CsvSchemaFactory();
-    Map<String, Object> csvOperand = getNested(operand, "csv-schema");
+    Map<String, Object> csvOperand = getNested(operand, CSV_SCHEMA_NAME);
     Schema csvSchema = csvFactory.create(parentSchema, DYNAMO_SCHEMA_NAME, csvOperand);
-    parentSchema = parentSchema.add(DYNAMO_SCHEMA_NAME, csvSchema);
+    parentSchema.add(DYNAMO_SCHEMA_NAME, csvSchema);
 
     SchemaStore store = createSchemaStore(operand);
-    return new FineoSchema(parentSchema, store);
+    return new FineoSchema(parentSchema, store, csvSchema);
   }
 }

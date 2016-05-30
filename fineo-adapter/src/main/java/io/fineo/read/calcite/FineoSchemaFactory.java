@@ -24,7 +24,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class FineoSchemaFactory implements SchemaFactory {
 
-  static final String DYNAMO_SCHEMA_NAME = "dynamo";
+  public static final String DYNAMO_SCHEMA_NAME = "dynamo";
 
   public enum CredentialProvider {
     Default(() -> new DefaultAWSCredentialsProviderChain());
@@ -46,7 +46,7 @@ public class FineoSchemaFactory implements SchemaFactory {
       .create(parentSchema, DYNAMO_SCHEMA_NAME, (Map<String, Object>) map.get("dynamo-schema"));
     parentSchema = parentSchema.add(DYNAMO_SCHEMA_NAME, dynamoSchema);
 
-    return new FineoSchema(parentSchema, store);
+    return new FineoSchema(parentSchema, store, dynamoSchema);
   }
 
   protected SchemaStore createSchemaStore(Map<String, Object> operand){
@@ -75,7 +75,7 @@ public class FineoSchemaFactory implements SchemaFactory {
     String[] parts = key.split("[.]");
     for (int i = 0; i < parts.length; i++) {
       Object o = map.get(parts[i]);
-      if (i == parts.length || o instanceof String) {
+      if (i == parts.length -1 || o instanceof String) {
         return (T) o;
       }
       map = (Map<String, Object>) o;

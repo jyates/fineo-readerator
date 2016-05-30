@@ -1,27 +1,28 @@
 package io.fineo.read.calcite;
 
+import io.fineo.read.calcite.rel.FineoScan;
+import io.fineo.read.calcite.rule.FineoMultiProjectRule;
+import io.fineo.read.calcite.rule.FineoToEnumerableConverterRule;
 import io.fineo.schema.store.SchemaStore;
+import org.apache.calcite.linq4j.tree.Primitive;
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ExtensibleTable;
+import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Table;
 import org.apache.calcite.schema.TranslatableTable;
 import org.apache.calcite.schema.impl.AbstractTable;
-import org.apache.calcite.sql.type.SqlTypeName;
-import org.apache.calcite.tools.FrameworkConfig;
-import org.apache.calcite.tools.Frameworks;
-import org.apache.calcite.tools.RelBuilder;
-import org.apache.calcite.tools.RuleSets;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
@@ -34,11 +35,13 @@ public class FineoTable extends AbstractTable implements TranslatableTable,
                                                          ExtensibleTable {
   private final SchemaStore schema;
   private final SchemaPlus calciteSchema;
+  private final Schema dynamoSchemaImpl;
   private List<RelDataTypeField> extensionFields = new ArrayList<>();
 
-  public FineoTable(SchemaPlus calciteSchema, SchemaStore schema) {
+  public FineoTable(SchemaPlus calciteSchema, SchemaStore schema, Schema dynamo) {
     this.schema = schema;
     this.calciteSchema = calciteSchema;
+    this.dynamoSchemaImpl = dynamo;
   }
 
   @Override
@@ -46,9 +49,10 @@ public class FineoTable extends AbstractTable implements TranslatableTable,
     RelDataTypeFactory.FieldInfoBuilder builder = typeFactory.builder();
 
     // add the default fields that we expect from all users
-    builder.add(ORG_ID_KEY.toUpperCase(), typeFactory.createSqlType(SqlTypeName.VARCHAR));
-    builder.add(ORG_METRIC_TYPE_KEY.toUpperCase(), typeFactory.createSqlType(SqlTypeName.VARCHAR));
-    builder.add(TIMESTAMP_KEY.toUpperCase(), typeFactory.createSqlType(SqlTypeName.TIMESTAMP));
+    builder.add(ORG_ID_KEY.toUpperCase(), typeFactory.createJavaType(String.class));
+    builder.add(TIMESTAMP_KEY.toUpperCase(), typeFactory.createJavaType(Primitive.LONG.boxClass));
+    builder.add(ORG_METRIC_TYPE_KEY.toUpperCase(), typeFactory.createJavaType(String.class));
+
 
     // add the extension fields
     for (RelDataTypeField field : extensionFields) {
@@ -59,27 +63,35 @@ public class FineoTable extends AbstractTable implements TranslatableTable,
 
   @Override
   public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
-    SchemaPlus dynamo = calciteSchema.getSubSchema(FineoSchemaFactory.DYNAMO_SCHEMA_NAME);
-    FrameworkConfig config =
-      Frameworks.newConfigBuilder()
-                .defaultSchema(dynamo)
-                .ruleSets(RuleSets.ofList(new MultiProjectRule(schema))).build();
-    Collection<String> names = dynamo.getTableNames();
-    RelBuilder builder = RelBuilder.create(config);
-    for (String name : names) {
-      builder.scan(name);
-    }
+    // ideally we would just register the expansion rules now, but the planner you get here is
+    // not the same planner that executes these rels, so we have to create a RelNode to register
+    // the rules, which then gets converted into the larger underlying scan
+    final List<RelOptRule> rules = newArrayList(
+      new FineoMultiProjectRule(schema),
+      FineoToEnumerableConverterRule.INSTANCE);
+//        new MultiScanRule(calciteSchema));
+    final RelOptCluster cluster = context.getCluster();
+    return new FineoScan(cluster, cluster.traitSetOf(FineoRel.CONVENTION), relOptTable, rules,
+      dynamoSchemaImpl);
 
-    for (int i = 0; i < names.size() - 1; i++) {
-      builder.join(JoinRelType.FULL);
-    }
-
-    return builder.build();
+//    SchemaPlus dynamoSchema = calciteSchema.getSubSchema(FineoSchemaFactory.DYNAMO_SCHEMA_NAME);
+//    FrameworkConfig config = Frameworks.newConfigBuilder().defaultSchema(dynamoSchema).build();
+//    Collection<String> names = dynamoSchemaImpl.getTableNames();
+//    RelBuilder builder = RelBuilder.create(config);
+//    for (String name : names) {
+//      builder.scan(name);
+//    }
+//
+//    for (int i = 0; i < names.size() - 1; i++) {
+//      builder.join(JoinRelType.FULL);
+//    }
+//
+//    return builder.build();
   }
 
   @Override
   public Table extend(List<RelDataTypeField> fields) {
-    FineoTable table = new FineoTable(this.calciteSchema, this.schema);
+    FineoTable table = new FineoTable(this.calciteSchema, this.schema, dynamoSchemaImpl);
     table.extensionFields.addAll(this.extensionFields);
     table.extensionFields.addAll(fields);
     return table;

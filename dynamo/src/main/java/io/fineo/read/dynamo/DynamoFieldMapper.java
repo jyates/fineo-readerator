@@ -23,9 +23,6 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class DynamoFieldMapper {
 
-  private static final List<String> BASE_FIELDS =
-    newArrayList(AvroSchemaEncoder.ORG_ID_KEY, AvroSchemaEncoder.ORG_METRIC_TYPE_KEY,
-      AvroSchemaEncoder.TIMESTAMP_KEY);
   private final String orgId;
   private final String customerMetricName;
   private final Metric metric;

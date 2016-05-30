@@ -37,6 +37,7 @@ public class TestFineoCsvTable extends BaseDynamoTableTest {
     CalciteAssert.that()
                  .with(new TableModelBuilder()
                    .setDynamo(util.getUrl())
+                   .useCsv()
                    .setSchemaTable(tables.getTestTableName())
                    .build())
                  .query(format("select * from \"events\" WHERE " +

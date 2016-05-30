@@ -30,7 +30,7 @@
 
     <fineo.ingest.verison>1.0-SNAPSHOT</fineo.ingest.verison>
     <avatica.version>1.7.1</avatica.version>
-    <calcite.version>1.7.0</calcite.version>
+    <calcite.version>1.8.0-SNAPSHOT</calcite.version>
 
     <!-- Plugin versions -->
     <maven.compiler.version>3.3</maven.compiler.version>
@@ -103,7 +103,7 @@
         <!-- Generic testing configuration for all packages -->
         <configuration>
           <redirectTestOutputToFile>${test.output.to.file}</redirectTestOutputToFile>
-          <argLine>-enableassertions -Djava.security.egd=file:/dev/./urandom
+          <argLine>-Djava.security.egd=file:/dev/./urandom
             -Dsqlite4java.library.path=${project.build.directory}/dependencies
           </argLine>
           <excludes>
