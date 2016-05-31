@@ -2,7 +2,7 @@
   "storage":{
     fineo : {
       type:"fineo",
-      enabled: false,
+      enabled: true,
       config : {
       }
     }
