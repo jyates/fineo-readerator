@@ -1,4 +1,4 @@
-package io.fineo.read.drill.exec.store;
+package io.fineo.read.drill.exec.store.plugin;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
@@ -19,10 +19,8 @@ import org.apache.drill.exec.store.AbstractStoragePlugin;
 import org.apache.drill.exec.store.SchemaConfig;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.apache.calcite.plan.RelOptRule.*;
@@ -50,8 +48,17 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
 
   private Multimap<PlannerPhase, RelOptRule> getRules() {
     Multimap<PlannerPhase, RelOptRule> rules = ArrayListMultimap.create();
-    // logical scans are converted into enumerable table scans
-    rules.put(PlannerPhase.LOGICAL, new RelOptRule(operand(LogicalTableScan.class, any())) {
+    // Convert logical scans into enumerable table scans. This is usually done in the
+    // RelStructuredTypeFlattener#rewriteRel for drill, but that only works for cases where
+    // there is a standard DrillTable. Since we aren't a real table we have to do the conversion
+    // here.
+    //
+    // The root of the problem is that there is a SubSetRel(Convention.NONE) and Drill doesn't
+    // know how to convert from that to a logical convention. I'd love to understand why drill
+    // can't figure out to convert, but for now, this is enough - we just do what the flattener
+    // would do with this table.
+    rules.put(PlannerPhase.LOGICAL, new RelOptRule(operand(LogicalTableScan.class, any()),
+      "LogicalTableScanToEnumerable_Replace_RelStructuredTypeFlattener") {
       @Override
       public void onMatch(RelOptRuleCall call) {
         LogicalTableScan scan = call.rel(0);

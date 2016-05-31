@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store;
 
+import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
 import io.fineo.read.drill.exec.store.schema.FineoSchema;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.schema.SchemaPlus;

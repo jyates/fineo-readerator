@@ -2,28 +2,24 @@ package io.fineo.read.drill.exec.store;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import org.apache.drill.exec.store.dfs.FileSystemConfig;
+import io.fineo.read.drill.exec.store.plugin.FineoSourceConfig;
+import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
 
+import java.util.List;
 import java.util.Map;
 
 @JsonTypeName(FineoLocalTestStoragePluginConfig.NAME)
-public class FineoLocalTestStoragePluginConfig extends FineoStoragePluginConfig{
+public class FineoLocalTestStoragePluginConfig extends FineoStoragePluginConfig {
   public static final String NAME = "fineo-test";
-  private final FileSystemConfig json;
   private final Map<String, String> dynamo;
 
   public FineoLocalTestStoragePluginConfig(
     @JsonProperty("repository") Map<String, String> repository,
     @JsonProperty("aws") Map<String, String> aws,
-    @JsonProperty("json")FileSystemConfig json,
+    @JsonProperty("sources")Map<String, List<String>> sources,
     @JsonProperty("dynamo") Map<String, String> dynamo) {
-    super(repository, aws);
-    this.json = json;
+    super(repository, aws, sources);
     this.dynamo = dynamo;
-  }
-
-  public FileSystemConfig getJson() {
-    return json;
   }
 
   public Map<String, String> getDynamo() {

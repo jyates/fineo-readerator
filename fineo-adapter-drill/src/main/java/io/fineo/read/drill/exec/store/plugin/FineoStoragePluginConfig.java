@@ -1,10 +1,11 @@
-package io.fineo.read.drill.exec.store;
+package io.fineo.read.drill.exec.store.plugin;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import org.apache.drill.common.logical.StoragePluginConfigBase;
 
+import java.util.List;
 import java.util.Map;
 
 @JsonTypeName(FineoStoragePluginConfig.NAME)
@@ -13,12 +14,15 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
   public static final String NAME = "fineo";
   private final Map<String, String> repository;
   private final Map<String, String> aws;
+  private final Map<String, List<String>> sources;
 
   @JsonCreator
   public FineoStoragePluginConfig(@JsonProperty("repository") Map<String, String> repository,
-    @JsonProperty("aws") Map<String, String> aws) {
+    @JsonProperty("aws") Map<String, String> aws,
+    @JsonProperty("sources") Map<String, List<String>> sources) {
     this.repository = repository;
     this.aws = aws;
+    this.sources = sources;
   }
 
   public Map<String, String> getRepository() {
@@ -27,6 +31,10 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
 
   public Map<String, String> getAws() {
     return aws;
+  }
+
+  public Map<String, List<String>> getSources() {
+    return sources;
   }
 
   @Override

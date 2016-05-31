@@ -1,4 +1,4 @@
-package io.fineo.read.drill.exec.store.schema;
+package io.fineo.read.drill.exec.store.rel;
 
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.rel.RelNode;

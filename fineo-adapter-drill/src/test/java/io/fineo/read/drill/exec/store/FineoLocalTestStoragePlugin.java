@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store;
 
+import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.schema.FineoSchemaFactory;
 import org.apache.drill.exec.server.DrillbitContext;
 

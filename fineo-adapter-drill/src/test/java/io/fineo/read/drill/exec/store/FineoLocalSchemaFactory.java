@@ -2,6 +2,8 @@ package io.fineo.read.drill.exec.store;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
 import io.fineo.aws.rule.AwsCredentialResource;
+import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
+import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
 import io.fineo.read.drill.exec.store.schema.FineoSchemaFactory;
 
 import java.util.Map;

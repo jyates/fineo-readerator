@@ -9,6 +9,8 @@
       },
       repository:{
         table: "schema-table"
+      },
+      sources:{
       }
     }
   }

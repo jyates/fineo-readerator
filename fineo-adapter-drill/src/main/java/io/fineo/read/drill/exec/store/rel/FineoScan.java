@@ -1,6 +1,5 @@
 package io.fineo.read.drill.exec.store.rel;
 
-import io.fineo.read.drill.exec.store.schema.FineoRel;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptRule;
