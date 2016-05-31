@@ -12,6 +12,7 @@
     <module>spark</module>
     <module>dynamo</module>
     <module>fineo-adapter</module>
+    <module>fineo-adapter-drill</module>
   </modules>
   <packaging>pom</packaging>
 

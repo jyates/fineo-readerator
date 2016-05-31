@@ -1,8 +1,6 @@
-package io.fineo.read.calcite.rel;
+package io.fineo.read.drill.exec.store.rel;
 
-import io.fineo.read.calcite.FineoRel;
-import io.fineo.read.calcite.rule.FineoMultiProjectRule;
-import io.fineo.read.calcite.rule.FineoMultiScanRule;
+import io.fineo.read.drill.exec.store.schema.FineoRel;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptRule;

@@ -1,67 +1,61 @@
-package io.fineo.read.calcite;
+package io.fineo.read.drill.exec.store.schema;
 
-import io.fineo.read.calcite.rel.FineoScan;
-import io.fineo.read.calcite.rule.FineoMultiProjectRule;
-import io.fineo.read.calcite.rule.FineoMultiScanRule;
+import io.fineo.read.drill.exec.store.FineoStoragePlugin;
 import io.fineo.schema.store.SchemaStore;
-import org.apache.calcite.DataContext;
-import org.apache.calcite.linq4j.Enumerable;
-import org.apache.calcite.linq4j.Linq4j;
-import org.apache.calcite.linq4j.tree.Primitive;
-import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.plan.RelOptRule;
+import net.hydromatic.linq4j.Enumerable;
+import net.hydromatic.linq4j.Linq4j;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalTableScan;
-import org.apache.calcite.rel.type.DynamicRecordTypeImpl;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rel.type.RelRecordType;
-import org.apache.calcite.runtime.Enumerables;
-import org.apache.calcite.schema.ExtensibleTable;
 import org.apache.calcite.schema.ScannableTable;
 import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Table;
 import org.apache.calcite.schema.TranslatableTable;
 import org.apache.calcite.schema.impl.AbstractTable;
+import org.apache.drill.exec.planner.logical.DynamicDrillTable;
+import org.apache.drill.exec.store.StoragePlugin;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static com.google.common.collect.Lists.newArrayList;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 
 /**
  * Base access for a logical Fineo table. This actually delegates to a series of unions to
  * underlying dynamo and/or spark tables, depending on the time range we are querying
  */
-public class FineoTable extends AbstractTable implements ScannableTable, TranslatableTable{
+public class FineoTable extends DynamicDrillTable {
 
 //  implements TranslatableTable,ExtensibleTable {
   private final SchemaStore schema;
-  private final SchemaPlus calciteSchema;
   private final Schema dynamoSchemaImpl;
   private List<RelDataTypeField> extensionFields = new ArrayList<>();
   private RelDataType type;
 
-  public FineoTable(SchemaPlus calciteSchema, SchemaStore schema, Schema dynamo) {
-    this.schema = schema;
-    this.calciteSchema = calciteSchema;
-    this.dynamoSchemaImpl = dynamo;
+  public FineoTable(FineoStoragePlugin plugin,
+    String storageEngineName, String userName, Object selection) {
+    super(plugin, storageEngineName, userName, selection);
+    this.schema = plugin.getSchemaStore();
+    dynamoSchemaImpl = null;
   }
 
-  @Override
-  public RelDataType getRowType(RelDataTypeFactory typeFactory) {
-    // it could be anything!
-    if(this.type == null) {
-      this.type = new DynamicRecordTypeImpl(typeFactory);
-    }
-    return this.type;
+//  public FineoTable(SchemaPlus calciteSchema, SchemaStore schema, Schema dynamo) {
+//    this.schema = schema;
+//    this.calciteSchema = calciteSchema;
+//    this.dynamoSchemaImpl = dynamo;
+//  }
 
+//  @Override
+//  public RelDataType getRowType(RelDataTypeFactory typeFactory) {
+//    // it could be anything!
+//    if(this.type == null) {
+//      this.type = new DynamicRecordTypeImpl(typeFactory);
+//    }
+//    return this.type;
+//
 //    RelDataTypeFactory.FieldInfoBuilder builder = typeFactory.builder();
 //    // add the default fields that we expect from all users
 //    builder.add(ORG_ID_KEY.toUpperCase(), typeFactory.createJavaType(String.class));
@@ -74,7 +68,7 @@ public class FineoTable extends AbstractTable implements ScannableTable, Transla
 //    }
 //
 //    return builder.build();
-  }
+//  }
 
   @Override
   public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
@@ -105,17 +99,4 @@ public class FineoTable extends AbstractTable implements ScannableTable, Transla
 ////
 ////    return builder.build();
 //  }
-
-//  @Override
-  public Table extend(List<RelDataTypeField> fields) {
-    FineoTable table = new FineoTable(this.calciteSchema, this.schema, dynamoSchemaImpl);
-    table.extensionFields.addAll(this.extensionFields);
-    table.extensionFields.addAll(fields);
-    return table;
-  }
-
-  @Override
-  public Enumerable<Object[]> scan(DataContext root) {
-     return Linq4j.asEnumerable(new ArrayList<>());
-  }
 }

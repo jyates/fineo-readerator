@@ -1,12 +1,10 @@
 package io.fineo.read.calcite.rule;
 
 import io.fineo.read.calcite.FineoRel;
-import io.fineo.read.calcite.rel.FineoRecombinatorRel;
-import io.fineo.read.calcite.rel.FineoScan;
 import io.fineo.read.calcite.FineoSchemaFactory;
+import io.fineo.read.calcite.rel.FineoScan;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
@@ -17,12 +15,12 @@ import java.util.Collection;
 /**
  * Extend a {@link FineoScan} into a joined scan across sub-tables.
  */
-public class MultiScanRule extends RelOptRule {
+public class FineoMultiScanRule extends RelOptRule {
 
   private final SchemaPlus calciteSchema;
 
-  public MultiScanRule(SchemaPlus calciteSchema) {
-    super(operand(FineoScan.class, FineoRel.CONVENTION, RelOptRule.any()));
+  public FineoMultiScanRule(SchemaPlus calciteSchema) {
+    super(operand(FineoScan.class, FineoRel.CONVENTION, RelOptRule.any()), "FineoMultiScanRule");
     this.calciteSchema = calciteSchema;
   }
 
@@ -40,7 +38,6 @@ public class MultiScanRule extends RelOptRule {
       builder.join(JoinRelType.FULL);
     }
 
-//    RelNode subscans = builder.build();
-    call.transformTo(builder.build());//new FineoRecombinatorRel(subscans, scan.getRowType()));
+    call.transformTo(builder.build());
   }
 }

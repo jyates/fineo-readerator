@@ -76,7 +76,7 @@ public class TestFineoTable extends BaseDynamoTableTest {
                    .setDynamo(util.getUrl())
                    .setSchemaTable(tables.getTestTableName())
                    .build())
-                 .query(format("select * from \"events\" WHERE " +
+                 .query(format("select * from events WHERE " +
                         ORG_ID_KEY + " = '%s' AND " +
                         ORG_METRIC_TYPE_KEY + " = '%s'", org, metric))
                  .returnsCount(1);

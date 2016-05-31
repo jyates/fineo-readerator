@@ -29,7 +29,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -54,7 +53,7 @@ public class FineoMultiProjectRule extends RelOptRule {
     // match a project that has a filter
     super(operand(LogicalProject.class,
       operand(LogicalFilter.class,
-        operand(FineoScan.class, RelOptRule.any()))));
+        operand(FineoScan.class, RelOptRule.any()))), "FineoMultiProjectRule");
     this.store = store;
   }
 

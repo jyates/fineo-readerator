@@ -9,10 +9,13 @@ import org.apache.calcite.interpreter.InterpretableRel;
 import org.apache.calcite.interpreter.Interpreter;
 import org.apache.calcite.interpreter.Node;
 import org.apache.calcite.linq4j.Enumerable;
+import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.SingleRel;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.runtime.Bindable;
+
+import java.util.List;
 
 /**
  * Recombination of sub-queries, mapped back to the original projected fields (as specified in
@@ -39,12 +42,18 @@ public class FineoRecombinatorRel extends SingleRel implements BindableRel{
   }
 
   @Override
+  public Enumerable<Object[]> bind(DataContext dataContext) {
+    return new Interpreter(dataContext, this);
+  }
+
+  @Override
   public Class<Object[]> getElementType() {
     return Object[].class;
   }
 
+
   @Override
-  public Enumerable<Object[]> bind(DataContext dataContext) {
-    return new Interpreter(dataContext, this);
+  public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+    return new FineoRecombinatorRel(inputs.get(0), getRowType(), store);
   }
 }

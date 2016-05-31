@@ -40,6 +40,9 @@ public class TestFineoCsvTable extends BaseDynamoTableTest {
                    .useCsv()
                    .setSchemaTable(tables.getTestTableName())
                    .build())
+                 // This works...weird. But the other lookup doesn't
+//                 .query("select * from \"events\"")
+//                 .returnsCount(1);
                  .query(format("select * from \"events\" WHERE " +
                         ORG_ID_KEY + " = '%s' AND " +
                         ORG_METRIC_TYPE_KEY + " = '%s'", org, metrictype))

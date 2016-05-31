@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <parent>
+    <artifactId>readerator-parent</artifactId>
+    <groupId>io.fineo.read</groupId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+  <modelVersion>4.0.0</modelVersion>
+
+  <artifactId>fineo-adapter-drill</artifactId>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-dependency-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+  <properties>
+    <drill.version>1.6.0</drill.version>
+    <drill.calcite.version>1.4.0-drill-r10</drill.calcite.version>
+  </properties>
+
+  <dependencies>
+    <!-- Intra-project -->
+    <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>readerator-dynamo</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk</artifactId>
+      <version>${aws.java.sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.schema</groupId>
+      <artifactId>schema-mgmt</artifactId>
+      <version>1.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- Drill dependencies -->
+    <dependency>
+      <groupId>org.apache.drill.exec</groupId>
+      <artifactId>drill-jdbc-all</artifactId>
+      <version>${drill.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.drill.exec</groupId>
+      <artifactId>drill-jdbc</artifactId>
+      <version>${drill.version}</version>
+      <classifier>tests</classifier>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.drill.exec</groupId>
+      <artifactId>drill-java-exec</artifactId>
+      <version>${drill.version}</version>
+      <classifier>tests</classifier>
+    </dependency>
+    <!-- Force dependencies to match drill requirements -->
+    <dependency>
+      <groupId>com.sun.jersey</groupId>
+      <artifactId>jersey-core</artifactId>
+      <version>1.9</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.calcite</groupId>
+      <artifactId>calcite-core</artifactId>
+      <version>${drill.calcite.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.calcite</groupId>
+      <artifactId>calcite-linq4j</artifactId>
+      <version>${drill.calcite.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.calcite</groupId>
+      <artifactId>calcite-avatica</artifactId>
+      <version>${drill.calcite.version}</version>
+    </dependency>
+
+    <!-- Test Dependencies -->
+    <dependency>
+      <groupId>io.fineo.etl</groupId>
+      <artifactId>dynamo-common</artifactId>
+      <version>1.0-SNAPSHOT</version>
+      <scope>test</scope>
+      <classifier>tests</classifier>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-dynamodb</artifactId>
+      <version>${aws.java.sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>DynamoDBLocal</artifactId>
+      <version>${aws.dynamodb.local.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.schema</groupId>
+      <artifactId>schema-mgmt</artifactId>
+      <version>1.0-SNAPSHOT</version>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.etl.pipeline</groupId>
+      <artifactId>stream-processing</artifactId>
+      <version>1.0-SNAPSHOT</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.aws</groupId>
+      <artifactId>aws-common</artifactId>
+      <version>1.0-SNAPSHOT</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.etl</groupId>
+      <artifactId>drill-test</artifactId>
+      <version>1.0-SNAPSHOT</version>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.etl.pipeline</groupId>
+      <artifactId>pipeline-utils</artifactId>
+      <version>1.0-SNAPSHOT</version>
+      <scope>test</scope>
+      <classifier>tests</classifier>
+    </dependency>
+  </dependencies>
+</project>

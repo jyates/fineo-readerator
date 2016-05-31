@@ -1,0 +1,10 @@
+{
+  "storage":{
+    fineo : {
+      type:"fineo",
+      enabled: false,
+      config : {
+      }
+    }
+  }
+}
