@@ -49,7 +49,7 @@ public class LogicalScanBuilder {
   public RelNode build() {
     // join all the sub-tables together
     for (int i = 0; i < scanCount - 1; i++) {
-      builder.join(JoinRelType.FULL);
+      builder.union(true);
     }
 
     return builder.build();

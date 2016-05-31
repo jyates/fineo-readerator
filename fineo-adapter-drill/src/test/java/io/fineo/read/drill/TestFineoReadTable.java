@@ -17,12 +17,16 @@ import org.junit.Test;
 import org.schemarepo.ValidatorFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
+import static java.lang.String.format;
+import static oadd.com.google.common.collect.Maps.newHashMap;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -50,16 +54,11 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     SchemaTestUtils.addNewOrg(store, org, metrictype, fieldname);
 
     // write some data in a json file
-    Map<String, Object> json = new HashMap<>();
-    json.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    json.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    json.put(AvroSchemaEncoder.TIMESTAMP_KEY, 1);
-    json.put(fieldname, true);
-
     File tmp = folder.newFolder("drill");
-    File out = new File(tmp, "test.json");
-    JSON j = JSON.std;
-    j.write(json, out);
+    Map<String, Object> values = new HashMap<>();
+    values.put(fieldname, false);
+    File out1 = write(tmp, org, metrictype, 1, values);
+    File out2 = write(tmp, org, metrictype, 2, values);
 
 
     // ensure that the fineo-test plugin is enabled
@@ -68,18 +67,30 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     bootstrap.strap(bootstrap.builder()
                              .withLocalDynamo(util.getUrl())
                              .withRepository(tables.getTestTableName())
-                             .withLocalSource(tmp));
+                             .withLocalSource(out1)
+                             .withLocalSource(out2));
 
     try (Connection conn = drill.getConnection()) {
       String from = "FROM fineo.events";
-      ResultSet count = conn.createStatement().executeQuery("SELECT * " + from);
-      assertTrue(count.next());
-      assertEquals("c", count.getString("a"));
+      ResultSet result = conn.createStatement().executeQuery("SELECT * " + from);
+      assertTrue(result.next());
+      assertEquals(1, result.getInt("timestamp"));
+      assertTrue(result.next());
+      assertEquals(2, result.getInt("timestamp"));
     }
   }
 
-  private void setSession(Connection conn, String stmt) throws SQLException {
-    conn.createStatement().execute("ALTER SESSION SET " + stmt);
+  private File write(File dir, String org, String metricType, long ts, Map<String, Object> values)
+    throws IOException {
+    Map<String, Object> json = newHashMap(values);
+    json.put(AvroSchemaEncoder.ORG_ID_KEY, org);
+    json.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metricType);
+    json.put(AvroSchemaEncoder.TIMESTAMP_KEY, ts);
+
+    File out = new File(dir, format("test-%s-%s.json", ts, UUID.randomUUID()));
+    JSON j = JSON.std;
+    j.write(json, out);
+    return out;
   }
 
   private CreateTableRequest getCreateTable(String schemaTable) {
