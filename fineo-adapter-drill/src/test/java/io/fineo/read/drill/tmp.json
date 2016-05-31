@@ -1,0 +1,31 @@
+{
+  "name": "fineo-test",
+  "config": {
+    "type" : "fineo",
+    "enabled" : "true",
+    "repository" : {
+      "table": "kinesis-avro-test-d2ee6ac4-ae3d-45fb-bf7a-7c47f2bc23e6"
+    },
+    "aws": {
+      "credentials": "provided"
+      "region": "us-east-1"
+    }, "dynamo": {
+      "url": "http://localhost:51717"
+    },
+    "json": {
+      "type": "file",
+      "enabled": true,
+      "connection": "file:///",
+      "workspaces": {
+        "root": {
+          "location": "/Users/jyates/dev/iot-startup/readerator/fineo-adapter-drill/src/test/resources/json",
+          "writable": false,
+          "defaultInputFormat": null
+        }
+      },
+      "formats" : {
+        "json" : {
+          "type" : "json"
+        }
+      }
+    }  }}

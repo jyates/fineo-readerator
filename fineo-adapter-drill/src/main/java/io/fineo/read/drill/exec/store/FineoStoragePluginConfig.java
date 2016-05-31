@@ -3,48 +3,51 @@ package io.fineo.read.drill.exec.store;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.apache.drill.common.logical.StoragePluginConfigBase;
 
 import java.util.Map;
 
-/**
- *
- */
 @JsonTypeName(FineoStoragePluginConfig.NAME)
 public class FineoStoragePluginConfig extends StoragePluginConfigBase {
 
   public static final String NAME = "fineo";
-
-  private Map<String, String> config;
+  private final Map<String, String> repository;
+  private final Map<String, String> aws;
 
   @JsonCreator
-  public FineoStoragePluginConfig(@JsonProperty("config") Map<String, String> props) {
-    this.config = props;
-    if (config == null) {
-      config = Maps.newHashMap();
-    }
+  public FineoStoragePluginConfig(@JsonProperty("repository") Map<String, String> repository,
+    @JsonProperty("aws") Map<String, String> aws) {
+    this.repository = repository;
+    this.aws = aws;
   }
 
-  @JsonProperty
-  public Map<String, String> getConfig() {
-    return ImmutableMap.copyOf(config);
+  public Map<String, String> getRepository() {
+    return repository;
+  }
+
+  public Map<String, String> getAws() {
+    return aws;
   }
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) {
+    if (this == o)
       return true;
-    } else if (o == null || getClass() != o.getClass()) {
+    if (!(o instanceof FineoStoragePluginConfig))
       return false;
-    }
+
     FineoStoragePluginConfig that = (FineoStoragePluginConfig) o;
-    return config.equals(that.config);
+
+    if (!getRepository().equals(that.getRepository()))
+      return false;
+    return getAws().equals(that.getAws());
+
   }
 
   @Override
   public int hashCode() {
-    return this.config != null ? this.config.hashCode() : 0;
+    int result = getRepository().hashCode();
+    result = 31 * result + getAws().hashCode();
+    return result;
   }
 }

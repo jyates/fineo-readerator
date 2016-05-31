@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store.schema;
 
+import io.fineo.read.drill.exec.store.FineoStoragePlugin;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
@@ -19,10 +20,15 @@ public class FineoSchema extends AbstractSchema {
   private final SchemaStore schema;
   private final SchemaPlus calciteSchema;
   private final Schema dynamoSchema;
+  private final FineoStoragePlugin plugin;
+  private final String name;
 
-  public FineoSchema(SchemaPlus parentSchema, SchemaStore store, Schema dynamoSchema) {
-    this.schema = store;
+  public FineoSchema(SchemaPlus parentSchema, String schemaName, FineoStoragePlugin plugin, SchemaStore store,
+    Schema dynamoSchema) {
     this.calciteSchema = parentSchema;
+    this.name = schemaName;
+    this.plugin = plugin;
+    this.schema = store;
     this.dynamoSchema = dynamoSchema;
   }
 
@@ -34,7 +40,7 @@ public class FineoSchema extends AbstractSchema {
   @Override
   protected Map<String, Table> getTableMap() {
     HashMap<String, Table> tables = new HashMap<>();
-    tables.put(EVENT_TABLE_NAME, new FineoTable(null, null, null, null));
+    tables.put(EVENT_TABLE_NAME, new FineoTable(plugin, name, null, null, schema));
     return tables;
   }
 

@@ -1,15 +1,9 @@
 package io.fineo.read.calcite;
 
-import io.fineo.read.calcite.rel.FineoScan;
-import io.fineo.read.calcite.rule.FineoMultiProjectRule;
-import io.fineo.read.calcite.rule.FineoMultiScanRule;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.Linq4j;
-import org.apache.calcite.linq4j.tree.Primitive;
-import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalTableScan;
@@ -18,8 +12,6 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rel.type.RelRecordType;
-import org.apache.calcite.runtime.Enumerables;
-import org.apache.calcite.schema.ExtensibleTable;
 import org.apache.calcite.schema.ScannableTable;
 import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
@@ -30,16 +22,11 @@ import org.apache.calcite.schema.impl.AbstractTable;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
-
 /**
  * Base access for a logical Fineo table. This actually delegates to a series of unions to
  * underlying dynamo and/or spark tables, depending on the time range we are querying
  */
-public class FineoTable extends AbstractTable implements ScannableTable, TranslatableTable{
+public class FineoTable extends AbstractTable implements ScannableTable, TranslatableTable {
 
 //  implements TranslatableTable,ExtensibleTable {
   private final SchemaStore schema;

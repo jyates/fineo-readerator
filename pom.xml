@@ -104,8 +104,9 @@
         <!-- Generic testing configuration for all packages -->
         <configuration>
           <redirectTestOutputToFile>${test.output.to.file}</redirectTestOutputToFile>
-          <argLine>-Djava.security.egd=file:/dev/./urandom
+          <argLine>-enableassertions -Djava.security.egd=file:/dev/./urandom
             -Dsqlite4java.library.path=${project.build.directory}/dependencies
+            -Djava.net.preferIPv4Stack=true
           </argLine>
           <excludes>
             <!-- users can add -D option to skip particular test classes

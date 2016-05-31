@@ -1,9 +1,12 @@
 package io.fineo.read.drill.exec.store.schema;
 
+import com.google.common.collect.ImmutableList;
 import io.fineo.read.drill.exec.store.FineoStoragePlugin;
 import io.fineo.schema.store.SchemaStore;
 import net.hydromatic.linq4j.Enumerable;
 import net.hydromatic.linq4j.Linq4j;
+import org.apache.calcite.plan.Convention;
+import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalTableScan;
@@ -17,28 +20,30 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Table;
 import org.apache.calcite.schema.TranslatableTable;
 import org.apache.calcite.schema.impl.AbstractTable;
+import org.apache.calcite.tools.RelBuilder;
 import org.apache.drill.exec.planner.logical.DynamicDrillTable;
 import org.apache.drill.exec.store.StoragePlugin;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.apache.drill.exec.planner.logical.DrillRel.DRILL_LOGICAL;
+
 /**
  * Base access for a logical Fineo table. This actually delegates to a series of unions to
  * underlying dynamo and/or spark tables, depending on the time range we are querying
  */
-public class FineoTable extends DynamicDrillTable {
+public class FineoTable extends DynamicDrillTable implements TranslatableTable {
 
-//  implements TranslatableTable,ExtensibleTable {
+  //  implements TranslatableTable,ExtensibleTable {
   private final SchemaStore schema;
   private final Schema dynamoSchemaImpl;
   private List<RelDataTypeField> extensionFields = new ArrayList<>();
-  private RelDataType type;
 
   public FineoTable(FineoStoragePlugin plugin,
-    String storageEngineName, String userName, Object selection) {
+    String storageEngineName, String userName, Object selection, SchemaStore store) {
     super(plugin, storageEngineName, userName, selection);
-    this.schema = plugin.getSchemaStore();
+    this.schema = store;
     dynamoSchemaImpl = null;
   }
 
@@ -72,8 +77,13 @@ public class FineoTable extends DynamicDrillTable {
 
   @Override
   public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
-    this.type = new RelRecordType(this.type.getFieldList());
-    return new LogicalTableScan(context.getCluster(), context.getCluster().traitSet(), relOptTable);
+//    RelBuilder builder = RelBuilder.proto(context.getCluster().getPlanner().getContext())
+//                                   .create(context.getCluster());
+    RelOptTable table = relOptTable.getRelOptSchema().getTableForMember(ImmutableList.of("dfs",
+      "/var/folders/43/tsp1ph8n5b96whkk0j_bkl540000gn/T/junit4249094017616689616"
+      + "/drill/test.json"));
+    RelOptCluster cluster = context.getCluster();
+    return new LogicalTableScan(cluster, cluster.traitSetOf(Convention.NONE), table);
   }
 //    // ideally we would just register the expansion rules now, but the planner you get here is
 //    // not the same planner that executes these rels, so we have to create a RelNode to register
