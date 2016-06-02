@@ -2,6 +2,7 @@ package io.fineo.read.drill.exec.store.rel;
 
 import io.fineo.read.drill.exec.store.rel.logical.FineoRecombinatorRel;
 import io.fineo.read.drill.exec.store.rel.logical.FineoRecombinatorRule;
+import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
@@ -17,10 +18,12 @@ import java.util.List;
  */
 public class FineoRecombinatorMarkerRel extends SingleRel {
   private final RelDataType row;
+  private final SchemaStore store;
 
-  public FineoRecombinatorMarkerRel(RelNode subscans, RelDataType rowType) {
+  public FineoRecombinatorMarkerRel(SchemaStore store, RelNode subscans, RelDataType rowType) {
     super(subscans.getCluster(), subscans.getTraitSet().plus(Convention.NONE), subscans);
     this.row = rowType;
+    this.store = store;
   }
 
   @Override
@@ -30,6 +33,10 @@ public class FineoRecombinatorMarkerRel extends SingleRel {
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return new FineoRecombinatorMarkerRel(inputs.get(0), getRowType());
+    return new FineoRecombinatorMarkerRel(store, inputs.get(0), getRowType());
+  }
+
+  public SchemaStore getStore() {
+    return store;
   }
 }

@@ -4,9 +4,7 @@ import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.schema.FineoSchemaFactory;
 import org.apache.drill.exec.server.DrillbitContext;
 
-/**
- *
- */
+// created by reflection to match the plugin configuration
 public class FineoLocalTestStoragePlugin extends FineoStoragePlugin {
   public FineoLocalTestStoragePlugin(FineoLocalTestStoragePluginConfig configuration,
     DrillbitContext c, String name) {
@@ -15,6 +13,6 @@ public class FineoLocalTestStoragePlugin extends FineoStoragePlugin {
 
   @Override
   protected FineoSchemaFactory getFactory(String name) {
-    return new FineoJsonSchemaFactory(this, name);
+    return new FineoLocalSchemaFactory(this, name);
   }
 }

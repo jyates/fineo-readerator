@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.schema;
 
 import io.fineo.read.drill.exec.store.rel.FineoRecombinatorMarkerRel;
+import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
@@ -71,7 +72,7 @@ public class LogicalScanBuilder {
     }
   }
 
-  public RelNode build() {
+  public RelNode build(SchemaStore store) {
     OffsetTracker tracker = new OffsetTracker();
     // join all the sub-tables together on the common keys
     for (int i = 0; i < scanCount - 1; i++) {
@@ -79,10 +80,10 @@ public class LogicalScanBuilder {
       builder.join(JoinRelType.INNER, equals);
     }
 
-    int index = builder.peek().getRowType().getField(TIMESTAMP_KEY, false, false).getIndex();
-    builder.sort(-index - 1);
+//    int index = builder.peek().getRowType().getField(TIMESTAMP_KEY, false, false).getIndex();
+//    builder.sort(-index - 1);
     RelNode subscans = builder.build();
-    return new FineoRecombinatorMarkerRel(subscans, subscans.getRowType());
+    return new FineoRecombinatorMarkerRel(store, subscans, subscans.getRowType());
   }
 
   private RexNode composeCondition(OffsetTracker tracker, String... fieldNames) {

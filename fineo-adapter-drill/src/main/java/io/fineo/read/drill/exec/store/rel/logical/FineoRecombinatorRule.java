@@ -10,12 +10,10 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
-import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.util.NlsString;
 import org.apache.drill.exec.planner.logical.DrillRel;
 
@@ -24,7 +22,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
@@ -37,60 +34,59 @@ import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
  */
 public class FineoRecombinatorRule extends RelOptRule {
 
-  private static final List<String> REQUIRED_FIELDS =
-    newArrayList(ORG_ID_KEY, ORG_METRIC_TYPE_KEY).stream().map(String::toUpperCase).collect(
-      Collectors.toList());
+  private static final List<String> REQUIRED_FIELDS = newArrayList(ORG_ID_KEY, ORG_METRIC_TYPE_KEY);
 
-  private final SchemaStore store;
+  private static final Predicate<LogicalFilter> PREDICATE = new CompanyAndMetricFiltered();
 
-  public FineoRecombinatorRule(SchemaStore store) {
+  public FineoRecombinatorRule() {
     // match a project that has a filter
     super(operand(LogicalProject.class,
       operand(LogicalFilter.class,
         operand(FineoRecombinatorMarkerRel.class, RelOptRule.any()))), "FineoRecombinatorRule");
-    this.store = store;
   }
 
   @Override
   public boolean matches(RelOptRuleCall call) {
     LogicalFilter filter = call.rel(1);
 
-    // make sure that this filter includes the metric info we need to lookup the expanded fields
-    RelDataType rowType = filter.getRowType();
-    return new CompanyAndMetricFiltered(rowType.getFieldNames()).test(filter);
+    // make sure that this filter includes the type/metric info to lookup the expanded fields
+    return PREDICATE.test(filter);
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
     LogicalProject project = call.rel(0);
     LogicalFilter filter = call.rel(1);
-    RelDataType rowType = project.getRowType();
+    FineoRecombinatorMarkerRel frr = call.rel(2);
 
     // lookup the metric/field alias information
-    Map<String, String> metricLookup = new HashMap<>(2);
-    lookupMetricFieldsFromFilter(filter, metricLookup, rowType.getFieldNames());
+    Map<String, String> metricLookup = lookupMetricFieldsFromFilter(filter);
     // need the uppercase names here because that's how we pulled them out of the query
-    AvroSchemaManager schema =
-      new AvroSchemaManager(store, metricLookup.get(ORG_ID_KEY.toUpperCase()));
-    Metric metric = schema.getMetricInfo(metricLookup.get(ORG_METRIC_TYPE_KEY.toUpperCase()));
+    SchemaStore store = frr.getStore();
+    AvroSchemaManager schema = new AvroSchemaManager(store, metricLookup.get(ORG_ID_KEY));
+    Metric metric = schema.getMetricInfo(metricLookup.get(ORG_METRIC_TYPE_KEY));
 
-    FineoRecombinatorMarkerRel frr = call.rel(2);
     final RelTraitSet traits = frr.getTraitSet().plus(DrillRel.DRILL_LOGICAL);
-    filter.replaceInput(frr.getId(),
-      new FineoRecombinatorRel(frr.getCluster(), traits, frr.getInput(), metric));
+    FineoRecombinatorRel rel =
+      new FineoRecombinatorRel(frr.getCluster(), traits, frr.getInput(), metric);
 
+    // build a new instance, this time
+    filter = filter.copy(filter.getTraitSet(), rel, filter.getCondition());
+    project =
+      project.copy(project.getTraitSet(), filter, project.getProjects(), project.getRowType());
     call.transformTo(project);
   }
 
-  private void lookupMetricFieldsFromFilter(LogicalFilter filter,
-    Map<String, String> metricLookup, List<String> fieldNames) {
-    FilterFieldHandler handler = new FilterFieldHandler(fieldNames);
+  private Map<String, String> lookupMetricFieldsFromFilter(LogicalFilter filter) {
+    Map<String, String> metricLookup = new HashMap<>();
+    FilterFieldHandler handler = new FilterFieldHandler(filter);
     handler.handle(filter, (parser, name, value) -> {
       // its a field we expect, get the metric
       if (REQUIRED_FIELDS.contains(parser.getFieldName())) {
-        metricLookup.put(parser.getFieldName(), getFieldValue(value));
+        metricLookup.put(parser.getFieldName().toLowerCase(), getFieldValue(value));
       }
     });
+    return metricLookup;
   }
 
   private String getFieldValue(RexNode node) {
@@ -99,19 +95,15 @@ public class FineoRecombinatorRule extends RelOptRule {
   }
 
   private static class CompanyAndMetricFiltered implements Predicate<LogicalFilter> {
-    private final FilterFieldHandler handler;
-
-    private CompanyAndMetricFiltered(List<String> fieldNames) {
-      this.handler = new FilterFieldHandler(fieldNames);
-    }
 
     @Override
     public boolean test(@Nullable LogicalFilter filter) {
+      FilterFieldHandler handler = new FilterFieldHandler(filter);
       List<String> expected = newArrayList(REQUIRED_FIELDS);
       handler.handle(filter, (parser, n, v) -> {
         // its a field name
         String name = parser.getFieldName();
-        expected.remove(name);
+        expected.remove(name.toLowerCase());
       });
 
       // all the expected field were part of this filter
@@ -123,8 +115,8 @@ public class FineoRecombinatorRule extends RelOptRule {
 
     private final List<String> fieldNames;
 
-    protected FilterFieldHandler(List<String> fieldNames) {
-      this.fieldNames = fieldNames;
+    protected FilterFieldHandler(LogicalFilter filter) {
+      this.fieldNames = filter.getRowType().getFieldNames();
     }
 
     public void handle(LogicalFilter filter, FieldCallback callback) {
@@ -161,10 +153,8 @@ public class FineoRecombinatorRule extends RelOptRule {
     private String fieldName;
 
     private FieldNameParser(List<String> fieldNames, RexNode node) {
-      if (node instanceof RexCall) {
-        RexCall call = (RexCall) node;
-        assert call.getKind() == SqlKind.CAST;
-        RexInputRef ref = (RexInputRef) call.getOperands().get(0);
+      if (node instanceof RexInputRef) {
+        RexInputRef ref = (RexInputRef) node;
         this.fieldName = fieldNames.get(ref.getIndex());
       }
     }

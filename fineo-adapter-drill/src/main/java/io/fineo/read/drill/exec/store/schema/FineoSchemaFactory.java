@@ -7,10 +7,8 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
-import io.fineo.read.drill.exec.store.dynamo.DynamoSchemaFactory;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaStore;
-import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.drill.exec.store.SchemaConfig;
 import org.apache.drill.exec.store.SchemaFactory;
@@ -18,7 +16,6 @@ import org.schemarepo.ValidatorFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -26,7 +23,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 public class FineoSchemaFactory implements SchemaFactory {
 
-  public static final String DYNAMO_SCHEMA_NAME = "dynamo";
   protected final FineoStoragePlugin plugin;
   protected final String name;
   private SchemaStore store;
@@ -50,13 +46,8 @@ public class FineoSchemaFactory implements SchemaFactory {
   public void registerSchemas(SchemaConfig schemaConfig, SchemaPlus parent) throws IOException {
     FineoStoragePluginConfig config = (FineoStoragePluginConfig) this.plugin.getConfig();
     this.store = createSchemaStore(config);
-
-    // add each of the child data sources as their own schema
-    DynamoSchemaFactory dynamoFactory = new DynamoSchemaFactory();
-    Schema dynamoSchema = dynamoFactory.create(parent, DYNAMO_SCHEMA_NAME, null);
-    parent = parent.add(DYNAMO_SCHEMA_NAME, dynamoSchema);
-
-    parent.add(name, new FineoSchema(parent, this.name, this.plugin, store, dynamoSchema));
+    FineoSubSchemas sub = new FineoSubSchemas(config.getSources());
+    parent.add(name, new FineoSchema(this.name, this.plugin, sub, store));
   }
 
   protected SchemaStore createSchemaStore(FineoStoragePluginConfig config) {

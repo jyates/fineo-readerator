@@ -2,6 +2,8 @@ package io.fineo.read.drill.exec.store.plugin;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import io.fineo.read.drill.exec.store.rel.logical.FineoRecombinatorRule;
+import io.fineo.read.drill.exec.store.rel.physical.FineoRecombinatorPrule;
 import io.fineo.read.drill.exec.store.schema.FineoSchemaFactory;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
 import org.apache.calcite.plan.RelOptRule;
@@ -23,8 +25,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.apache.calcite.plan.RelOptRule.*;
 import static org.apache.calcite.plan.RelOptRule.any;
+import static org.apache.calcite.plan.RelOptRule.operand;
 
 
 /**
@@ -66,7 +68,10 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
       }
     });
 
-//    rules.put(PlannerPhase.LOGICAL, new FineoRecombinatorRule(factory.getStore()));
+    // transform FRRM -> FRR
+    rules.put(PlannerPhase.LOGICAL, new FineoRecombinatorRule());
+    // transform FRR -> FRPr
+    rules.put(PlannerPhase.PHYSICAL, new FineoRecombinatorPrule());
     return rules;
   }
 
@@ -82,10 +87,6 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
 
   protected FineoSchemaFactory getFactory(String name) {
     return new FineoSchemaFactory(this, name);
-  }
-
-  public DrillbitContext getContext() {
-    return context;
   }
 
   // definitely don't support a physical scan

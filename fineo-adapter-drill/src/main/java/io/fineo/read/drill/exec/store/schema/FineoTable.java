@@ -17,24 +17,20 @@ import java.util.Map;
  */
 public class FineoTable extends DynamicDrillTable implements TranslatableTable {
 
-  private final SchemaStore schema;
+  private final FineoSubSchemas schemas;
+  private final SchemaStore store;
 
-  public FineoTable(FineoStoragePlugin plugin,
-    String storageEngineName, String userName, Object selection, SchemaStore store) {
+  public FineoTable(FineoStoragePlugin plugin, String storageEngineName, String userName,
+    Object selection, FineoSubSchemas schemas, SchemaStore store) {
     super(plugin, storageEngineName, userName, selection);
-    this.schema = store;
+    this.schemas = schemas;
+    this.store = store;
   }
 
   @Override
   public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
     LogicalScanBuilder builder = new LogicalScanBuilder(context, relOptTable);
-    Map<String, List<String>> sources =
-      ((FineoStoragePluginConfig) getPlugin().getConfig()).getSources();
-    for (Map.Entry<String, List<String>> source : sources.entrySet()) {
-      for (String sourcePath : source.getValue()) {
-        builder.scan(source.getKey(), sourcePath);
-      }
-    }
-    return builder.build();
+    schemas.scan(builder);
+    return builder.build(this.store);
   }
 }
