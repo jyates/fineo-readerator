@@ -2,7 +2,6 @@ package io.fineo.read.drill.exec.store.plugin;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import io.fineo.read.drill.exec.store.rel.FineoRecombinantRule;
 import io.fineo.read.drill.exec.store.schema.FineoSchemaFactory;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
 import org.apache.calcite.plan.RelOptRule;
@@ -67,7 +66,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
       }
     });
 
-//    rules.put(PlannerPhase.LOGICAL, new FineoRecombinantRule(factory.getStore()));
+//    rules.put(PlannerPhase.LOGICAL, new FineoRecombinatorRule(factory.getStore()));
     return rules;
   }
 

@@ -2,7 +2,6 @@ package io.fineo.read.drill.exec.store.schema;
 
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
-import io.fineo.read.drill.exec.store.rel.LogicalScanBuilder;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;

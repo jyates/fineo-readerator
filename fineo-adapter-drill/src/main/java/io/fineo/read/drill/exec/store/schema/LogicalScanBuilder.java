@@ -1,6 +1,6 @@
-package io.fineo.read.drill.exec.store.rel;
+package io.fineo.read.drill.exec.store.schema;
 
-import io.fineo.schema.avro.AvroSchemaEncoder;
+import io.fineo.read.drill.exec.store.rel.FineoRecombinatorMarkerRel;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
@@ -62,7 +62,7 @@ public class LogicalScanBuilder {
     return this;
   }
 
-  private void addFields(LogicalTableScan scan) {
+  private void addFields(RelNode scan) {
     // ensures that the "*" operator is added to the row type
     scan.getRowType().getFieldList();
     // add the other fields that we are sure are present
@@ -79,11 +79,10 @@ public class LogicalScanBuilder {
       builder.join(JoinRelType.INNER, equals);
     }
 
-    // sort by timestamp
     int index = builder.peek().getRowType().getField(TIMESTAMP_KEY, false, false).getIndex();
     builder.sort(-index - 1);
     RelNode subscans = builder.build();
-    return subscans;
+    return new FineoRecombinatorMarkerRel(subscans, subscans.getRowType());
   }
 
   private RexNode composeCondition(OffsetTracker tracker, String... fieldNames) {

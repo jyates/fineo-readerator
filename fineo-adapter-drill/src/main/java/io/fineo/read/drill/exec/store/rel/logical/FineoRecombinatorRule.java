@@ -1,30 +1,25 @@
-package io.fineo.read.drill.exec.store.rel;
+package io.fineo.read.drill.exec.store.rel.logical;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
 import io.fineo.internal.customer.Metric;
+import io.fineo.read.drill.exec.store.rel.FineoRecombinatorMarkerRel;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.avro.AvroSchemaManager;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
-import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.util.NlsString;
-import org.apache.calcite.util.Pair;
+import org.apache.drill.exec.planner.logical.DrillRel;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,9 +33,9 @@ import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
 /**
  * Converts a projection + filter into a projection + filter across all the possible field names
  * in the underlying table and combined back into a single relation via the
- * {@link FineoRecombinatorRel}
+ * {@link FineoRecombinatorMarkerRel}
  */
-public class FineoRecombinantRule extends RelOptRule {
+public class FineoRecombinatorRule extends RelOptRule {
 
   private static final List<String> REQUIRED_FIELDS =
     newArrayList(ORG_ID_KEY, ORG_METRIC_TYPE_KEY).stream().map(String::toUpperCase).collect(
@@ -48,11 +43,11 @@ public class FineoRecombinantRule extends RelOptRule {
 
   private final SchemaStore store;
 
-  public FineoRecombinantRule(SchemaStore store) {
+  public FineoRecombinatorRule(SchemaStore store) {
     // match a project that has a filter
     super(operand(LogicalProject.class,
       operand(LogicalFilter.class,
-        operand(LogicalTableScan.class, RelOptRule.any()))), "FineoRecombinantRule");
+        operand(FineoRecombinatorMarkerRel.class, RelOptRule.any()))), "FineoRecombinatorRule");
     this.store = store;
   }
 
@@ -78,55 +73,13 @@ public class FineoRecombinantRule extends RelOptRule {
     AvroSchemaManager schema =
       new AvroSchemaManager(store, metricLookup.get(ORG_ID_KEY.toUpperCase()));
     Metric metric = schema.getMetricInfo(metricLookup.get(ORG_METRIC_TYPE_KEY.toUpperCase()));
-    Map<String, List<String>> cnamesToAlias = metric.getMetadata().getCanonicalNamesToAliases();
-    Map<String, String> aliasToCanonicalName = AvroSchemaManager.getAliasRemap(metric);
 
-    // expand the fields in the metric to the new projected fields, matching the field types to
-    // the original types
-    Multimap<String, String> expanded = ArrayListMultimap.create();
-    project.getNamedProjects().stream()
-           .map(pair -> pair.getValue())
-           .filter(IS_BASE_FIELD_IN_QUERY.negate())
-           .forEach(aliasName -> {
-             String cname = aliasToCanonicalName.get(aliasName);
-             List<String> aliases = cnamesToAlias.get(cname);
-             expanded.putAll(aliasName, aliases);
-           });
+    FineoRecombinatorMarkerRel frr = call.rel(2);
+    final RelTraitSet traits = frr.getTraitSet().plus(DrillRel.DRILL_LOGICAL);
+    filter.replaceInput(frr.getId(),
+      new FineoRecombinatorRel(frr.getCluster(), traits, frr.getInput(), metric));
 
-    // build a new list of projections and row data types
-    final List<Pair<String, RelDataType>> aliasComponents = new ArrayList<>();
-
-    final List<RelDataTypeField> fields = rowType.getFieldList();
-    final RelDataTypeFactory.FieldInfoBuilder builder =
-      project.getCluster().getTypeFactory().builder();
-    int index = 0;
-    for (RelDataTypeField field : fields) {
-      RelDataType type = field.getType();
-      assert null != type;
-      // find all the aliases that match this name
-      String name = field.getName();
-      builder.add(field.getName(), type);
-      Collection<String> aliases = expanded.get(name);
-      if (aliases != null) {
-        for (String alias : aliases) {
-          aliasComponents.add(new Pair<>(alias, type));
-        }
-      }
-      index++;
-    }
-
-    // add the alias fields to the end of the row type. Also, create a new field projection based
-    // on the new, alias field indexes
-    List<RexNode> projectedFields = newArrayList(project.getProjects());
-    for (Pair<String, RelDataType> alias : aliasComponents) {
-      builder.add(alias.getKey(), alias.getValue());
-      projectedFields.add(new RexInputRef(index, alias.getValue()));
-      index++;
-    }
-
-    rowType = builder.build();
-    project = LogicalProject.create(filter, projectedFields, rowType);
-    call.transformTo(new FineoRecombinatorRel(project, rowType, store));
+    call.transformTo(project);
   }
 
   private void lookupMetricFieldsFromFilter(LogicalFilter filter,

@@ -73,8 +73,8 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     bootstrap.strap(bootstrap.builder()
                              .withLocalDynamo(util.getUrl())
                              .withRepository(tables.getTestTableName())
-                             .withLocalSource(out1)
-                             .withLocalSource(out2));
+                             .withLocalSource(out1));
+//                             .withLocalSource(out2));
 
     try (Connection conn = drill.getConnection()) {
       String from =
@@ -85,7 +85,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
           ORG_ID_KEY, org,
           ORG_METRIC_TYPE_KEY, metrictype);
 //      where = "";
-      String stmt = "SELECT companykey" + from + where;
+      String stmt = "SELECT *" + from + where;
 //      stmt = "SELECT * FROM dfs.`" + out1.getAbsolutePath() + "` as t1 ";
 //      "JOIN dfs.`" + out2.getAbsolutePath() + "` as t2 ON t1.`timestamp` = t2.`timestamp`";
       ResultSet result = conn.createStatement().executeQuery(stmt);
