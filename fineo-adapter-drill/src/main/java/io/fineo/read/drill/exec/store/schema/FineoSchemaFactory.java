@@ -29,6 +29,7 @@ public class FineoSchemaFactory implements SchemaFactory {
   public static final String DYNAMO_SCHEMA_NAME = "dynamo";
   protected final FineoStoragePlugin plugin;
   protected final String name;
+  private SchemaStore store;
 
   public FineoSchemaFactory(FineoStoragePlugin fineoStoragePlugin, String name) {
     this.plugin = fineoStoragePlugin;
@@ -48,7 +49,7 @@ public class FineoSchemaFactory implements SchemaFactory {
   @Override
   public void registerSchemas(SchemaConfig schemaConfig, SchemaPlus parent) throws IOException {
     FineoStoragePluginConfig config = (FineoStoragePluginConfig) this.plugin.getConfig();
-    SchemaStore store = createSchemaStore(config);
+    this.store = createSchemaStore(config);
 
     // add each of the child data sources as their own schema
     DynamoSchemaFactory dynamoFactory = new DynamoSchemaFactory();
@@ -80,15 +81,7 @@ public class FineoSchemaFactory implements SchemaFactory {
     return dynamo;
   }
 
-  protected static <T> T getNested(Map<String, Object> map, String key) {
-    String[] parts = key.split("[.]");
-    for (int i = 0; i < parts.length; i++) {
-      Object o = map.get(parts[i]);
-      if (i == parts.length - 1 || o instanceof String) {
-        return (T) o;
-      }
-      map = (Map<String, Object>) o;
-    }
-    throw new IllegalStateException("Should not be reachable");
+  public SchemaStore getStore() {
+    return store;
   }
 }
