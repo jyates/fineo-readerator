@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import static io.fineo.schema.avro.AvroSchemaEncoder.*;
 import static java.lang.String.format;
 import static oadd.com.google.common.collect.Maps.newHashMap;
 import static org.junit.Assert.assertEquals;
@@ -81,27 +82,30 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 //      " FROM dfs.`" + out1.getAbsolutePath() + "`";
       String where = String
         .format(" WHERE %s = '%s' AND %s = '%s'",
-          AvroSchemaEncoder.ORG_ID_KEY, org,
-          AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
+          ORG_ID_KEY, org,
+          ORG_METRIC_TYPE_KEY, metrictype);
 //      where = "";
-      String stmt = "SELECT *" + from + where;
-//      stmt = "SELECT * FROM dfs.`" + out1.getAbsolutePath() + "` as t1 FULL JOIN dfs.`" + out2
-//        .getAbsolutePath() + "` as t2 ON t1.companykey = t2.companykey";
+      String stmt = "SELECT companykey" + from + where;
+//      stmt = "SELECT * FROM dfs.`" + out1.getAbsolutePath() + "` as t1 ";
+//      "JOIN dfs.`" + out2.getAbsolutePath() + "` as t2 ON t1.`timestamp` = t2.`timestamp`";
       ResultSet result = conn.createStatement().executeQuery(stmt);
-      assertTrue(result.next());
-      assertEquals(1, result.getInt(AvroSchemaEncoder.TIMESTAMP_KEY));
-//      assertEquals(true, result.getBoolean(fieldname));
-//      assertTrue(result.next());
-//      assertEquals(2, result.getInt("timestamp"));
+      assertNext(result, 1, fieldname);
+      assertNext(result, 2, fieldname);
     }
+  }
+
+  private void assertNext(ResultSet result, int timestamp, String fieldname) throws SQLException {
+    assertTrue(result.next());
+    assertEquals(timestamp, result.getInt(TIMESTAMP_KEY));
+    assertEquals(false, result.getBoolean(fieldname));
   }
 
   private File write(File dir, String org, String metricType, long ts, Map<String, Object> values)
     throws IOException {
     Map<String, Object> json = newHashMap(values);
-    json.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    json.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metricType);
-    json.put(AvroSchemaEncoder.TIMESTAMP_KEY, ts);
+    json.put(ORG_ID_KEY, org);
+    json.put(ORG_METRIC_TYPE_KEY, metricType);
+    json.put(TIMESTAMP_KEY, ts);
 
     File out = new File(dir, format("test-%s-%s.json", ts, UUID.randomUUID()));
     JSON j = JSON.std;

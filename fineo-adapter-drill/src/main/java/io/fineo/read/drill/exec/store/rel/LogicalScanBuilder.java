@@ -9,7 +9,6 @@ import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
-import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -21,25 +20,24 @@ import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
+import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
+import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 
 /**
  * Helper builder for a fineo scan over multiple tables.
  */
 public class LogicalScanBuilder {
 
-  private static final String[] REQUIRED_FIELDS =
-    new String[]{AvroSchemaEncoder.ORG_ID_KEY, AvroSchemaEncoder.ORG_METRIC_TYPE_KEY,
-      AvroSchemaEncoder.TIMESTAMP_KEY};
-  private static final String UNKNOWN_FIELD = "_unknown";
+  private static final List<String> REQUIRED_FIELDS =
+    newArrayList(ORG_ID_KEY, ORG_METRIC_TYPE_KEY);//, TIMESTAMP_KEY);
 
   private final RelBuilder builder;
-  private RelOptTable.ToRelContext context;
   private final RelOptTable relOptTable;
   private final RelOptCluster cluster;
   private int scanCount = 0;
 
   public LogicalScanBuilder(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
-    this.context = context;
     this.cluster = context.getCluster();
     this.relOptTable = relOptTable;
     this.builder = RelBuilder.proto(cluster.getPlanner().getContext())
@@ -56,60 +54,70 @@ public class LogicalScanBuilder {
   public LogicalScanBuilder scan(String... schemaAndTable) {
     RelOptTable table =
       relOptTable.getRelOptSchema().getTableForMember(newArrayList(schemaAndTable));
-    // ensures that the "*" operator is added to the row type
-    table.getRowType().getFieldCount();
     LogicalTableScan scan =
       new LogicalTableScan(cluster, cluster.traitSetOf(Convention.NONE), table);
+    addFields(scan);
     builder.push(scan);
     scanCount++;
     return this;
   }
 
+  private void addFields(LogicalTableScan scan) {
+    // ensures that the "*" operator is added to the row type
+    scan.getRowType().getFieldList();
+    // add the other fields that we are sure are present
+    for (String field : REQUIRED_FIELDS) {
+      scan.getRowType().getField(field, false, false);
+    }
+  }
+
   public RelNode build() {
+    OffsetTracker tracker = new OffsetTracker();
     // join all the sub-tables together on the common keys
-    OffsetTracker offsets = new OffsetTracker();
     for (int i = 0; i < scanCount - 1; i++) {
-      builder.join(JoinRelType.FULL, composeCondition(offsets, AvroSchemaEncoder.ORG_ID_KEY));
+      RexNode equals = composeCondition(tracker, ORG_ID_KEY);
+      builder.join(JoinRelType.INNER, equals);
     }
 
+    // sort by timestamp
+    int index = builder.peek().getRowType().getField(TIMESTAMP_KEY, false, false).getIndex();
+    builder.sort(-index - 1);
     RelNode subscans = builder.build();
     return subscans;
   }
 
-  private RexNode composeCondition(OffsetTracker offsets, String... fieldNames) {
+  private RexNode composeCondition(OffsetTracker tracker, String... fieldNames) {
     RelNode table1 = builder.peek(0);
     RelNode table2 = builder.peek(1);
+
     // build the rex node for the two tables
     final List<RexNode> conditions = new ArrayList<>();
     for (String fieldName : fieldNames) {
       conditions.add(
         builder.call(SqlStdOperatorTable.EQUALS,
-          field(table1, offsets, fieldName),
-          field(table2, offsets, fieldName)));
+          field(table1, fieldName, tracker),
+          field(table2, fieldName, tracker)));
     }
     return RexUtil.composeConjunction(cluster.getRexBuilder(), conditions, false);
   }
 
-  private RexNode field(RelNode table1, OffsetTracker offsets, String fieldName) {
-    int offset = offsets.getOffset(table1);
-    RelDataType row = table1.getRowType();
+  private RexNode field(RelNode table, String fieldName, OffsetTracker offset) {
+    RelDataType row = table.getRowType();
     RelDataTypeField field = row.getField(fieldName, true, false);
     int index = field.getIndex();
-    RexBuilder rexer = cluster.getRexBuilder();
-    return cluster.getRexBuilder().makeInputRef(row, index);
-//    return rexer.makeRangeReference(row, offset + index, false);
+    return cluster.getRexBuilder().makeInputRef(row, index + offset.getOffset(table));
   }
 
   private class OffsetTracker {
-    private Map<RelNode, Integer> offsets = new HashMap<>();
+    private final Map<RelNode, Integer> offsets = new HashMap<>();
     private int nextOffset = 0;
 
-    public Integer getOffset(RelNode node) {
+    public int getOffset(RelNode node) {
       Integer offset = offsets.get(node);
       if (offset == null) {
         offset = nextOffset;
         offsets.put(node, offset);
-        nextOffset += node.getRowType().getFieldList().size();
+        nextOffset = node.getRowType().getFieldCount();
       }
       return offset;
     }
