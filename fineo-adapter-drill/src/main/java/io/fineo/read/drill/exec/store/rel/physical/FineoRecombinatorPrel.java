@@ -21,12 +21,7 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
 
   private final Map<String, List<String>> cnameMap;
 
-  public FineoRecombinatorPrel(RelOptCluster cluster,
-    RelTraitSet traits, FineoRecombinatorRel from) {
-    this(cluster, traits, from.getInput(), from.getCnameToAlias());
-  }
-
-  private FineoRecombinatorPrel(RelOptCluster cluster, RelTraitSet traits, RelNode input,
+  public FineoRecombinatorPrel(RelOptCluster cluster, RelTraitSet traits, RelNode input,
     Map<String, List<String>> cnameMap) {
     super(cluster, traits, input);
     this.cnameMap = cnameMap;
@@ -43,7 +38,8 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
 
   @Override
   public BatchSchema.SelectionVectorMode getEncoding() {
-    return null;
+    // i guess we just use whatever the child is returning...
+    return ((Prel) this.getInput()).getEncoding();
   }
 
   @Override

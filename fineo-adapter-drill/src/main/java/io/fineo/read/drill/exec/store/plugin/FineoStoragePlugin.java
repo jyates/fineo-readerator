@@ -55,7 +55,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
     // RelStructuredTypeFlattener#rewriteRel for drill, but that only works for cases where
     // there is a standard DrillTable. Since we aren't a real table we have to do the conversion
     // here, as early as possible in the loop
-    rules.put(PlannerPhase.DIRECTORY_PRUNING, new RelOptRule(operand(LogicalTableScan.class, any()),
+    rules.put(PlannerPhase.LOGICAL, new RelOptRule(operand(LogicalTableScan.class, any()),
       "LogicalTableScanToEnumerable_Replace_RelStructuredTypeFlattener") {
       @Override
       public void onMatch(RelOptRuleCall call) {

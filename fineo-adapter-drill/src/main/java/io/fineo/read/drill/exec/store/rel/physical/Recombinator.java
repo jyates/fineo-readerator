@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.rel.physical;
 
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import org.apache.drill.exec.physical.base.AbstractPhysicalVisitor;
 import org.apache.drill.exec.physical.base.AbstractSingle;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.base.PhysicalVisitor;
@@ -26,7 +27,7 @@ public class Recombinator extends AbstractSingle {
   @Override
   public <T, X, E extends Throwable> T accept(PhysicalVisitor<T, X, E> physicalVisitor, X value)
     throws E {
-    return null;
+    return physicalVisitor.visitOp(this, value);
   }
 
   @Override

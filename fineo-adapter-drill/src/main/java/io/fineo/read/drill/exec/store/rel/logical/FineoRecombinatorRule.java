@@ -8,6 +8,7 @@ import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rex.RexCall;
@@ -66,16 +67,14 @@ public class FineoRecombinatorRule extends RelOptRule {
     AvroSchemaManager schema = new AvroSchemaManager(store, metricLookup.get(ORG_ID_KEY));
     Metric metric = schema.getMetricInfo(metricLookup.get(ORG_METRIC_TYPE_KEY));
 
-    final RelTraitSet traits = frr.getTraitSet().plus(DrillRel.DRILL_LOGICAL);
+    // now we should point to a logical set
+    final RelNode convertedInput =
+      convert(frr.getInput(), frr.getInput().getTraitSet().plus(DrillRel.DRILL_LOGICAL));
     FineoRecombinatorRel rel =
-      new FineoRecombinatorRel(frr.getCluster(), traits, frr.getInput(), metric);
+      new FineoRecombinatorRel(frr.getCluster(), convertedInput.getTraitSet(), convertedInput,
+        metric);
 
-    // build a new instance, this time
-    filter =
-      new LogicalFilter(filter.getCluster(), filter.getTraitSet(), rel, filter.getCondition());
-    project =
-      new LogicalProject(project.getCluster(), project.getTraitSet(), filter, project.getProjects(),
-        project.getRowType());
+    filter.replaceInput(0, rel);
     call.transformTo(project);
   }
 

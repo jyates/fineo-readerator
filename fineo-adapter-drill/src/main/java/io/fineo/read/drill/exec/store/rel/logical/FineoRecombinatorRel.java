@@ -42,12 +42,6 @@ public class FineoRecombinatorRel extends SingleRel implements DrillRel {
   }
 
   @Override
-  public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    // alwways cheaper to use the recombinator, since its necessary
-    return super.computeSelfCost(planner).multiplyBy(.1);
-  }
-
-  @Override
   public LogicalOperator implement(DrillImplementor implementor) {
     final LogicalOperator input = implementor.visitChild(this, 0, getInput());
     FineoRecombinatorLogicalOperator op = new FineoRecombinatorLogicalOperator(cnameToAlias);
