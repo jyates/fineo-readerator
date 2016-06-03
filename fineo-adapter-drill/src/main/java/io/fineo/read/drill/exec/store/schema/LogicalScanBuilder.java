@@ -83,6 +83,7 @@ public class LogicalScanBuilder {
 //    int index = builder.peek().getRowType().getField(TIMESTAMP_KEY, false, false).getIndex();
 //    builder.sort(-index - 1);
     RelNode subscans = builder.build();
+//    return subscans;
     return new FineoRecombinatorMarkerRel(store, subscans, subscans.getRowType());
   }
 

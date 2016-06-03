@@ -3,6 +3,7 @@ package io.fineo.read.drill.exec.store.rel.physical;
 import io.fineo.read.drill.exec.store.rel.logical.FineoRecombinatorRel;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelNode;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.planner.physical.PhysicalPlanCreator;
 import org.apache.drill.exec.planner.physical.Prel;
@@ -22,8 +23,13 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
 
   public FineoRecombinatorPrel(RelOptCluster cluster,
     RelTraitSet traits, FineoRecombinatorRel from) {
-    super(cluster, traits, from.getInput());
-    this.cnameMap = from.getCnameToAlias();
+    this(cluster, traits, from.getInput(), from.getCnameToAlias());
+  }
+
+  private FineoRecombinatorPrel(RelOptCluster cluster, RelTraitSet traits, RelNode input,
+    Map<String, List<String>> cnameMap) {
+    super(cluster, traits, input);
+    this.cnameMap = cnameMap;
   }
 
   @Override
@@ -38,5 +44,10 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
   @Override
   public BatchSchema.SelectionVectorMode getEncoding() {
     return null;
+  }
+
+  @Override
+  public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+    return new FineoRecombinatorPrel(getCluster(), traitSet, SinglePrel.sole(inputs), cnameMap);
   }
 }

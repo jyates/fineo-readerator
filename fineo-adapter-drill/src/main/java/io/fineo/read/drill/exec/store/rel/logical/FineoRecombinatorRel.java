@@ -2,6 +2,8 @@ package io.fineo.read.drill.exec.store.rel.logical;
 
 import io.fineo.internal.customer.Metric;
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptCost;
+import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.SingleRel;
@@ -30,8 +32,19 @@ public class FineoRecombinatorRel extends SingleRel implements DrillRel {
    */
   protected FineoRecombinatorRel(RelOptCluster cluster,
     RelTraitSet traits, RelNode input, Metric metric) {
+    this(cluster, traits, input, metric.getMetadata().getCanonicalNamesToAliases());
+  }
+
+  private FineoRecombinatorRel(RelOptCluster cluster,
+    RelTraitSet traits, RelNode input, Map<String, List<String>> map) {
     super(cluster, traits, input);
-    this.cnameToAlias = metric.getMetadata().getCanonicalNamesToAliases();
+    this.cnameToAlias = map;
+  }
+
+  @Override
+  public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    // alwways cheaper to use the recombinator, since its necessary
+    return super.computeSelfCost(planner).multiplyBy(.1);
   }
 
   @Override
@@ -44,5 +57,11 @@ public class FineoRecombinatorRel extends SingleRel implements DrillRel {
 
   public Map<String, List<String>> getCnameToAlias() {
     return this.cnameToAlias;
+  }
+
+  @Override
+  public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+    return new FineoRecombinatorRel(this.getCluster(), traitSet, SingleRel.sole(inputs),
+      cnameToAlias);
   }
 }

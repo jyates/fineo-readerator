@@ -71,9 +71,11 @@ public class FineoRecombinatorRule extends RelOptRule {
       new FineoRecombinatorRel(frr.getCluster(), traits, frr.getInput(), metric);
 
     // build a new instance, this time
-    filter = filter.copy(filter.getTraitSet(), rel, filter.getCondition());
+    filter =
+      new LogicalFilter(filter.getCluster(), filter.getTraitSet(), rel, filter.getCondition());
     project =
-      project.copy(project.getTraitSet(), filter, project.getProjects(), project.getRowType());
+      new LogicalProject(project.getCluster(), project.getTraitSet(), filter, project.getProjects(),
+        project.getRowType());
     call.transformTo(project);
   }
 
