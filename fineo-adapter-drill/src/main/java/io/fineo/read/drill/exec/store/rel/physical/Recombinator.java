@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.rel.physical;
 
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import io.fineo.internal.customer.Metric;
 import org.apache.drill.exec.physical.base.AbstractPhysicalVisitor;
 import org.apache.drill.exec.physical.base.AbstractSingle;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
@@ -12,16 +13,16 @@ import java.util.Map;
 @JsonTypeName("fineo-recomb")
 public class Recombinator extends AbstractSingle {
 
-  private final Map<String, List<String>> map;
+  private Metric metric;
 
-  public Recombinator(PhysicalOperator child, Map<String, List<String>> map) {
+  public Recombinator(PhysicalOperator child, Metric metric) {
     super(child);
-    this.map = map;
+    this.metric = metric;
   }
 
   @Override
   protected PhysicalOperator getNewWithChild(PhysicalOperator child) {
-    return new Recombinator(child, map);
+    return new Recombinator(child, metric);
   }
 
   @Override
@@ -36,7 +37,7 @@ public class Recombinator extends AbstractSingle {
     return 1001;
   }
 
-  public Map<String, List<String>> getMap() {
-    return map;
+  public Metric getMetric() {
+    return metric;
   }
 }

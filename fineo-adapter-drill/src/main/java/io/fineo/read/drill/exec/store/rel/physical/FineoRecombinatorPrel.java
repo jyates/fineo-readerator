@@ -1,6 +1,6 @@
 package io.fineo.read.drill.exec.store.rel.physical;
 
-import io.fineo.read.drill.exec.store.rel.logical.FineoRecombinatorRel;
+import io.fineo.internal.customer.Metric;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
@@ -12,19 +12,18 @@ import org.apache.drill.exec.record.BatchSchema;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Physical representation of a recombinator
  */
 public class FineoRecombinatorPrel extends SinglePrel implements Prel {
 
-  private final Map<String, List<String>> cnameMap;
+  private final Metric metric;
 
   public FineoRecombinatorPrel(RelOptCluster cluster, RelTraitSet traits, RelNode input,
-    Map<String, List<String>> cnameMap) {
+    Metric metric) {
     super(cluster, traits, input);
-    this.cnameMap = cnameMap;
+    this.metric  = metric;
   }
 
   @Override
@@ -32,7 +31,7 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
     Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
-    Recombinator op = new Recombinator(childPOP, cnameMap);
+    Recombinator op = new Recombinator(childPOP, metric);
     return creator.addMetadata(this, op);
   }
 
@@ -44,6 +43,6 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return new FineoRecombinatorPrel(getCluster(), traitSet, SinglePrel.sole(inputs), cnameMap);
+    return new FineoRecombinatorPrel(getCluster(), traitSet, SinglePrel.sole(inputs), metric);
   }
 }

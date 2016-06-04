@@ -2,6 +2,8 @@ package io.fineo.read.drill.exec.store.rel.logical;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.base.Preconditions;
+import io.fineo.internal.customer.Metric;
 import org.apache.drill.common.logical.data.SingleInputOperator;
 import org.apache.drill.common.logical.data.visitors.AbstractLogicalVisitor;
 import org.apache.drill.common.logical.data.visitors.LogicalVisitor;
@@ -16,16 +18,15 @@ import java.util.Map;
 @JsonTypeName("fineo-recombinator")
 public class FineoRecombinatorLogicalOperator extends SingleInputOperator {
 
+  private final Metric metric;
+  // managed by JSON ser/de and used for mapping fragments
   private Map<String, List<String>> cnameToAlias;
 
   @JsonCreator
   public FineoRecombinatorLogicalOperator(
-    @JsonProperty("cnameMap") Map<String, List<String>> cnameToAlias) {
-    this.cnameToAlias = cnameToAlias;
-    if (cnameToAlias == null || cnameToAlias.size() == 0) {
-      throw new IllegalArgumentException(
-        "No canonical name -> alias mapping provided. Expect at least one field to be mapped");
-    }
+    @JsonProperty("cnameMap") Metric metric) {
+    this.metric = metric;
+    Preconditions.checkNotNull(metric, "No metric found for mapping!");
   }
 
   @Override

@@ -6,7 +6,6 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
 import org.apache.drill.exec.planner.physical.DrillDistributionTrait;
-import org.apache.drill.exec.planner.physical.FilterPrule;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.planner.physical.Prule;
 
@@ -29,6 +28,6 @@ public class FineoRecombinatorPrule extends Prule {
                                   .plus(DrillDistributionTrait.SINGLETON);
     RelNode convertedInput = convert(rel.getInput(), traits);
     call.transformTo(
-      new FineoRecombinatorPrel(rel.getCluster(), traits, convertedInput, rel.getCnameToAlias()));
+      new FineoRecombinatorPrel(rel.getCluster(), traits, convertedInput, rel.getMetric()));
   }
 }

@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store.schema;
 
+import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.FineoRecombinatorMarkerRel;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.plan.Convention;
@@ -22,16 +23,11 @@ import java.util.Map;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 
 /**
  * Helper builder for a fineo scan over multiple tables.
  */
 public class LogicalScanBuilder {
-
-  private static final List<String> REQUIRED_FIELDS =
-    newArrayList(ORG_ID_KEY, ORG_METRIC_TYPE_KEY);//, TIMESTAMP_KEY);
 
   private final RelBuilder builder;
   private final RelOptTable relOptTable;
@@ -67,7 +63,7 @@ public class LogicalScanBuilder {
     // ensures that the "*" operator is added to the row type
     scan.getRowType().getFieldList();
     // add the other fields that we are sure are present
-    for (String field : REQUIRED_FIELDS) {
+    for (String field : FineoCommon.REQUIRED_FIELDS) {
       scan.getRowType().getField(field, false, false);
     }
   }

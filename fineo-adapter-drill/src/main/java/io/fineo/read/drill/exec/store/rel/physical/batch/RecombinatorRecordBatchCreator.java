@@ -1,11 +1,10 @@
-package io.fineo.read.drill.exec.store.rel.physical;
+package io.fineo.read.drill.exec.store.rel.physical.batch;
 
 import com.google.common.collect.Iterables;
+import io.fineo.read.drill.exec.store.rel.physical.Recombinator;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.exec.ops.FragmentContext;
-import org.apache.drill.exec.physical.config.ProducerConsumer;
 import org.apache.drill.exec.physical.impl.BatchCreator;
-import org.apache.drill.exec.physical.impl.producer.ProducerConsumerBatch;
 import org.apache.drill.exec.record.RecordBatch;
 
 import java.util.List;
