@@ -3,7 +3,6 @@ package io.fineo.read.drill.exec.store.rel.physical.batch;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.physical.Recombinator;
-import io.fineo.schema.Pair;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.avro.AvroSchemaManager;
 import org.apache.avro.Schema;
@@ -19,7 +18,6 @@ import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.vector.ValueVector;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +27,6 @@ import java.util.Map;
 public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombinator> {
 
   private final Map<String, List<String>> cnameToAlias;
-  private final Map<String, String> aliasToCname;
   private Schema metricSchema;
   private boolean builtSchema;
   private BatchSchema previousSchema;
@@ -42,7 +39,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     // parse out the things we actually care about
     Metric metric = popConfig.getMetric();
     this.cnameToAlias = metric.getMetadata().getCanonicalNamesToAliases();
-    this.aliasToCname = AvroSchemaManager.getAliasRemap(metric);
     this.metricSchema = new Schema.Parser().parse(metric.getMetricSchema());
   }
 
@@ -58,12 +54,16 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     if (!builtSchema) {
       // buildSchema() is only used the first time in AbstractBatchRecord and only when creating
       createSchema();
+      // build the resulting schema
+      container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
       this.builtSchema = true;
     }
 
-    // build the resulting schema
-    container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
-    return true;
+    // add the new fields to the mapper
+    BatchSchema inSchema = incoming.getSchema();
+    combinator.updateSchema(inSchema);
+
+    return false;
   }
 
   protected void createSchema() throws SchemaChangeException {
@@ -76,17 +76,20 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         type = Types.optional(TypeProtos.MinorType.TIMESTAMP);
       }
       addField(field, type);
+      this.combinator.addField(field, field);
     }
 
     // add a map type field for unknown columns
     TypeProtos.MajorType type = Types.optional(TypeProtos.MinorType.MAP);
     addField(FineoCommon.MAP_FIELD, type);
+    this.combinator.addField((String)null, FineoCommon.MAP_FIELD);
 
     // we know that the first value in the alias map is actually the user visible name right now.
-    for (Pair<String, String> cnameToUserName : (Iterable<Pair<String, String>>) () ->
-      cnameToAlias.entrySet().stream()
-                  .map(entry -> new Pair<>(entry.getKey(), entry.getValue().get(0))).iterator()) {
-      addField(cnameToUserName.getValue(), getFieldType(cnameToUserName.getKey()));
+    for (Map.Entry<String, List<String>> entry : cnameToAlias.entrySet()) {
+      String cname = entry.getKey();
+      String alias = entry.getValue().get(0);
+      addField(alias, getFieldType(cname));
+      this.combinator.addField(entry.getValue(), alias);
     }
   }
 
@@ -130,6 +133,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
   @Override
   public int getRecordCount() {
-    return 0;
+    return incoming.getRecordCount();
   }
 }

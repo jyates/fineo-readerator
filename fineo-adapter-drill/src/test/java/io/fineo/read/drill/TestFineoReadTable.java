@@ -86,7 +86,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
           ORG_METRIC_TYPE_KEY, metrictype);
 //      where = "";
       String stmt = "SELECT *" + from + where;
-      stmt = "SELECT * FROM dfs.`" + out1.getAbsolutePath() + "` as t1 ";
+//      stmt = "SELECT * FROM dfs.`" + out1.getAbsolutePath() + "` as t1 ";
 //      "JOIN dfs.`" + out2.getAbsolutePath() + "` as t2 ON t1.`timestamp` = t2.`timestamp`";
       ResultSet result = conn.createStatement().executeQuery(stmt);
       assertNext(result, 1, fieldname);
