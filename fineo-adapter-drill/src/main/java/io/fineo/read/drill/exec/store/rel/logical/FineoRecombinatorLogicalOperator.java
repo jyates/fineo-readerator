@@ -4,11 +4,14 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import io.fineo.internal.customer.Metric;
+import io.fineo.read.drill.exec.store.rel.MetricUtils;
 import org.apache.drill.common.logical.data.SingleInputOperator;
 import org.apache.drill.common.logical.data.visitors.AbstractLogicalVisitor;
 import org.apache.drill.common.logical.data.visitors.LogicalVisitor;
+import org.apache.htrace.fasterxml.jackson.annotation.JsonGetter;
 import org.apache.htrace.fasterxml.jackson.annotation.JsonTypeName;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -19,14 +22,21 @@ import java.util.Map;
 public class FineoRecombinatorLogicalOperator extends SingleInputOperator {
 
   private final Metric metric;
-  // managed by JSON ser/de and used for mapping fragments
-  private Map<String, List<String>> cnameToAlias;
 
   @JsonCreator
   public FineoRecombinatorLogicalOperator(
-    @JsonProperty("cnameMap") Metric metric) {
+    @JsonProperty("metric") String metric) throws IOException {
+    this(MetricUtils.parseMetric(metric));
+  }
+
+  public FineoRecombinatorLogicalOperator(Metric metric) {
     this.metric = metric;
     Preconditions.checkNotNull(metric, "No metric found for mapping!");
+  }
+
+  @JsonGetter("metric")
+  public String getMetric() throws IOException {
+    return MetricUtils.getMetricString(metric);
   }
 
   @Override

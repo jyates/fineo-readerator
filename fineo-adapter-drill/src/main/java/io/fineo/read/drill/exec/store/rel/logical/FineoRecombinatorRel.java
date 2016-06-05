@@ -9,6 +9,7 @@ import org.apache.drill.common.logical.data.LogicalOperator;
 import org.apache.drill.exec.planner.logical.DrillImplementor;
 import org.apache.drill.exec.planner.logical.DrillRel;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -36,7 +37,8 @@ public class FineoRecombinatorRel extends SingleRel implements DrillRel {
   @Override
   public LogicalOperator implement(DrillImplementor implementor) {
     final LogicalOperator input = implementor.visitChild(this, 0, getInput());
-    FineoRecombinatorLogicalOperator op = new FineoRecombinatorLogicalOperator(metric);
+    FineoRecombinatorLogicalOperator op = null;
+    op = new FineoRecombinatorLogicalOperator(metric);
     op.setInput(input);
     return op;
   }

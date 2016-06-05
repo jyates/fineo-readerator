@@ -4,7 +4,6 @@ import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.physical.Recombinator;
 import io.fineo.schema.avro.AvroSchemaEncoder;
-import io.fineo.schema.avro.AvroSchemaManager;
 import org.apache.avro.Schema;
 import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.types.Types;
@@ -37,7 +36,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     OutOfMemoryException {
     super(popConfig, context, incoming);
     // parse out the things we actually care about
-    Metric metric = popConfig.getMetric();
+    Metric metric = popConfig.getMetricObj();
     this.cnameToAlias = metric.getMetadata().getCanonicalNamesToAliases();
     this.metricSchema = new Schema.Parser().parse(metric.getMetricSchema());
   }
