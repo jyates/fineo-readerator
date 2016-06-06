@@ -20,6 +20,8 @@ import org.apache.drill.exec.vector.ValueVector;
 import java.util.List;
 import java.util.Map;
 
+import static com.google.common.collect.Lists.newArrayList;
+
 /**
  * Do the actual work of transforming input records to the expected customer type
  */
@@ -39,6 +41,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     Metric metric = popConfig.getMetricObj();
     this.cnameToAlias = metric.getMetadata().getCanonicalNamesToAliases();
     this.metricSchema = new Schema.Parser().parse(metric.getMetricSchema());
+    this.combinator = new Combinator();
   }
 
   /**
@@ -50,6 +53,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
    */
   @Override
   protected boolean setupNewSchema() throws SchemaChangeException {
+    boolean hadSchema = this.builtSchema;
     if (!builtSchema) {
       // buildSchema() is only used the first time in AbstractBatchRecord and only when creating
       createSchema();
@@ -62,45 +66,52 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     BatchSchema inSchema = incoming.getSchema();
     combinator.updateSchema(inSchema);
 
-    return false;
+    return hadSchema ^ builtSchema;
   }
 
   protected void createSchema() throws SchemaChangeException {
     container.clear();
     // required fields
     for (String field : FineoCommon.REQUIRED_FIELDS) {
-
       TypeProtos.MajorType type = Types.optional(TypeProtos.MinorType.VARCHAR);
       if (field.equals(AvroSchemaEncoder.TIMESTAMP_KEY)) {
         type = Types.optional(TypeProtos.MinorType.TIMESTAMP);
       }
-      addField(field, type);
-      this.combinator.addField(field, field);
+      addField(field, field, type);
     }
 
     // add a map type field for unknown columns
     TypeProtos.MajorType type = Types.optional(TypeProtos.MinorType.MAP);
-    addField(FineoCommon.MAP_FIELD, type);
-    this.combinator.addField((String)null, FineoCommon.MAP_FIELD);
+    addField((String) null, FineoCommon.MAP_FIELD, type);
 
     // we know that the first value in the alias map is actually the user visible name right now.
     for (Map.Entry<String, List<String>> entry : cnameToAlias.entrySet()) {
       String cname = entry.getKey();
+      if (cname.equals("baseFields")) {
+        continue;
+      }
       String alias = entry.getValue().get(0);
-      addField(alias, getFieldType(cname));
-      this.combinator.addField(entry.getValue(), alias);
+      addField(entry.getValue(), alias, getFieldType(cname));
     }
   }
 
-  private void addField(String field, TypeProtos.MajorType type) {
+  private void addField(String alias, String field, TypeProtos.MajorType type) {
+    List<String> aliases = alias == null ? null : newArrayList(alias);
+    addField(aliases, field, type);
+  }
+
+  private void addField(List<String> aliases, String field, TypeProtos.MajorType type) {
     MaterializedField mat = MaterializedField.create(field, type);
     ValueVector v = TypeHelper.getNewVector(mat, oContext.getAllocator(), callBack);
     container.add(v);
+    this.combinator.addField(aliases, field);
   }
 
   private TypeProtos.MajorType getFieldType(String cname) throws SchemaChangeException {
+    // this is pretty ugly that we just leave this out here. It really should be better encapsulated
+    // in the schema project... but we can do that later. #startup
     Schema.Field field = this.metricSchema.getField(cname);
-    Schema.Type type = field.schema().getType();
+    Schema.Type type = field.schema().getField("value").schema().getType();
     switch (type) {
       case STRING:
         return Types.optional(TypeProtos.MinorType.VARCHAR);

@@ -26,9 +26,23 @@ public class Combinator {
     fieldMapping.put(inputName, outputName);
   }
 
-  public void addField(List<String> inputName, String outputName){
-    for(String in: inputName){
+  public void addField(List<String> inputName, String outputName) {
+    // manage fields that we don't know about
+    if (inputName == null) {
+      addField((String) null, outputName);
+      return;
+    }
+    for (String in : inputName) {
       addField(in, outputName);
     }
+  }
+
+  private String getOutputName(String incoming) {
+    String value = this.fieldMapping.get(incoming);
+    // unknown field type
+    if (value == null) {
+      value = this.fieldMapping.get(null);
+    }
+    return value;
   }
 }

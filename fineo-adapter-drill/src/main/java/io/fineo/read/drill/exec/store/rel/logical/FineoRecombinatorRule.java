@@ -74,7 +74,11 @@ public class FineoRecombinatorRule extends RelOptRule {
       new FineoRecombinatorRel(frr.getCluster(), convertedInput.getTraitSet(), convertedInput,
         metric);
 
-    filter.replaceInput(0, rel);
+    // rebuild the tree above us. We cannot use the existing stack b/c the subsets are messed up.
+    // However, when we point to frr's input, a LOGICAL RelSubset, we are pointing to an equivalence
+    // of the FRMR's subset.
+    filter = LogicalFilter.create(rel, filter.getCondition());
+    project = LogicalProject.create(filter, project.getProjects(), project.getRowType());
     call.transformTo(project);
   }
 
