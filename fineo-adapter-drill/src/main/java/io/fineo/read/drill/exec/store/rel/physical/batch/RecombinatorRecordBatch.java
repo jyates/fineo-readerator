@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store.rel.physical.batch;
 
+import com.google.common.base.Preconditions;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.physical.Recombinator;
@@ -9,16 +10,20 @@ import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.types.Types;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.exception.SchemaChangeException;
-import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.ops.FragmentContext;
+import org.apache.drill.exec.planner.StarColumnHelper;
 import org.apache.drill.exec.record.AbstractSingleRecordBatch;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.TransferPair;
+import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.ValueVector;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -27,11 +32,13 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombinator> {
 
+  private static final String CATCH_ALL_MAP = null;
   private final Map<String, List<String>> cnameToAlias;
   private Schema metricSchema;
   private boolean builtSchema;
-  private BatchSchema previousSchema;
-  private Combinator combinator;
+  private FieldTransferMapper transferMapper;
+  private List<TransferPair> transfers;
+  private List<ValueVector> vectors = new ArrayList<>();
 
   protected RecombinatorRecordBatch(final Recombinator popConfig, final FragmentContext context,
     final RecordBatch incoming) throws
@@ -41,7 +48,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     Metric metric = popConfig.getMetricObj();
     this.cnameToAlias = metric.getMetadata().getCanonicalNamesToAliases();
     this.metricSchema = new Schema.Parser().parse(metric.getMetricSchema());
-    this.combinator = new Combinator();
+    this.transferMapper = new FieldTransferMapper();
   }
 
   /**
@@ -62,27 +69,73 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       this.builtSchema = true;
     }
 
-    // add the new fields to the mapper
-    BatchSchema inSchema = incoming.getSchema();
-    combinator.updateSchema(inSchema);
+    this.transfers = this.transferMapper.prepareTransfers(incoming);
+
+    // TODO change the output type when the underlying schema fields change
 
     return hadSchema ^ builtSchema;
   }
 
   protected void createSchema() throws SchemaChangeException {
     container.clear();
+    // figure out what the table prefix is from the sub-table
+    BatchSchema inschema = incoming.getSchema();
+    String prefix = null;
+    for (MaterializedField f : inschema) {
+      String name = f.getName();
+      if (name.contains(StarColumnHelper.PREFIX_DELIMITER)) {
+        prefix = name.substring(0, name.indexOf(StarColumnHelper.PREFIX_DELIMITER));
+        break;
+      }
+    }
+    Preconditions.checkArgument(prefix != null,
+      "No dynamic table prefix (column starting with TXX%s) from incoming schema: %s",
+      StarColumnHelper.PREFIX_DELIMITER, inschema);
+
+    List<FieldEntry> entries = getRawFieldNames();
+    // we have to add each entry with and without the dynamic prefix so it gets unwrapped later by
+    // the Project inserted by the StarColumnConverter, but also keep the "original" output field
+    // names so we can match them to downstream filters which still use the simple names, rather
+    // than input field references
+    prefix += StarColumnHelper.PREFIX_DELIMITER;
+    addFields(entries, prefix);
+    addFields(entries, "");
+  }
+
+  private void addFields(List<FieldEntry> entries, String prefix) {
+    for (FieldEntry field : entries) {
+      TypeProtos.MajorType type = field.getType();
+      List<String> aliases = field.getAliasNames();
+      String fieldName = prefix + field.getOutputName();
+      MaterializedField mat = MaterializedField.create(fieldName, type);
+      ValueVector v = container.addOrGet(mat, callBack);
+      this.vectors.add(v);
+
+      // aliases need to also be converted to the prefix
+      if (aliases != null) {
+        aliases = aliases.stream().map(alias -> prefix + alias).collect(Collectors.toList());
+        // field should map to itself in cases where we store the client-visible field name
+        aliases.add(fieldName);
+      }
+      this.transferMapper.addField(aliases, v);
+    }
+  }
+
+  private List<FieldEntry> getRawFieldNames() throws SchemaChangeException {
+    // build list of fields that we need to add
+    List<FieldEntry> entries = new ArrayList<>();
     // required fields
     for (String field : FineoCommon.REQUIRED_FIELDS) {
       TypeProtos.MajorType type = Types.optional(TypeProtos.MinorType.VARCHAR);
       if (field.equals(AvroSchemaEncoder.TIMESTAMP_KEY)) {
-        type = Types.optional(TypeProtos.MinorType.TIMESTAMP);
+        type = Types.optional(TypeProtos.MinorType.BIGINT);
       }
-      addField(field, field, type);
+      entries.add(new FieldEntry(field, type));
     }
 
     // add a map type field for unknown columns
     TypeProtos.MajorType type = Types.optional(TypeProtos.MinorType.MAP);
-    addField((String) null, FineoCommon.MAP_FIELD, type);
+    entries.add(new FieldEntry(FineoCommon.MAP_FIELD, type, false));
 
     // we know that the first value in the alias map is actually the user visible name right now.
     for (Map.Entry<String, List<String>> entry : cnameToAlias.entrySet()) {
@@ -91,20 +144,41 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         continue;
       }
       String alias = entry.getValue().get(0);
-      addField(entry.getValue(), alias, getFieldType(cname));
+      entries.add(new FieldEntry(alias, getFieldType(cname), entry.getValue()));
     }
+    return entries;
   }
 
-  private void addField(String alias, String field, TypeProtos.MajorType type) {
-    List<String> aliases = alias == null ? null : newArrayList(alias);
-    addField(aliases, field, type);
-  }
+  public class FieldEntry {
+    private String outputName;
+    private List<String> aliasName;
+    private TypeProtos.MajorType type;
 
-  private void addField(List<String> aliases, String field, TypeProtos.MajorType type) {
-    MaterializedField mat = MaterializedField.create(field, type);
-    ValueVector v = TypeHelper.getNewVector(mat, oContext.getAllocator(), callBack);
-    container.add(v);
-    this.combinator.addField(aliases, field);
+    public FieldEntry(String field, TypeProtos.MajorType type) {
+      this(field, type, true);
+    }
+
+    public FieldEntry(String field, TypeProtos.MajorType type, boolean hasAlias) {
+      this(field, type, hasAlias ? newArrayList(field) : null);
+    }
+
+    public FieldEntry(String outputName, TypeProtos.MajorType type, List<String> aliasNames) {
+      this.outputName = outputName;
+      this.aliasName = aliasNames;
+      this.type = type;
+    }
+
+    public String getOutputName() {
+      return outputName;
+    }
+
+    public List<String> getAliasNames() {
+      return aliasName;
+    }
+
+    public TypeProtos.MajorType getType() {
+      return type;
+    }
   }
 
   private TypeProtos.MajorType getFieldType(String cname) throws SchemaChangeException {
@@ -137,7 +211,22 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
   @Override
   protected IterOutcome doWork() {
     int incomingRecordCount = incoming.getRecordCount();
-    this.combinator.combine(incomingRecordCount);
+
+    // ensure that we have a place to put the data we are about to pass along
+    for (ValueVector v : vectors) {
+      AllocationHelper.allocateNew(v, incomingRecordCount);
+    }
+
+    for (int i = 0; i < incomingRecordCount; i++) {
+      this.transferMapper.combine(i);
+    }
+
+
+    // claim ownership of all the underlying vectors
+    for (TransferPair pair : transfers) {
+      pair.transfer();
+    }
+
     return IterOutcome.OK;
   }
 
