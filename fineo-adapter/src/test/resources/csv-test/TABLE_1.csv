@@ -1,2 +1,0 @@
-COMPANYKEY:string,METRICTYPE:string,FIELD1:boolean,TIMESTAMP:long
-orgid1,metricid1,true,12345
