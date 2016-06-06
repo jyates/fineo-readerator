@@ -66,7 +66,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
     });
 
 
-    // transform FRRM -> FRR
+    // transform FRMR -> FRR
     rules.put(PlannerPhase.LOGICAL, new FineoRecombinatorRule());
     // transform FRR -> FRPr
     rules.put(PlannerPhase.PHYSICAL, new FineoRecombinatorPrule());
