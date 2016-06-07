@@ -5,11 +5,11 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.SingleRel;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.drill.common.logical.data.LogicalOperator;
 import org.apache.drill.exec.planner.logical.DrillImplementor;
 import org.apache.drill.exec.planner.logical.DrillRel;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -27,18 +27,19 @@ public class FineoRecombinatorRel extends SingleRel implements DrillRel {
    * @param traits
    * @param input   Input relational expression
    * @param metric
+   * @param rowType
    */
   protected FineoRecombinatorRel(RelOptCluster cluster,
-    RelTraitSet traits, RelNode input, Metric metric) {
+    RelTraitSet traits, RelNode input, Metric metric, RelDataType rowType) {
     super(cluster, traits, input);
     this.metric = metric;
+    this.rowType = rowType;
   }
 
   @Override
   public LogicalOperator implement(DrillImplementor implementor) {
     final LogicalOperator input = implementor.visitChild(this, 0, getInput());
-    FineoRecombinatorLogicalOperator op = null;
-    op = new FineoRecombinatorLogicalOperator(metric);
+    FineoRecombinatorLogicalOperator op = new FineoRecombinatorLogicalOperator(metric);
     op.setInput(input);
     return op;
   }
@@ -49,6 +50,7 @@ public class FineoRecombinatorRel extends SingleRel implements DrillRel {
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return new FineoRecombinatorRel(this.getCluster(), traitSet, SingleRel.sole(inputs), metric);
+    return new FineoRecombinatorRel(this.getCluster(), traitSet, SingleRel.sole(inputs), metric,
+      rowType);
   }
 }

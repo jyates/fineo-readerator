@@ -74,13 +74,14 @@ public class FineoRecombinatorRule extends RelOptRule {
     RelBuilder builder = RelBuilder.proto(call.getPlanner().getContext())
                                    .create(project.getCluster(), frr.getRelSchema());
 
+    RelDataType rowType = frr.getRowType();
     // each input is wrapped with an FRR to normalize output types
     int scanCount = 0;
     for (RelNode relNode : frr.getInputs()) {
       RelNode convertedInput = convert(relNode, relNode.getTraitSet().plus(DrillRel.DRILL_LOGICAL));
       FineoRecombinatorRel rel =
         new FineoRecombinatorRel(frr.getCluster(), convertedInput.getTraitSet(), convertedInput,
-          metric);
+          metric, rowType);
       builder.push(rel);
       scanCount++;
     }

@@ -4,6 +4,7 @@ import io.fineo.internal.customer.Metric;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.planner.physical.PhysicalPlanCreator;
 import org.apache.drill.exec.planner.physical.Prel;
@@ -21,9 +22,10 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
   private final Metric metric;
 
   public FineoRecombinatorPrel(RelOptCluster cluster, RelTraitSet traits, RelNode input,
-    Metric metric) {
+    Metric metric, RelDataType rowType) {
     super(cluster, traits, input);
-    this.metric  = metric;
+    this.metric = metric;
+    this.rowType = rowType;
   }
 
   @Override
@@ -43,6 +45,7 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return new FineoRecombinatorPrel(getCluster(), traitSet, SinglePrel.sole(inputs), metric);
+    return new FineoRecombinatorPrel(getCluster(), traitSet, SinglePrel.sole(inputs), metric,
+      getRowType());
   }
 }
