@@ -17,7 +17,10 @@ import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
+import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.ValueVector;
+import org.apache.drill.exec.vector.complex.MapVector;
+import org.apache.drill.exec.vector.complex.impl.SingleMapWriter;
 import org.apache.drill.exec.vector.complex.writer.BaseWriter;
 
 import java.util.ArrayList;
@@ -40,7 +43,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
   private FieldTransferMapper transferMapper;
   private List<TransferPair> transfers;
   private List<ValueVector> vectors = new ArrayList<>();
-  private List<BaseWriter.ComplexWriter> writers = new ArrayList<>();
+  private List<SingleMapWriter> writers = new ArrayList<>();
 
   protected RecombinatorRecordBatch(final Recombinator popConfig, final FragmentContext context,
     final RecordBatch incoming) throws
@@ -71,7 +74,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       this.builtSchema = true;
     }
 
-    this.transfers = this.transferMapper.prepareTransfers(incoming, vectors, writers);
+    this.transfers = this.transferMapper.prepareTransfers(incoming, writers);
 
     // TODO change the output type when the underlying schema fields change
 
@@ -122,6 +125,11 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         aliases.add(fieldName);
       }
       this.transferMapper.addField(aliases, v);
+
+      // track of all the non-map vectors. Map vectors are managed separately in the transferMapper
+      if(!(v instanceof MapVector)){
+        vectors.add(v);
+      }
     }
   }
 
@@ -138,7 +146,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     }
 
     // add a map type field for unknown columns
-    TypeProtos.MajorType type = Types.optional(TypeProtos.MinorType.MAP);
+    TypeProtos.MajorType type = Types.required(TypeProtos.MinorType.MAP);
     entries.add(new FieldEntry(FineoCommon.MAP_FIELD, type, false));
 
     // we know that the first value in the alias map is actually the user visible name right now.
@@ -215,6 +223,12 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
   @Override
   protected IterOutcome doWork() {
     int incomingRecordCount = incoming.getRecordCount();
+
+    // we have to allocate space in all the vectors b/c they are nullable. Basically, just sets
+    // up the 'null' bit in the vector. When we do the write, then we get more space
+    for (ValueVector vector : vectors) {
+      AllocationHelper.allocateNew(vector, 1);
+    }
 
     for (int i = 0; i < incomingRecordCount; i++) {
       this.transferMapper.combine(i);

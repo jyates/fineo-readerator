@@ -3,10 +3,13 @@ package io.fineo.read.drill;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.fasterxml.jackson.jr.ob.JSON;
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableList;
 import io.fineo.drill.rule.DrillClusterRule;
 import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
+import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.schema.OldSchemaException;
 import io.fineo.schema.avro.AvroSchemaManager;
 import io.fineo.schema.avro.SchemaTestUtils;
@@ -14,6 +17,7 @@ import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.test.rule.TestOutput;
+import oadd.org.apache.drill.exec.util.Text;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -30,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
@@ -37,6 +42,7 @@ import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TestFineoReadTable extends BaseDynamoTableTest {
@@ -144,15 +150,44 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, true);
-    String unknownField = "uk_" + UUID.randomUUID();
-    values.put(unknownField, 1);
+    String uk = "uk_" + UUID.randomUUID();
+    values.put(uk, 1L);
+    String uk2 = "uk2_" + UUID.randomUUID();
+    values.put(uk2, "hello field 2");
 
     File tmp = folder.newFolder("drill");
     bootstrap(write(tmp, 1, values));
 
-    verifySelectStar(result ->{
+    verifySelectStar(result -> {
       assertTrue(result.next());
-      assertEquals(1, result.getInt(unknownField));
+      Map radio = (Map) result.getObject(FineoCommon.MAP_FIELD);
+      assertEquals(values.get(uk), radio.get(uk));
+      assertEquals(values.get(uk2), radio.get(uk2).toString());
+    });
+  }
+
+  @Test
+  public void testFilterOnUnknownField() throws Exception {
+    register();
+
+    Map<String, Object> values = new HashMap<>();
+    values.put(fieldname, true);
+    String uk = "uk_" + UUID.randomUUID();
+    values.put(uk, 1L);
+
+    File tmp = folder.newFolder("drill");
+    bootstrap(write(tmp, 1, values));
+
+    // definitely doesn't match
+    verifySelectStar(of(equals(FineoCommon.MAP_FIELD + "['" + uk+"']", "2")), result -> {
+      assertFalse(result.next());
+    });
+
+    // matching case
+    verifySelectStar(of(equals(FineoCommon.MAP_FIELD + "." + uk, Long.toString(1L))), result -> {
+      assertTrue(result.next());
+      Map radio = (Map) result.getObject(FineoCommon.MAP_FIELD);
+      assertEquals(values.get(uk), radio.get(uk));
     });
   }
 
@@ -178,16 +213,36 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     });
   }
 
+  private static final Joiner AND = Joiner.on(" AND ");
+
   private void verifySelectStar(Verify<ResultSet> verify) throws Exception {
+    verifySelectStar(null, verify);
+  }
+
+  private void verifySelectStar(List<String> wheres, Verify<ResultSet> verify) throws Exception {
+    List<String> actualWheres = new ArrayList<>();
+    if (wheres != null) {
+      actualWheres.addAll(wheres);
+    }
+    // always have the org and metric filters
+    actualWheres.add(equals(ORG_ID_KEY, org));
+    actualWheres.add(equals(ORG_METRIC_TYPE_KEY, metrictype));
+    doVerifySelectStar(actualWheres, verify);
+  }
+
+  private void doVerifySelectStar(List<String> actualWheres,
+    Verify<ResultSet> verify) throws Exception {
     try (Connection conn = drill.getConnection()) {
       String from = " FROM fineo.events";
-      String where = String
-        .format(" WHERE %s = '%s' AND %s = '%s'",
-          ORG_ID_KEY, org,
-          ORG_METRIC_TYPE_KEY, metrictype);
+      String where = " WHERE " + AND.join(actualWheres);
       String stmt = "SELECT *" + from + where;
       verify.verify(conn.createStatement().executeQuery(stmt));
     }
+  }
+
+
+  private String equals(String left, String right) {
+    return format("%s = '%s'", left, right);
   }
 
   @FunctionalInterface

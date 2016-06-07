@@ -8,11 +8,9 @@ import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
-import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexCall;
@@ -92,7 +90,7 @@ public class FineoRecombinatorRule extends RelOptRule {
       builder.union(true);
     }
     // result needs to be sorted on the timestamp
-//    addSort(builder, project.getCluster());
+    addSort(builder, project.getCluster());
 
     RelNode rel = builder.build();
 
@@ -163,16 +161,22 @@ public class FineoRecombinatorRule extends RelOptRule {
         assert leftRight.size() == 2;
         RexNode name = leftRight.get(0);
         RexNode value = leftRight.get(1);
-        FieldNameParser parser = new FieldNameParser(fieldNames, name);
+
+        SimpleFieldNameParser parser = new SimpleFieldNameParser(fieldNames, name);
 
         // expression is actually value = name, so swap arguments
-        if (!parser.isField()) {
-          parser = new FieldNameParser(fieldNames, value);
+        if (!parser.isSimpleField()) {
+          parser = new SimpleFieldNameParser(fieldNames, value);
+          // its not a simple field, skip it, we only care about finding the required fields
+          if (!parser.isSimpleField()) {
+            continue;
+          }
           RexNode tmp = value;
           value = name;
           name = tmp;
-          assert parser.isField();
         }
+
+        assert parser.isSimpleField();
         // its a field name
         callback.handle(parser, name, value);
       }
@@ -181,20 +185,23 @@ public class FineoRecombinatorRule extends RelOptRule {
 
   @FunctionalInterface
   private interface FieldCallback {
-    void handle(FieldNameParser parser, RexNode name, RexNode value);
+    void handle(SimpleFieldNameParser parser, RexNode name, RexNode value);
   }
 
-  private static class FieldNameParser {
+  /**
+   * Parse out the field name from the {@link RexNode}, if the node is a simple {@link RexInputRef}
+   */
+  private static class SimpleFieldNameParser {
     private String fieldName;
 
-    private FieldNameParser(List<String> fieldNames, RexNode node) {
+    private SimpleFieldNameParser(List<String> fieldNames, RexNode node) {
       if (node instanceof RexInputRef) {
         RexInputRef ref = (RexInputRef) node;
         this.fieldName = fieldNames.get(ref.getIndex());
       }
     }
 
-    public boolean isField() {
+    public boolean isSimpleField() {
       return this.fieldName != null;
     }
 

@@ -1,7 +1,6 @@
 package io.fineo.read.drill.exec.store.rel.physical.batch;
 
 import com.google.common.base.Preconditions;
-import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.schema.Pair;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
@@ -13,7 +12,7 @@ import org.apache.drill.exec.vector.NullableBitVector;
 import org.apache.drill.exec.vector.NullableVarCharVector;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.MapVector;
-import org.apache.drill.exec.vector.complex.impl.ComplexWriterImpl;
+import org.apache.drill.exec.vector.complex.impl.SingleMapWriter;
 import org.apache.drill.exec.vector.complex.writer.BaseWriter;
 
 import java.util.ArrayList;
@@ -42,7 +41,6 @@ public class FieldTransferMapper {
    * @param incomingIndex
    */
   public void combine(int incomingIndex) {
-    vectorAllocator.clear();
     for (Pair<VectorWrapper, VectorOrWriter> p : inOutMapping) {
       copy(p.getKey(), p.getValue(), incomingIndex, 0);
     }
@@ -55,8 +53,8 @@ public class FieldTransferMapper {
    *
    * @return list of ownership inOutMapping for the vectors in the group
    */
-  public List<TransferPair> prepareTransfers(RecordBatch in, List<ValueVector> vectors,
-    List<BaseWriter.ComplexWriter> writers) {
+  public List<TransferPair> prepareTransfers(RecordBatch in,
+    List<SingleMapWriter> writers) {
     this.inOutMapping.clear();
     List<TransferPair> transferPairs = new ArrayList<>();
     for (VectorWrapper<?> wrapper : in) {
@@ -64,29 +62,28 @@ public class FieldTransferMapper {
       String name = field.getName();
       ValueVector out = getOutput(name);
 
-      //TODO this needs to also project for the map field, which means we need a multi-map OR a
-      // custom impl just for the map vector, which, admittedly, is a little bit weird in context
-      // with the rest of the simple vector transfers
+      //TODO this needs to also project for the non-prefix map field, which means we need a
+      // multi-map OR acustom impl just for the map vector, which, admittedly, is a little bit
+      // weird in contextwith the rest of the simple vector transfers
+
       // its an unknown field, we need to create a sub-vector for this field inside the map vector
       if (out instanceof MapVector) {
         MapVector mv = (MapVector) out;
-        BaseWriter.ComplexWriter writer;
+        SingleMapWriter writer;
         if (writers.size() == 0) {
-          writer = new ComplexWriterImpl(FineoCommon.MAP_FIELD, mv, true);
+          writer = new SingleMapWriter(mv, null, true);
           writers.add(writer);
         } else {
           writer = writers.get(0);
 
         }
-        this.inOutMapping.add(new Pair<>(wrapper, new VectorOrWriter(writer.rootAsMap())));
+        this.inOutMapping.add(new Pair<>(wrapper, new VectorOrWriter(writer)));
 
         // each time we will need to allocate a new field in the map, which only works after the
         // mapRoot has been created
         writer.allocate();
 
       } else {
-        // this is a vector we will need to modify with a field, add it to the list
-        vectors.add(out);
         this.inOutMapping.add(new Pair<>(wrapper, new VectorOrWriter(out)));
 
         // we just do a simple transfer for this vector
@@ -171,7 +168,6 @@ public class FieldTransferMapper {
   }
 
   private void copyVector(VectorWrapper<?> wrapper, ValueVector out, int inIndex, int outIndex) {
-    vectorAllocator.ensureAllocated(out);
     MaterializedField field = wrapper.getField();
     switch (field.getType().getMinorType()) {
       case VARCHAR:
