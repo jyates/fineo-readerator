@@ -6,7 +6,6 @@ import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.VectorWrapper;
-import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.NullableBigIntVector;
 import org.apache.drill.exec.vector.NullableBitVector;
 import org.apache.drill.exec.vector.NullableVarCharVector;
@@ -27,10 +26,10 @@ public class FieldTransferMapper {
 
   private Map<String, ValueVector> fieldMapping = new HashMap<>();
   private List<Pair<VectorWrapper, VectorOrWriter>> inOutMapping = new ArrayList<>();
-  private String mapFieldPrefixtoStrip;
+  private String mapFieldPrefixToStrip;
 
-  public void setMapFieldPrefixtoStrip(String mapFieldPrefixtoStrip) {
-    this.mapFieldPrefixtoStrip = mapFieldPrefixtoStrip;
+  public void setMapFieldPrefixToStrip(String mapFieldPrefixToStrip) {
+    this.mapFieldPrefixToStrip = mapFieldPrefixToStrip;
   }
 
   /**
@@ -145,9 +144,9 @@ public class FieldTransferMapper {
     // switch for the type... probably better to do this as gen code...
     MaterializedField field = wrapper.getField();
     String name = field.getName();
-    assert name.startsWith(mapFieldPrefixtoStrip) :
+    assert name.startsWith(mapFieldPrefixToStrip) :
       "Field is unknown (mapped), but not a dyn. projected field";
-    name = name.substring(mapFieldPrefixtoStrip.length());
+    name = name.substring(mapFieldPrefixToStrip.length());
 
     switch (field.getType().getMinorType()) {
       case VARCHAR:

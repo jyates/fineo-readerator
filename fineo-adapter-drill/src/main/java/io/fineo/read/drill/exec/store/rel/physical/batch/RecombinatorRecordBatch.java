@@ -21,7 +21,6 @@ import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.MapVector;
 import org.apache.drill.exec.vector.complex.impl.SingleMapWriter;
-import org.apache.drill.exec.vector.complex.writer.BaseWriter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -107,7 +106,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     addFields(entries, prefix);
 
     // necessary so we map fields with their actual name, not with the dyn. projected field name
-    this.transferMapper.setMapFieldPrefixtoStrip(prefix);
+    this.transferMapper.setMapFieldPrefixToStrip(prefix);
   }
 
   private void addFields(List<FieldEntry> entries, String prefix) {
