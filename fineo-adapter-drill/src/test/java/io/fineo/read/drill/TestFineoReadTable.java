@@ -120,6 +120,22 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     writeAndReadToIndependentFiles(values, values2);
   }
 
+  /**
+   * We don't need to go beyond three sources because this covers 'n' cases of unions over unions.
+   * @throws Exception
+   */
+  @Test
+  public void testReadThreeSources() throws Exception {
+    Map<String, Object> values = new HashMap<>();
+    values.put(fieldname, false);
+    Map<String, Object> values2 = newHashMap(values);
+    values.put(fieldname, true);
+    Map<String, Object> values3 = newHashMap(values);
+    values.put(fieldname, false);
+
+    writeAndReadToIndependentFiles(values, values2, values3);
+  }
+
   private void writeAndReadToIndependentFiles(Map<String, Object>... fileContents)
     throws Exception {
     register();
