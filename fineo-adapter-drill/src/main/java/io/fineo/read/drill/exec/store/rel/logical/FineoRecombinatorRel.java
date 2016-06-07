@@ -4,6 +4,7 @@ import io.fineo.internal.customer.Metric;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.SingleRel;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.drill.common.logical.data.LogicalOperator;
@@ -52,5 +53,10 @@ public class FineoRecombinatorRel extends SingleRel implements DrillRel {
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
     return new FineoRecombinatorRel(this.getCluster(), traitSet, SingleRel.sole(inputs), metric,
       rowType);
+  }
+
+  @Override
+  public RelWriter explainTerms(RelWriter pw) {
+    return super.explainTerms(pw).item("rowtype", this.getRowType());
   }
 }

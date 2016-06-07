@@ -8,6 +8,7 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalTableScan;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.tools.RelBuilder;
 
 import java.util.ArrayList;
@@ -51,14 +52,6 @@ public class LogicalScanBuilder {
     return this;
   }
 
-  public FineoRecombinatorMarkerRel buildMarker(SchemaStore store) {
-    FineoRecombinatorMarkerRel marker =
-      new FineoRecombinatorMarkerRel(cluster, cluster.traitSet().plus(Convention.NONE), store,
-        this.relOptTable);
-    marker.setInputs(this.tables);
-    return marker;
-  }
-
   private void addFields(RelNode scan) {
     // ensures that the "*" operator is added to the row type
     scan.getRowType().getFieldList();
@@ -68,18 +61,11 @@ public class LogicalScanBuilder {
     }
   }
 
-  public RelNode build(SchemaStore store) {
-//    for (LogicalTableScan lts : this.tables) {
-////      FineoRecombinatorMarkerRel rel =
-////        new FineoRecombinatorMarkerRel(store, lts, cluster.getTypeFactory());
-//      builder.push(rel);
-//    }
-
-    // union all the results
-    for (int i = 0; i < scanCount - 1; i++) {
-      builder.union(true);
-    }
-
-    return builder.build();
+  public FineoRecombinatorMarkerRel buildMarker(SchemaStore store) {
+    FineoRecombinatorMarkerRel marker =
+      new FineoRecombinatorMarkerRel(cluster, cluster.traitSet().plus(Convention.NONE), store,
+        this.relOptTable);
+    marker.setInputs(this.tables);
+    return marker;
   }
 }

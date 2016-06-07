@@ -76,6 +76,7 @@ public class FineoRecombinatorMarkerRel extends AbstractRelNode {
     for (RelNode node : inputs) {
       pw.input("sub-table", node);
     }
+    pw.item("rowtype", this.getRowType());
     return pw;
   }
 }

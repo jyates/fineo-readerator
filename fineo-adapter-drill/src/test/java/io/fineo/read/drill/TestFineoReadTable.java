@@ -129,8 +129,6 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
   /**
    * We don't need to go beyond three sources because this covers 'n' cases of unions over unions.
-   *
-   * @throws Exception
    */
   @Test
   public void testReadThreeSources() throws Exception {
@@ -164,6 +162,24 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
       Map radio = (Map) result.getObject(FineoCommon.MAP_FIELD);
       assertEquals(values.get(uk), radio.get(uk));
       assertEquals(values.get(uk2), radio.get(uk2).toString());
+    });
+  }
+
+  @Test
+  public void testUnknownFieldWithRadioName() throws Exception {
+    register();
+
+    Map<String, Object> values = new HashMap<>();
+    values.put(fieldname, true);
+    values.put(FineoCommon.MAP_FIELD, 1L);
+
+    File tmp = folder.newFolder("drill");
+    bootstrap(write(tmp, 1, values));
+
+    verifySelectStar(result -> {
+      assertTrue(result.next());
+      Map radio = (Map) result.getObject(FineoCommon.MAP_FIELD);
+      assertEquals(values.get(FineoCommon.MAP_FIELD), radio.get(FineoCommon.MAP_FIELD));
     });
   }
 
