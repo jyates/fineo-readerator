@@ -148,7 +148,7 @@ public class FieldTransferMapper {
     String name = field.getName();
     assert name.startsWith(mapFieldPrefixtoStrip) :
       "Field is unknown (mapped), but not a dyn. projected field";
-    name = name.substring(mapFieldPrefixtoStrip.length() + 1);
+    name = name.substring(mapFieldPrefixtoStrip.length());
 
     switch (field.getType().getMinorType()) {
       case VARCHAR:

@@ -95,9 +95,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       "No dynamic table prefix (column starting with TXX%s) from incoming schema: %s",
       StarColumnHelper.PREFIX_DELIMITER, inschema);
 
-    // necessary so we map fields with their actual name, not with the dyn. projected field name
-    this.transferMapper.setMapFieldPrefixtoStrip(prefix);
-
     List<FieldEntry> entries = getRawFieldNames();
     // we have to add each entry with and without the dynamic prefix so it gets unwrapped later by
     // the Project inserted by the StarColumnConverter, but also keep the "original" output field
@@ -106,6 +103,9 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     prefix += StarColumnHelper.PREFIX_DELIMITER;
     addFields(entries, "");
     addFields(entries, prefix);
+
+    // necessary so we map fields with their actual name, not with the dyn. projected field name
+    this.transferMapper.setMapFieldPrefixtoStrip(prefix);
   }
 
   private void addFields(List<FieldEntry> entries, String prefix) {
