@@ -33,11 +33,7 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
 
   @Override
   protected RelDataType deriveRowType() {
-    RelDataType input = this.getInput().getRowType();
-    FineoTable.addBaseFields(input, (field, expectedName) -> {
-      assert field != null : "Did not find expected base field: " + expectedName + " in " + input;
-    });
-    return input;
+    return parentRowType;
   }
 
   @Override

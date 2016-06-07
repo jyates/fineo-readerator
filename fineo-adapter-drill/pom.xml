@@ -130,18 +130,17 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.apache.drill</groupId>
+      <artifactId>drill-common</artifactId>
+      <version>${drill.version}</version>
+      <classifier>tests</classifier>
+    </dependency>
+    <dependency>
       <groupId>io.fineo.etl.pipeline</groupId>
       <artifactId>pipeline-utils</artifactId>
       <version>1.0-SNAPSHOT</version>
       <scope>test</scope>
       <classifier>tests</classifier>
-    </dependency>
-    <!-- Some of calcite uses jcl... ugh -->
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>jcl-over-slf4j</artifactId>
-      <version>1.7.16</version>
-      <scope>test</scope>
     </dependency>
   </dependencies>
 </project>

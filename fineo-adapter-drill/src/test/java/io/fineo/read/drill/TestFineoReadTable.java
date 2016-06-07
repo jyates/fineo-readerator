@@ -27,6 +27,7 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -196,12 +197,14 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     bootstrap(write(tmp, 1, values));
 
     // definitely doesn't match
-    verifySelectStar(of(equals(FineoCommon.MAP_FIELD + "['" + uk + "']", "2")), result -> {
+    String field = FineoCommon.MAP_FIELD + "['" + uk + "']";
+    verifySelectStar(of(equals(field, "2")), result -> {
       assertFalse(result.next());
+      System.out.println(result);
     });
 
     // matching case
-    verifySelectStar(of(equals(FineoCommon.MAP_FIELD + "." + uk, Long.toString(1L))), result -> {
+    verifySelectStar(of(equals(field, Long.toString(1L))), result -> {
       assertTrue(result.next());
       Map radio = (Map) result.getObject(FineoCommon.MAP_FIELD);
       assertEquals(values.get(uk), radio.get(uk));
@@ -226,7 +229,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     verifySelectStar(result -> {
       int j = 0;
       for (Map<String, Object> content : fileContents) {
-        LOG.info("Checking row " + j);
+        LOG.info("Checking row " + j + " => \n" + content);
         assertNext(result, content);
       }
     });
@@ -251,13 +254,12 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
   private void doVerifySelectStar(List<String> actualWheres,
     Verify<ResultSet> verify) throws Exception {
-    try (Connection conn = drill.getConnection()) {
-      String from = " FROM fineo.events";
-      String where = " WHERE " + AND.join(actualWheres);
-      String stmt = "SELECT *" + from + where;
-      LOG.info("Attempting query: " + stmt);
-      verify.verify(conn.createStatement().executeQuery(stmt));
-    }
+    Connection conn = drill.getConnection();
+    String from = " FROM fineo.events";
+    String where = " WHERE " + AND.join(actualWheres);
+    String stmt = "SELECT *" + from + where;
+    LOG.info("Attempting query: " + stmt);
+    verify.verify(conn.createStatement().executeQuery(stmt));
   }
 
 
@@ -312,8 +314,20 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     for (Map.Entry<String, Object> e : values.entrySet()) {
       assertEquals(e.getValue(), result.getObject(e.getKey()));
     }
-    assertEquals("Wrong number of incombing columns", result.getMetaData().getColumnCount(),
-      values.size() + 1);
+    assertEquals(
+      "Wrong number of incoming columns!" +
+      "\nExpected: " + values.keySet() +
+      "\nActual: " + getColumns(result.getMetaData()),
+      values.size() + 1, result.getMetaData().getColumnCount());
+  }
+
+  private List<String> getColumns(ResultSetMetaData meta) throws SQLException {
+    int count = meta.getColumnCount();
+    List<String> cols = new ArrayList<>(count);
+    for (int i = 0; i < count; i++) {
+      cols.add(meta.getColumnName(i + 1));
+    }
+    return cols;
   }
 
   private File write(File dir, long ts, Map<String, Object> values)

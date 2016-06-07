@@ -91,7 +91,7 @@ public class FineoRecombinatorRule extends RelOptRule {
       builder.union(true);
     }
     // result needs to be sorted on the timestamp
-//    addSort(builder, project.getCluster());
+    addSort(builder, project.getCluster());
 
     RelNode rel = builder.build();
 

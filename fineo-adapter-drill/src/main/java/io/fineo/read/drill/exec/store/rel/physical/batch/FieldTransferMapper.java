@@ -14,16 +14,24 @@ import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.MapVector;
 import org.apache.drill.exec.vector.complex.impl.SingleMapWriter;
 import org.apache.drill.exec.vector.complex.writer.BaseWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Combines multiple potential sub-fields into a single know field
  */
 public class FieldTransferMapper {
+  private static final Logger LOG = LoggerFactory.getLogger(FieldTransferMapper.class);
+
+  public static final List<String> UNKNOWN_FIELDS_MAP_ALIASES = null;
+  public static final String UNKNOWN_FIELDS_MAP = null;
 
   private Map<String, ValueVector> fieldMapping = new HashMap<>();
   private List<Pair<VectorWrapper, VectorOrWriter>> inOutMapping = new ArrayList<>();
@@ -54,15 +62,24 @@ public class FieldTransferMapper {
   public List<TransferPair> prepareTransfers(RecordBatch in,
     List<SingleMapWriter> writers) {
     this.inOutMapping.clear();
+    Set<ValueVector> mapped = new HashSet<>();
     List<TransferPair> transferPairs = new ArrayList<>();
     for (VectorWrapper<?> wrapper : in) {
       MaterializedField field = wrapper.getField();
       String name = field.getName();
+      name = stripDynamicProjectPrefix(name);
       ValueVector out = getOutput(name);
 
+      if (mapped.contains(out)) {
+        LOG.debug(
+          "Skipping mapping for " + name + " because we already have a vector to handle that "
+          + "field");
+        continue;
+      }
+
       //TODO this needs to also project for the non-prefix map field, which means we need a
-      // multi-map OR acustom impl just for the map vector, which, admittedly, is a little bit
-      // weird in contextwith the rest of the simple vector transfers
+      // multi-map OR a custom impl just for the map vector, which, admittedly, is a little bit
+      // weird in context with the rest of the simple vector transfers
 
       // its an unknown field, we need to create a sub-vector for this field inside the map vector
       if (out instanceof MapVector) {
@@ -82,6 +99,7 @@ public class FieldTransferMapper {
         writer.allocate();
 
       } else {
+        mapped.add(out);
         this.inOutMapping.add(new Pair<>(wrapper, new VectorOrWriter(out)));
 
         // we just do a simple transfer for this vector
@@ -95,13 +113,12 @@ public class FieldTransferMapper {
     fieldMapping.put(inputName, outputName);
   }
 
-  public void addField(List<String> inputName, ValueVector vvOut) {
-    // manage fields that we don't know about
-    if (inputName == null) {
-      addField((String) null, vvOut);
+  public void addField(List<String> aliasNames, ValueVector vvOut) {
+    if (aliasNames == UNKNOWN_FIELDS_MAP_ALIASES) {
+      addField(UNKNOWN_FIELDS_MAP, vvOut);
       return;
     }
-    for (String in : inputName) {
+    for (String in : aliasNames) {
       addField(in, vvOut);
     }
   }
@@ -110,7 +127,7 @@ public class FieldTransferMapper {
     ValueVector value = this.fieldMapping.get(incoming);
     // unknown field type
     if (value == null) {
-      value = this.fieldMapping.get(null);
+      value = this.fieldMapping.get(UNKNOWN_FIELDS_MAP);
     }
     return value;
   }
@@ -153,10 +170,7 @@ public class FieldTransferMapper {
 
     // switch for the type... probably better to do this as gen code...
     MaterializedField field = wrapper.getField();
-    String name = field.getName();
-    assert name.startsWith(mapFieldPrefixToStrip) :
-      "Field is unknown (mapped), but not a dyn. projected field";
-    name = name.substring(mapFieldPrefixToStrip.length());
+    String name = stripDynamicProjectPrefix(field.getName());
 
     switch (field.getType().getMinorType()) {
       case VARCHAR:
@@ -172,6 +186,13 @@ public class FieldTransferMapper {
       default:
         throw new UnsupportedOperationException("Cannot convert field: " + field);
     }
+  }
+
+  private String stripDynamicProjectPrefix(String name) {
+    if (name.startsWith(mapFieldPrefixToStrip)) {
+      name = name.substring(mapFieldPrefixToStrip.length());
+    }
+    return name;
   }
 
   private void copyVector(VectorWrapper<?> wrapper, ValueVector out, int inIndex, int outIndex) {

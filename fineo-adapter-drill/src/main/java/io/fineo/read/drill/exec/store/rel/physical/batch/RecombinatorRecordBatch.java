@@ -25,9 +25,11 @@ import org.apache.drill.exec.vector.complex.impl.SingleMapWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
+import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
+import static io.fineo.read.drill.exec.store.rel.physical.batch.FieldTransferMapper
+  .UNKNOWN_FIELDS_MAP_ALIASES;
 import static io.fineo.schema.avro.AvroSchemaEncoder.BASE_FIELDS_KEY;
 
 /**
@@ -35,7 +37,6 @@ import static io.fineo.schema.avro.AvroSchemaEncoder.BASE_FIELDS_KEY;
  */
 public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombinator> {
 
-  private static final String CATCH_ALL_MAP = null;
   private final Map<String, List<String>> cnameToAlias;
   private Schema metricSchema;
   private boolean builtSchema;
@@ -96,37 +97,39 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       "No dynamic table prefix (column starting with TXX%s) from incoming schema: %s",
       StarColumnHelper.PREFIX_DELIMITER, inschema);
 
+    prefix = prefix + StarColumnHelper.PREFIX_DELIMITER;
     List<FieldEntry> entries = getRawFieldNames();
-    // we have to add each entry with and without the dynamic prefix so it gets unwrapped later by
-    // the Project inserted by the StarColumnConverter, but also keep the "original" output field
-    // names so we can match them to downstream filters which still use the simple names, rather
-    // than input field references
-    prefix += StarColumnHelper.PREFIX_DELIMITER;
-    addFields(entries, "");
-    addFields(entries, prefix);
+    // IF we let the recombinator prel row type = input types, we would be obligated to produce
+    // the dynamic prefixed fields (ie. T0¦¦companykey). They would then be removed by an upstream
+    // Project(T0¦¦*=[$0]) (from StarConverter). However, now that we are specifying the fields
+    // exactly, the upstream Project is merely (*=[$0]), so we only want to send the "approved"
+    // fields - the required ones, unknown map, and the per-tenant fields.
+    // We track the row type explicitly because the parent filter (on company and metric) needs to
+    // have explicit fields positions matching what we told it originally in the physical plan. From
+    // there it builds the actual mapping in the execution, so we don't need to keep the same order
+    // here.
+    addFields(entries);
 
     // necessary so we map fields with their actual name, not with the dyn. projected field name
     this.transferMapper.setMapFieldPrefixToStrip(prefix);
   }
 
-  private void addFields(List<FieldEntry> entries, String prefix) {
+  private void addFields(List<FieldEntry> entries) {
     for (FieldEntry field : entries) {
       TypeProtos.MajorType type = field.getType();
       List<String> aliases = field.getAliasNames();
-      String fieldName = prefix + field.getOutputName();
+      String fieldName = field.getOutputName();
       MaterializedField mat = MaterializedField.create(fieldName, type);
       ValueVector v = container.addOrGet(mat, callBack);
 
-      // aliases need to also be converted to the prefix
       if (aliases != null) {
-        aliases = aliases.stream().map(alias -> prefix + alias).collect(Collectors.toList());
         // field should map to itself in cases where we store the client-visible field name
         aliases.add(fieldName);
       }
       this.transferMapper.addField(aliases, v);
 
       // track of all the non-map vectors. Map vectors are managed separately in the transferMapper
-      if(!(v instanceof MapVector)){
+      if (!(v instanceof MapVector)) {
         vectors.add(v);
       }
     }
@@ -146,7 +149,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
     // add a map type field for unknown columns
     TypeProtos.MajorType type = Types.required(TypeProtos.MinorType.MAP);
-    entries.add(new FieldEntry(FineoCommon.MAP_FIELD, type, false));
+    entries.add(new FieldEntry(FineoCommon.MAP_FIELD, type, UNKNOWN_FIELDS_MAP_ALIASES));
 
     // we know that the first value in the alias map is actually the user visible name right now.
     for (Map.Entry<String, List<String>> entry : cnameToAlias.entrySet()) {
@@ -162,20 +165,16 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
   public class FieldEntry {
     private String outputName;
-    private List<String> aliasName;
+    private List<String> aliasNames;
     private TypeProtos.MajorType type;
 
     public FieldEntry(String field, TypeProtos.MajorType type) {
-      this(field, type, true);
-    }
-
-    public FieldEntry(String field, TypeProtos.MajorType type, boolean hasAlias) {
-      this(field, type, hasAlias ? newArrayList(field) : null);
+      this(field, type, newArrayList(field));
     }
 
     public FieldEntry(String outputName, TypeProtos.MajorType type, List<String> aliasNames) {
       this.outputName = outputName;
-      this.aliasName = aliasNames;
+      this.aliasNames = aliasNames;
       this.type = type;
     }
 
@@ -184,11 +183,20 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     }
 
     public List<String> getAliasNames() {
-      return aliasName;
+      return aliasNames;
     }
 
     public TypeProtos.MajorType getType() {
       return type;
+    }
+
+    @Override
+    public String toString() {
+      return "FieldEntry{" +
+             "outputName='" + outputName + '\'' +
+             ", type=" + type +
+             ", aliasNames=" + aliasNames +
+             '}';
     }
   }
 
