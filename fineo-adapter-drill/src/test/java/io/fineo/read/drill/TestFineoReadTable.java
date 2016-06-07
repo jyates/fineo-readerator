@@ -122,6 +122,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
   /**
    * We don't need to go beyond three sources because this covers 'n' cases of unions over unions.
+   *
    * @throws Exception
    */
   @Test
@@ -134,6 +135,25 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     values.put(fieldname, false);
 
     writeAndReadToIndependentFiles(values, values2, values3);
+  }
+
+
+  @Test
+  public void testUnknownFieldType() throws Exception {
+    register();
+
+    Map<String, Object> values = new HashMap<>();
+    values.put(fieldname, true);
+    String unknownField = "uk_" + UUID.randomUUID();
+    values.put(unknownField, 1);
+
+    File tmp = folder.newFolder("drill");
+    bootstrap(write(tmp, 1, values));
+
+    verifySelectStar(result ->{
+      assertTrue(result.next());
+      assertEquals(1, result.getInt(unknownField));
+    });
   }
 
   private void writeAndReadToIndependentFiles(Map<String, Object>... fileContents)

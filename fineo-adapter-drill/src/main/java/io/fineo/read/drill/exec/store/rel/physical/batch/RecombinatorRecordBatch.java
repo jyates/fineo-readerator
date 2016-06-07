@@ -19,6 +19,7 @@ import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.ValueVector;
+import org.apache.drill.exec.vector.complex.writer.BaseWriter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static io.fineo.schema.avro.AvroSchemaEncoder.BASE_FIELDS_KEY;
 
 /**
  * Do the actual work of transforming input records to the expected customer type
@@ -39,6 +41,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
   private FieldTransferMapper transferMapper;
   private List<TransferPair> transfers;
   private List<ValueVector> vectors = new ArrayList<>();
+  private List<BaseWriter.ComplexWriter> writers = new ArrayList<>();
 
   protected RecombinatorRecordBatch(final Recombinator popConfig, final FragmentContext context,
     final RecordBatch incoming) throws
@@ -69,7 +72,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       this.builtSchema = true;
     }
 
-    this.transfers = this.transferMapper.prepareTransfers(incoming);
+    this.transfers = this.transferMapper.prepareTransfers(incoming, vectors, writers);
 
     // TODO change the output type when the underlying schema fields change
 
@@ -92,14 +95,17 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       "No dynamic table prefix (column starting with TXX%s) from incoming schema: %s",
       StarColumnHelper.PREFIX_DELIMITER, inschema);
 
+    // necessary so we map fields with their actual name, not with the dyn. projected field name
+    this.transferMapper.setMapFieldPrefixtoStrip(prefix);
+
     List<FieldEntry> entries = getRawFieldNames();
     // we have to add each entry with and without the dynamic prefix so it gets unwrapped later by
     // the Project inserted by the StarColumnConverter, but also keep the "original" output field
     // names so we can match them to downstream filters which still use the simple names, rather
     // than input field references
     prefix += StarColumnHelper.PREFIX_DELIMITER;
-    addFields(entries, prefix);
     addFields(entries, "");
+    addFields(entries, prefix);
   }
 
   private void addFields(List<FieldEntry> entries, String prefix) {
@@ -109,7 +115,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       String fieldName = prefix + field.getOutputName();
       MaterializedField mat = MaterializedField.create(fieldName, type);
       ValueVector v = container.addOrGet(mat, callBack);
-      this.vectors.add(v);
 
       // aliases need to also be converted to the prefix
       if (aliases != null) {
@@ -140,7 +145,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     // we know that the first value in the alias map is actually the user visible name right now.
     for (Map.Entry<String, List<String>> entry : cnameToAlias.entrySet()) {
       String cname = entry.getKey();
-      if (cname.equals("baseFields")) {
+      if (cname.equals(BASE_FIELDS_KEY)) {
         continue;
       }
       String alias = entry.getValue().get(0);
@@ -217,10 +222,13 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       AllocationHelper.allocateNew(v, incomingRecordCount);
     }
 
+    for (BaseWriter.ComplexWriter writer : writers) {
+      writer.allocate();
+    }
+
     for (int i = 0; i < incomingRecordCount; i++) {
       this.transferMapper.combine(i);
     }
-
 
     // claim ownership of all the underlying vectors
     for (TransferPair pair : transfers) {
