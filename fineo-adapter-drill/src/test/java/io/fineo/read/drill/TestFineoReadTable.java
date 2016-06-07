@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,9 +39,6 @@ import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/**
- *
- */
 public class TestFineoReadTable extends BaseDynamoTableTest {
 
   @ClassRule
@@ -109,6 +107,38 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
     verifySelectStar(result -> {
       assertNext(result, values);
+    });
+  }
+
+  @Test
+  public void testReadTwoSources() throws Exception {
+    Map<String, Object> values = new HashMap<>();
+    values.put(fieldname, false);
+    Map<String, Object> values2 = newHashMap(values);
+    values.put(fieldname, true);
+
+    writeAndReadToIndependentFiles(values, values2);
+  }
+
+  private void writeAndReadToIndependentFiles(Map<String, Object>... fileContents)
+    throws Exception {
+    register();
+
+    // write two rows into a json file
+    File tmp = folder.newFolder("drill");
+    List<File> files = new ArrayList<>();
+    int i = 0;
+    for (Map<String, Object> contents : fileContents) {
+      files.add(write(tmp, i++, contents));
+    }
+
+    // ensure that the fineo-test plugin is enabled
+    bootstrap(files.toArray(new File[0]));
+
+    verifySelectStar(result -> {
+      for (Map<String, Object> content : fileContents) {
+        assertNext(result, content);
+      }
     });
   }
 

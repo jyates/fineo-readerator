@@ -11,10 +11,14 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.logical.LogicalTableScan;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.util.NlsString;
 import org.apache.drill.exec.planner.logical.DrillRel;
 
@@ -67,12 +71,33 @@ public class FineoRecombinatorRule extends RelOptRule {
     AvroSchemaManager schema = new AvroSchemaManager(store, metricLookup.get(ORG_ID_KEY));
     Metric metric = schema.getMetricInfo(metricLookup.get(ORG_METRIC_TYPE_KEY));
 
-    // now we should point to a logical set
-    final RelNode convertedInput =
-      convert(frr.getInput(), frr.getInput().getTraitSet().plus(DrillRel.DRILL_LOGICAL));
-    FineoRecombinatorRel rel =
-      new FineoRecombinatorRel(frr.getCluster(), convertedInput.getTraitSet(), convertedInput,
-        metric);
+    // This is actually a marker for a set of logical unions between types
+    RelBuilder builder = RelBuilder.proto(call.getPlanner().getContext())
+                                   .create(project.getCluster(), frr.getRelSchema());
+
+    // each input is wrapped with an FRR to normalize output types
+    int scanCount = 0;
+    for (RelNode relNode : frr.getInputs()) {
+      RelNode convertedInput = convert(relNode, relNode.getTraitSet().plus(DrillRel.DRILL_LOGICAL));
+      FineoRecombinatorRel rel =
+        new FineoRecombinatorRel(frr.getCluster(), convertedInput.getTraitSet(), convertedInput,
+          metric);
+      builder.push(rel);
+      scanCount++;
+    }
+
+    // combine the subqueries with a set of unions
+    for (int i = 0; i < scanCount - 1; i++) {
+      builder.union(true);
+    }
+    // result needs to be sorted on the timestamp
+    RelNode node = builder.peek();
+    RelDataType type = node.getRowType();
+    RelDataTypeField field = type.getField(AvroSchemaEncoder.TIMESTAMP_KEY, false, false);
+    RexNode sortNode = project.getCluster().getRexBuilder().makeInputRef(node, field.getIndex());
+    builder.sort(sortNode);
+
+    RelNode rel = builder.build();
 
     // rebuild the tree above us. We cannot use the existing stack b/c the subsets are messed up.
     // However, when we point to frr's input, a LOGICAL RelSubset, we are pointing to an equivalence

@@ -2,6 +2,7 @@ package io.fineo.read.drill.exec.store.schema;
 
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
+import io.fineo.read.drill.exec.store.rel.FineoRecombinatorMarkerRel;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
@@ -31,6 +32,6 @@ public class FineoTable extends DynamicDrillTable implements TranslatableTable {
   public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
     LogicalScanBuilder builder = new LogicalScanBuilder(context, relOptTable);
     schemas.scan(builder);
-    return builder.build(this.store);
+    return builder.buildMarker(this.store);
   }
 }
