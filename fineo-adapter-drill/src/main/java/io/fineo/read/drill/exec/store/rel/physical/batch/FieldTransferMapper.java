@@ -28,8 +28,6 @@ public class FieldTransferMapper {
   private Map<String, ValueVector> fieldMapping = new HashMap<>();
   private List<Pair<VectorWrapper, VectorOrWriter>> inOutMapping = new ArrayList<>();
   private String mapFieldPrefixtoStrip;
-  private Allocator<ValueVector> vectorAllocator =
-    new Allocator<>(vector -> AllocationHelper.allocateNew(vector, 1));
 
   public void setMapFieldPrefixtoStrip(String mapFieldPrefixtoStrip) {
     this.mapFieldPrefixtoStrip = mapFieldPrefixtoStrip;
