@@ -3,14 +3,11 @@ package io.fineo.read.drill.exec.store.rel.physical.batch;
 import com.google.common.base.Preconditions;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.schema.Pair;
-import org.apache.drill.exec.expr.holders.NullableBigIntHolder;
-import org.apache.drill.exec.expr.holders.NullableBitHolder;
-import org.apache.drill.exec.expr.holders.NullableVarCharHolder;
-import org.apache.drill.exec.expr.holders.VarCharHolder;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.VectorWrapper;
+import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.NullableBigIntVector;
 import org.apache.drill.exec.vector.NullableBitVector;
 import org.apache.drill.exec.vector.NullableVarCharVector;
@@ -32,6 +29,8 @@ public class FieldTransferMapper {
   private Map<String, ValueVector> fieldMapping = new HashMap<>();
   private List<Pair<VectorWrapper, VectorOrWriter>> inOutMapping = new ArrayList<>();
   private String mapFieldPrefixtoStrip;
+  private Allocator<ValueVector> vectorAllocator =
+    new Allocator<>(vector -> AllocationHelper.allocateNew(vector, 1));
 
   public void setMapFieldPrefixtoStrip(String mapFieldPrefixtoStrip) {
     this.mapFieldPrefixtoStrip = mapFieldPrefixtoStrip;
@@ -43,6 +42,7 @@ public class FieldTransferMapper {
    * @param incomingIndex
    */
   public void combine(int incomingIndex) {
+    vectorAllocator.clear();
     for (Pair<VectorWrapper, VectorOrWriter> p : inOutMapping) {
       copy(p.getKey(), p.getValue(), incomingIndex, 0);
     }
@@ -53,12 +53,10 @@ public class FieldTransferMapper {
    * based on the name of the field (assumed to be unique from the underlying projection wrapper
    * around the scan
    *
-   * @param in      batch to read
-   * @param vectors
    * @return list of ownership inOutMapping for the vectors in the group
    */
   public List<TransferPair> prepareTransfers(RecordBatch in, List<ValueVector> vectors,
-    List<BaseWriter.ComplexWriter> complex) {
+    List<BaseWriter.ComplexWriter> writers) {
     this.inOutMapping.clear();
     List<TransferPair> transferPairs = new ArrayList<>();
     for (VectorWrapper<?> wrapper : in) {
@@ -73,13 +71,19 @@ public class FieldTransferMapper {
       if (out instanceof MapVector) {
         MapVector mv = (MapVector) out;
         BaseWriter.ComplexWriter writer;
-        if (complex.size() == 0) {
+        if (writers.size() == 0) {
           writer = new ComplexWriterImpl(FineoCommon.MAP_FIELD, mv, true);
-          complex.add(writer);
+          writers.add(writer);
         } else {
-          writer = complex.get(0);
+          writer = writers.get(0);
+
         }
         this.inOutMapping.add(new Pair<>(wrapper, new VectorOrWriter(writer.rootAsMap())));
+
+        // each time we will need to allocate a new field in the map, which only works after the
+        // mapRoot has been created
+        writer.allocate();
+
       } else {
         // this is a vector we will need to modify with a field, add it to the list
         vectors.add(out);
@@ -152,7 +156,7 @@ public class FieldTransferMapper {
 
     switch (field.getType().getMinorType()) {
       case VARCHAR:
-        map.varChar(name).write(holdVarChar((NullableVarCharVector) in, inIndex));
+        map.varChar(name).write(HolderUtil.holdVarChar((NullableVarCharVector) in, inIndex));
         break;
       case BIGINT:
         map.bigInt(name)
@@ -167,78 +171,20 @@ public class FieldTransferMapper {
   }
 
   private void copyVector(VectorWrapper<?> wrapper, ValueVector out, int inIndex, int outIndex) {
+    vectorAllocator.ensureAllocated(out);
     MaterializedField field = wrapper.getField();
     switch (field.getType().getMinorType()) {
       case VARCHAR:
-        copyVarchar(wrapper, out, inIndex, outIndex);
+        HolderUtil.copyVarchar(wrapper, out, inIndex, outIndex);
         break;
       case BIGINT:
-        copyBigInt(wrapper, out, inIndex, outIndex);
+        HolderUtil.copyBigInt(wrapper, out, inIndex, outIndex);
         break;
       case BIT:
-        copyBit(wrapper, out, inIndex, outIndex);
+        HolderUtil.copyBit(wrapper, out, inIndex, outIndex);
         break;
       default:
         throw new UnsupportedOperationException("Cannot convert field: " + field);
-    }
-  }
-
-  private void copyVarchar(VectorWrapper<?> wrapper, ValueVector out, int index, int outdex) {
-    NullableVarCharVector in = (NullableVarCharVector) wrapper.getValueVector();
-    NullableVarCharHolder holder = holdNullVarChar(in, index);
-    if (!(holder.isSet == 0)) {
-      ((NullableVarCharVector) out).getMutator()
-                                   .setSafe((outdex), holder.isSet, holder.start, holder.end,
-                                     holder.buffer);
-    }
-  }
-
-  private NullableVarCharHolder holdNullVarChar(NullableVarCharVector in, int index) {
-    NullableVarCharHolder out = new NullableVarCharHolder();
-    out.isSet = in.getAccessor().isSet((index));
-    if (out.isSet == 1) {
-      out.buffer = in.getBuffer();
-      long startEnd = in.getAccessor().getStartEnd((index));
-      out.start = ((int) startEnd);
-      out.end = ((int) (startEnd >> 32));
-    }
-    return out;
-  }
-
-  private VarCharHolder holdVarChar(NullableVarCharVector in, int index) {
-    VarCharHolder out = new VarCharHolder();
-    out.buffer = in.getBuffer();
-    long startEnd = in.getAccessor().getStartEnd((index));
-    out.start = ((int) startEnd);
-    out.end = ((int) (startEnd >> 32));
-    return out;
-  }
-
-  private void copyBigInt(VectorWrapper<?> wrapper, ValueVector out, int inIndex, int outdex) {
-    NullableBigIntVector in = (NullableBigIntVector) wrapper.getValueVector();
-    NullableBigIntHolder holder = new NullableBigIntHolder();
-    {
-      holder.isSet = in.getAccessor().isSet((inIndex));
-      if (holder.isSet == 1) {
-        holder.value = in.getAccessor().get((inIndex));
-      }
-    }
-    if (!(holder.isSet == 0)) {
-      ((NullableBigIntVector) out).getMutator().set((outdex), holder.isSet, holder.value);
-    }
-  }
-
-  private void copyBit(VectorWrapper<?> wrapper, ValueVector out, int inIndex, int outdex) {
-    NullableBitVector in = (NullableBitVector) wrapper.getValueVector();
-    NullableBitHolder holder = new NullableBitHolder();
-    {
-      holder.isSet = in.getAccessor().isSet((inIndex));
-      if (holder.isSet == 1) {
-        holder.value = in.getAccessor().get((inIndex));
-      }
-    }
-    if (!(holder.isSet == 0)) {
-      ((NullableBitVector) out).getMutator().set((outdex), holder.isSet, holder.value);
     }
   }
 

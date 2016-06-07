@@ -17,7 +17,6 @@ import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
-import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.writer.BaseWriter;
 
@@ -216,15 +215,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
   @Override
   protected IterOutcome doWork() {
     int incomingRecordCount = incoming.getRecordCount();
-
-    // ensure that we have a place to put the data we are about to pass along
-    for (ValueVector v : vectors) {
-      AllocationHelper.allocateNew(v, incomingRecordCount);
-    }
-
-    for (BaseWriter.ComplexWriter writer : writers) {
-      writer.allocate();
-    }
 
     for (int i = 0; i < incomingRecordCount; i++) {
       this.transferMapper.combine(i);

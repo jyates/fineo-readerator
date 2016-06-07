@@ -5,6 +5,7 @@ import io.fineo.read.drill.exec.store.rel.FineoRecombinatorMarkerRel;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.avro.AvroSchemaManager;
 import io.fineo.schema.store.SchemaStore;
+import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
@@ -91,11 +92,7 @@ public class FineoRecombinatorRule extends RelOptRule {
       builder.union(true);
     }
     // result needs to be sorted on the timestamp
-    RelNode node = builder.peek();
-    RelDataType type = node.getRowType();
-    RelDataTypeField field = type.getField(AvroSchemaEncoder.TIMESTAMP_KEY, false, false);
-    RexNode sortNode = project.getCluster().getRexBuilder().makeInputRef(node, field.getIndex());
-    builder.sort(sortNode);
+//    addSort(builder, project.getCluster());
 
     RelNode rel = builder.build();
 
@@ -105,6 +102,14 @@ public class FineoRecombinatorRule extends RelOptRule {
     filter = LogicalFilter.create(rel, filter.getCondition());
     project = LogicalProject.create(filter, project.getProjects(), project.getRowType());
     call.transformTo(project);
+  }
+
+  private void addSort(RelBuilder builder, RelOptCluster cluster) {
+    RelNode node = builder.peek();
+    RelDataType type = node.getRowType();
+    RelDataTypeField field = type.getField(AvroSchemaEncoder.TIMESTAMP_KEY, false, false);
+    RexNode sortNode = cluster.getRexBuilder().makeInputRef(node, field.getIndex());
+    builder.sort(sortNode);
   }
 
   private Map<String, String> lookupMetricFieldsFromFilter(LogicalFilter filter) {
