@@ -4,7 +4,6 @@ import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.fasterxml.jackson.jr.ob.JSON;
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
 import io.fineo.drill.rule.DrillClusterRule;
 import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
@@ -17,11 +16,12 @@ import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.test.rule.TestOutput;
-import oadd.org.apache.drill.exec.util.Text;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.schemarepo.ValidatorFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,6 +46,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TestFineoReadTable extends BaseDynamoTableTest {
+  private static final Logger LOG = LoggerFactory.getLogger(TestFineoReadTable.class);
 
   @ClassRule
   public static DrillClusterRule drill = new DrillClusterRule(1);
@@ -179,7 +180,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     bootstrap(write(tmp, 1, values));
 
     // definitely doesn't match
-    verifySelectStar(of(equals(FineoCommon.MAP_FIELD + "['" + uk+"']", "2")), result -> {
+    verifySelectStar(of(equals(FineoCommon.MAP_FIELD + "['" + uk + "']", "2")), result -> {
       assertFalse(result.next());
     });
 
@@ -207,7 +208,9 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     bootstrap(files.toArray(new File[0]));
 
     verifySelectStar(result -> {
+      int j = 0;
       for (Map<String, Object> content : fileContents) {
+        LOG.info("Checking row " + j);
         assertNext(result, content);
       }
     });
@@ -236,6 +239,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
       String from = " FROM fineo.events";
       String where = " WHERE " + AND.join(actualWheres);
       String stmt = "SELECT *" + from + where;
+      LOG.info("Attempting query: " + stmt);
       verify.verify(conn.createStatement().executeQuery(stmt));
     }
   }
@@ -288,10 +292,12 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
   }
 
   private void assertNext(ResultSet result, Map<String, Object> values) throws SQLException {
-    assertTrue(result.next());
+    assertTrue("Could not get next result for values: " + values, result.next());
     for (Map.Entry<String, Object> e : values.entrySet()) {
       assertEquals(e.getValue(), result.getObject(e.getKey()));
     }
+    assertEquals("Wrong number of incombing columns", result.getMetaData().getColumnCount(),
+      values.size() + 1);
   }
 
   private File write(File dir, long ts, Map<String, Object> values)
