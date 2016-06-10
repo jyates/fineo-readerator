@@ -23,26 +23,29 @@ import java.util.List;
 public class FineoRecombinatorMarkerRel extends AbstractRelNode {
   private final SchemaStore store;
   private final RelOptTable parent;
+  private final String orgId;
+  private final String metricType;
   private List<RelNode> inputs;
 
   public FineoRecombinatorMarkerRel(RelOptCluster cluster, RelTraitSet traits, SchemaStore store,
-    RelOptTable parent) {
+    RelOptTable parent, String orgId, String metricType) {
     super(cluster, traits.plus(Convention.NONE));
     this.store = store;
     this.parent = parent;
+    this.orgId = orgId;
+    this.metricType = metricType;
   }
 
   @Override
   protected RelDataType deriveRowType() {
-    // we just return whatever our parent table surfaced. In this case, its definitely a dynamic
-    // table, so we can basically replace this rel with anything we want
     return parent.getRowType();
   }
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
     FineoRecombinatorMarkerRel rel =
-      new FineoRecombinatorMarkerRel(this.getCluster(), traitSet, this.store, this.parent);
+      new FineoRecombinatorMarkerRel(this.getCluster(), traitSet, this.store, this.parent, orgId,
+        metricType);
     rel.setInputs(inputs);
     return rel;
   }
@@ -78,5 +81,13 @@ public class FineoRecombinatorMarkerRel extends AbstractRelNode {
     }
     pw.item("rowtype", this.getRowType());
     return pw;
+  }
+
+  public String getOrgId() {
+    return orgId;
+  }
+
+  public String getMetricType() {
+    return metricType;
   }
 }

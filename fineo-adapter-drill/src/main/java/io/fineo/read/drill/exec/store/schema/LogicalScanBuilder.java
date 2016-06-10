@@ -8,7 +8,6 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalTableScan;
-import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.tools.RelBuilder;
 
 import java.util.ArrayList;
@@ -21,17 +20,15 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class LogicalScanBuilder {
 
-  private final RelBuilder builder;
   private final RelOptTable relOptTable;
   private final RelOptCluster cluster;
-  private int scanCount = 0;
   private List<RelNode> tables = new ArrayList<>();
+  private String orgId;
+  private String metricType;
 
   public LogicalScanBuilder(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
     this.cluster = context.getCluster();
     this.relOptTable = relOptTable;
-    this.builder = RelBuilder.proto(cluster.getPlanner().getContext())
-                             .create(cluster, relOptTable.getRelOptSchema());
   }
 
   /**
@@ -42,20 +39,20 @@ public class LogicalScanBuilder {
    * @return
    */
   public LogicalScanBuilder scan(String... schemaAndTable) {
+    // this is always a dynamic table
     RelOptTable table =
       relOptTable.getRelOptSchema().getTableForMember(newArrayList(schemaAndTable));
     LogicalTableScan scan =
       new LogicalTableScan(cluster, cluster.traitSetOf(Convention.NONE), table);
     addFields(scan);
     this.tables.add(scan);
-    scanCount++;
     return this;
   }
 
   private void addFields(RelNode scan) {
     // ensures that the "*" operator is added to the row type
     scan.getRowType().getFieldList();
-    // add the other fields that we are sure are present
+    // add the other fields that we are sure are in the table
     for (String field : FineoCommon.REQUIRED_FIELDS) {
       scan.getRowType().getField(field, false, false);
     }
@@ -64,12 +61,22 @@ public class LogicalScanBuilder {
   public FineoRecombinatorMarkerRel buildMarker(SchemaStore store) {
     FineoRecombinatorMarkerRel marker =
       new FineoRecombinatorMarkerRel(cluster, cluster.traitSet().plus(Convention.NONE), store,
-        this.relOptTable);
+        this.relOptTable, orgId, metricType);
     marker.setInputs(this.tables);
     return marker;
   }
 
   public RelNode getFirstScan(){
     return this.tables.get(0);
+  }
+
+  public LogicalScanBuilder withOrgId(String orgid1) {
+    this.orgId = orgid1;
+    return this;
+  }
+
+  public LogicalScanBuilder withMetricType(String metricType) {
+    this.metricType = metricType;
+    return this;
   }
 }

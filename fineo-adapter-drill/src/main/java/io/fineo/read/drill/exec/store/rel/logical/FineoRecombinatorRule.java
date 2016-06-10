@@ -10,7 +10,6 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexCall;
@@ -40,47 +39,33 @@ public class FineoRecombinatorRule extends RelOptRule {
 
   private static final List<String> REQUIRED_FIELDS = newArrayList(ORG_ID_KEY, ORG_METRIC_TYPE_KEY);
 
-  private static final Predicate<LogicalFilter> PREDICATE = new CompanyAndMetricFiltered();
-
   public FineoRecombinatorRule() {
-    // match a project that has a filter
-    super(operand(LogicalProject.class,
-      operand(LogicalFilter.class,
-        operand(FineoRecombinatorMarkerRel.class, RelOptRule.any()))), "FineoRecombinatorRule");
-  }
-
-  @Override
-  public boolean matches(RelOptRuleCall call) {
-    LogicalFilter filter = call.rel(1);
-
-    // make sure that this filter includes the type/metric info to lookup the expanded fields
-    return PREDICATE.test(filter);
+    super(operand(FineoRecombinatorMarkerRel.class, RelOptRule.any()), "FineoRecombinatorRule");
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    LogicalProject project = call.rel(0);
-    LogicalFilter filter = call.rel(1);
-    FineoRecombinatorMarkerRel frr = call.rel(2);
+    FineoRecombinatorMarkerRel fmr = call.rel(0);
 
-    // lookup the metric/field alias information
-    Map<String, String> metricLookup = lookupMetricFieldsFromFilter(filter);
     // need the uppercase names here because that's how we pulled them out of the query
-    SchemaStore store = frr.getStore();
-    AvroSchemaManager schema = new AvroSchemaManager(store, metricLookup.get(ORG_ID_KEY));
-    Metric metric = schema.getMetricInfo(metricLookup.get(ORG_METRIC_TYPE_KEY));
+    SchemaStore store = fmr.getStore();
+    AvroSchemaManager schema = new AvroSchemaManager(store, fmr.getOrgId());
+    Metric metric = schema.getMetricInfo(fmr.getMetricType());
 
     // This is actually a marker for a set of logical unions between types
+    RelOptCluster cluster = fmr.getCluster();
     RelBuilder builder = RelBuilder.proto(call.getPlanner().getContext())
-                                   .create(project.getCluster(), frr.getRelSchema());
+                                   .create(cluster, fmr.getRelSchema());
 
-    RelDataType rowType = frr.getRowType();
-    // each input is wrapped with an FRR to normalize output types
+    // output type to which we need to conform
+    RelDataType rowType = fmr.getRowType();
+
+    // each input (table) is wrapped with an FRR to normalize output types
     int scanCount = 0;
-    for (RelNode relNode : frr.getInputs()) {
+    for (RelNode relNode : fmr.getInputs()) {
       RelNode convertedInput = convert(relNode, relNode.getTraitSet().plus(DrillRel.DRILL_LOGICAL));
       FineoRecombinatorRel rel =
-        new FineoRecombinatorRel(frr.getCluster(), convertedInput.getTraitSet(), convertedInput,
+        new FineoRecombinatorRel(fmr.getCluster(), convertedInput.getTraitSet(), convertedInput,
           metric, rowType);
       builder.push(rel);
       scanCount++;
@@ -91,16 +76,9 @@ public class FineoRecombinatorRule extends RelOptRule {
       builder.union(true);
     }
     // result needs to be sorted on the timestamp
-    addSort(builder, project.getCluster());
+    addSort(builder, cluster);
 
-    RelNode rel = builder.build();
-
-    // rebuild the tree above us. We cannot use the existing stack b/c the subsets are messed up.
-    // However, when we point to frr's input, a LOGICAL RelSubset, we are pointing to an equivalence
-    // of the FRMR's subset.
-    filter = LogicalFilter.create(rel, filter.getCondition());
-    project = LogicalProject.create(filter, project.getProjects(), project.getRowType());
-    call.transformTo(project);
+    call.transformTo(builder.build());
   }
 
   private void addSort(RelBuilder builder, RelOptCluster cluster) {

@@ -6,9 +6,7 @@ import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.schema.Table;
 import org.apache.drill.exec.store.AbstractSchema;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static com.google.common.collect.Sets.newHashSet;
