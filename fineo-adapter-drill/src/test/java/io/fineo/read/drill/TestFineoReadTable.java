@@ -37,6 +37,7 @@ import java.util.UUID;
 
 import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.fromProperties;
 import static com.google.common.collect.Maps.newHashMap;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
@@ -83,6 +84,22 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
       assertNext(result, values);
       assertNext(result, values2);
     });
+  }
+
+  @Test
+  public void testRunQueries() throws Exception {
+    register();
+    File tmp = folder.newFolder("drill");
+    Map<String, Object> values = new HashMap<>();
+    values.put(fieldname, false);
+    File out = write(tmp, 1, values);
+    bootstrap(out);
+    verify("SELECT companykey FROM fineo.sub.events",
+      r -> {
+      });
+    verify("SELECT companykey FROM fineo.sub2.events",
+      r -> {
+      });
   }
 
   @Test
@@ -254,11 +271,17 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
   private void doVerifySelectStar(List<String> actualWheres,
     Verify<ResultSet> verify) throws Exception {
-    Connection conn = drill.getConnection();
     String from = " FROM fineo.events";
     String where = " WHERE " + AND.join(actualWheres);
-    String stmt = "SELECT *" + from + where;
+//    String stmt = "SELECT *" + from + where;
+    String stmt = "SELECT *, field1, *" + from + where;
+    stmt = "SELECT *, field1 FROM fineo.sub.events UNION ALL SELECT *, field1 FROM events2";
+    verify(stmt, verify);
+  }
+
+  private void verify(String stmt, Verify<ResultSet> verify) throws Exception {
     LOG.info("Attempting query: " + stmt);
+    Connection conn = drill.getConnection();
     verify.verify(conn.createStatement().executeQuery(stmt));
   }
 

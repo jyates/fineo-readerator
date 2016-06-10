@@ -68,4 +68,8 @@ public class LogicalScanBuilder {
     marker.setInputs(this.tables);
     return marker;
   }
+
+  public RelNode getFirstScan(){
+    return this.tables.get(0);
+  }
 }

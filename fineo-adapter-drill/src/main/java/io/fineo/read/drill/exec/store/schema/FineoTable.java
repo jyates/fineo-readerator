@@ -32,7 +32,8 @@ public class FineoTable extends DynamicDrillTable implements TranslatableTable {
 
     LogicalScanBuilder builder = new LogicalScanBuilder(context, relOptTable);
     schemas.scan(builder);
-    return builder.buildMarker(this.store);
+//    return builder.buildMarker(this.store);
+    return builder.getFirstScan();
   }
 
   /**

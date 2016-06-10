@@ -5,6 +5,7 @@ import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
+import com.google.common.collect.ImmutableList;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
@@ -26,6 +27,7 @@ public class FineoSchemaFactory implements SchemaFactory {
   protected final FineoStoragePlugin plugin;
   protected final String name;
   private SchemaStore store;
+  private boolean set = false;
 
   public FineoSchemaFactory(FineoStoragePlugin fineoStoragePlugin, String name) {
     this.plugin = fineoStoragePlugin;
@@ -47,7 +49,13 @@ public class FineoSchemaFactory implements SchemaFactory {
     FineoStoragePluginConfig config = (FineoStoragePluginConfig) this.plugin.getConfig();
     this.store = createSchemaStore(config);
     FineoSubSchemas sub = new FineoSubSchemas(config.getSources());
-    parent.add(name, new FineoSchema(this.name, this.plugin, sub, store));
+    SchemaPlus next = parent.add(name, new FineoSchema(this.name, this.plugin, sub, store));
+    next.add("sub", new FineoSchema(ImmutableList.of("fineo"), "sub", this.plugin, sub, store));
+    if (set) {
+      next.add("sub2", new FineoSchema(ImmutableList.of("fineo"), "sub2", this.plugin, sub, store));
+    }
+    this.set = true;
+
   }
 
   protected SchemaStore createSchemaStore(FineoStoragePluginConfig config) {
