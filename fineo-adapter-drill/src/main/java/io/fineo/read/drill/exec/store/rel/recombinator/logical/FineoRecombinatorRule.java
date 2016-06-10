@@ -24,7 +24,9 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.drill.exec.planner.StarColumnHelper;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
@@ -69,13 +71,10 @@ public class FineoRecombinatorRule extends RelOptRule {
     // each input (table) is wrapped with an FRR to normalize output types
     int scanCount = 0;
     for (RelNode relNode : fmr.getInputs()) {
-//      RelNode convertedInput = convert(relNode, relNode.getTraitSet().plus(DRILL_LOGICAL));
-      RelNode convertedInput = relNode;
 
       // wrap with a filter to limit the output to the correct org and metric
       RelNode filter = LogicalFilter
-        .create(convertedInput,
-          getOrgAndMetricFilter(cluster.getRexBuilder(), fmr, convertedInput));
+        .create(relNode, getOrgAndMetricFilter(cluster.getRexBuilder(), fmr, relNode));
       // Child should be the logical equivalent of the filter
       filter = convert(filter, relNode.getTraitSet().plus(DRILL_LOGICAL));
       FineoRecombinatorRel rel =
@@ -99,7 +98,6 @@ public class FineoRecombinatorRule extends RelOptRule {
 
     // result needs to be sorted on the timestamp
     addSort(builder, cluster);
-
     call.transformTo(builder.build());
   }
 

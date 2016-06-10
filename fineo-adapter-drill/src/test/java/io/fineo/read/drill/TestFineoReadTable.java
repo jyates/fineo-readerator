@@ -246,22 +246,9 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
   }
 
   private void verifySelectStar(List<String> wheres, Verify<ResultSet> verify) throws Exception {
-    List<String> actualWheres = new ArrayList<>();
-    if (wheres != null) {
-      actualWheres.addAll(wheres);
-    }
-    // always have the org and metric filters
-    actualWheres.add(equals(ORG_ID_KEY, org));
-    actualWheres.add(equals(ORG_METRIC_TYPE_KEY, metrictype));
-    doVerifySelectStar(actualWheres, verify);
-  }
-
-  private void doVerifySelectStar(List<String> actualWheres,
-    Verify<ResultSet> verify) throws Exception {
     String from = " FROM fineo.events";
-    String where = " WHERE " + AND.join(actualWheres);
-    where = "";
-    String stmt = "SELECT *" + from + where;
+    String where = wheres == null ? "": " WHERE " + AND.join(wheres);
+    String stmt = "SELECT *" + from + where +" ORDER BY `timestamp` ASC";
 //    String stmt = "SELECT *, field1, *" + from + where;
     verify(stmt, verify);
   }

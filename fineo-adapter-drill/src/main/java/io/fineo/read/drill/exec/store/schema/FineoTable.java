@@ -44,7 +44,9 @@ public class FineoTable extends DrillTable implements TranslatableTable {
     return typeFactory.builder()
                       .add("timestamp", SqlTypeName.BIGINT)
                       .add("field1", SqlTypeName.BOOLEAN)
-                      .add("_fm", SqlTypeName.MAP)
+                      .add("_fm", typeFactory
+                        .createMapType(typeFactory.createSqlType(SqlTypeName.VARCHAR),
+                          typeFactory.createSqlType(SqlTypeName.ANY)))
                       .build();
   }
 

@@ -2,12 +2,18 @@ package io.fineo.read.drill.exec.store.schema;
 
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
+import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelCollationTraitDef;
+import org.apache.calcite.rel.RelCollations;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalTableScan;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.tools.RelBuilder;
 
 import java.util.ArrayList;
@@ -59,14 +65,22 @@ public class LogicalScanBuilder {
   }
 
   public FineoRecombinatorMarkerRel buildMarker(SchemaStore store) {
+    RelDataType type = this.relOptTable.getRowType();
+    int index = type.getFieldNames().indexOf(AvroSchemaEncoder.TIMESTAMP_KEY);
+    // ensure that the output is sorted on timestamp ascending with trait
+    RelFieldCollation sort = new RelFieldCollation(index, RelFieldCollation.Direction.ASCENDING);
+    RelTraitSet traits = cluster.traitSet()
+                                .plus(Convention.NONE)
+                                .plus(
+                                  RelCollationTraitDef.INSTANCE.canonize(RelCollations.of(sort)));
     FineoRecombinatorMarkerRel marker =
-      new FineoRecombinatorMarkerRel(cluster, cluster.traitSet().plus(Convention.NONE), store,
+      new FineoRecombinatorMarkerRel(cluster, traits, store,
         this.relOptTable, orgId, metricType);
     marker.setInputs(this.tables);
     return marker;
   }
 
-  public RelNode getFirstScan(){
+  public RelNode getFirstScan() {
     return this.tables.get(0);
   }
 
