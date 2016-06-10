@@ -1,7 +1,7 @@
-package io.fineo.read.drill.exec.store.rel;
+package io.fineo.read.drill.exec.store.rel.recombinator;
 
-import io.fineo.read.drill.exec.store.rel.logical.FineoRecombinatorRel;
-import io.fineo.read.drill.exec.store.rel.logical.FineoRecombinatorRule;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRel;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptCluster;

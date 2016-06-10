@@ -1,4 +1,4 @@
-package io.fineo.read.drill.exec.store.rel.physical.batch;
+package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 
 import org.apache.drill.exec.expr.holders.NullableBigIntHolder;
 import org.apache.drill.exec.expr.holders.NullableBitHolder;

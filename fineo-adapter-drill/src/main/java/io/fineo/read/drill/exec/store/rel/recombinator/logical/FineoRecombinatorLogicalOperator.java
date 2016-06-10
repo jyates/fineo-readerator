@@ -1,4 +1,4 @@
-package io.fineo.read.drill.exec.store.rel.logical;
+package io.fineo.read.drill.exec.store.rel.recombinator.logical;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -12,8 +12,6 @@ import org.apache.htrace.fasterxml.jackson.annotation.JsonGetter;
 import org.apache.htrace.fasterxml.jackson.annotation.JsonTypeName;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
 /**
  * The logical representation of a recombinator. Used to distribute the plan

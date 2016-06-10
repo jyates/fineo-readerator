@@ -10,6 +10,7 @@ import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.schema.OldSchemaException;
+import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.avro.AvroSchemaManager;
 import io.fineo.schema.avro.SchemaTestUtils;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
@@ -30,10 +31,12 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
@@ -84,22 +87,6 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
       assertNext(result, values);
       assertNext(result, values2);
     });
-  }
-
-  @Test
-  public void testRunQueries() throws Exception {
-    register();
-    File tmp = folder.newFolder("drill");
-    Map<String, Object> values = new HashMap<>();
-    values.put(fieldname, false);
-    File out = write(tmp, 1, values);
-    bootstrap(out);
-    verify("SELECT companykey FROM fineo.sub.events",
-      r -> {
-      });
-    verify("SELECT companykey FROM fineo.sub2.events",
-      r -> {
-      });
   }
 
   @Test
@@ -246,7 +233,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     verifySelectStar(result -> {
       int j = 0;
       for (Map<String, Object> content : fileContents) {
-        LOG.info("Checking row " + j + " => \n" + content);
+        LOG.info("Checking row " + j + ".\n\tExpected Content =>" + content);
         assertNext(result, content);
       }
     });
@@ -273,9 +260,9 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     Verify<ResultSet> verify) throws Exception {
     String from = " FROM fineo.events";
     String where = " WHERE " + AND.join(actualWheres);
-//    String stmt = "SELECT *" + from + where;
-    String stmt = "SELECT *, field1, *" + from + where;
-    stmt = "SELECT *, field1 FROM fineo.sub.events UNION ALL SELECT *, field1 FROM events2";
+    where = "";
+    String stmt = "SELECT *" + from + where;
+//    String stmt = "SELECT *, field1, *" + from + where;
     verify(stmt, verify);
   }
 
@@ -334,14 +321,24 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
   private void assertNext(ResultSet result, Map<String, Object> values) throws SQLException {
     assertTrue("Could not get next result for values: " + values, result.next());
-    for (Map.Entry<String, Object> e : values.entrySet()) {
-      assertEquals(e.getValue(), result.getObject(e.getKey()));
-    }
-    assertEquals(
-      "Wrong number of incoming columns!" +
-      "\nExpected: " + values.keySet() +
-      "\nActual: " + getColumns(result.getMetaData()),
-      values.size() + 1, result.getMetaData().getColumnCount());
+    values.keySet().stream()
+          .filter(Predicate.isEqual(AvroSchemaEncoder.ORG_ID_KEY).negate())
+          .filter(Predicate.isEqual(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY).negate())
+          .forEach(key -> {
+            try {
+              assertEquals("Mismatch for column: " + key, values.get(key), result.getObject(key));
+            } catch (SQLException e) {
+              assertFalse("Got exception: " + e, true);
+            }
+          });
+    List<String> expectedKeys = newArrayList(values.keySet());
+    expectedKeys.remove(AvroSchemaEncoder.ORG_ID_KEY);
+    expectedKeys.remove(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY);
+    expectedKeys.add(FineoCommon.MAP_FIELD);
+    List<String> actualKeys = getColumns(result.getMetaData());
+    Collections.sort(expectedKeys);
+    Collections.sort(actualKeys);
+    assertEquals("Wrong number of incoming columns!", expectedKeys, actualKeys);
   }
 
   private List<String> getColumns(ResultSetMetaData meta) throws SQLException {

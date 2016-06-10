@@ -1,7 +1,6 @@
-package io.fineo.read.drill.exec.store.rel.physical;
+package io.fineo.read.drill.exec.store.rel.recombinator.physical;
 
 import io.fineo.internal.customer.Metric;
-import io.fineo.read.drill.exec.store.schema.FineoTable;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;

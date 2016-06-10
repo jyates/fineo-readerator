@@ -1,4 +1,4 @@
-package io.fineo.read.drill.exec.store.rel.physical.batch;
+package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 
 import com.google.common.base.Preconditions;
 import io.fineo.read.drill.exec.store.FineoCommon;

@@ -1,7 +1,7 @@
-package io.fineo.read.drill.exec.store.rel.physical.batch;
+package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 
 import com.google.common.collect.Iterables;
-import io.fineo.read.drill.exec.store.rel.physical.Recombinator;
+import io.fineo.read.drill.exec.store.rel.recombinator.physical.Recombinator;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.impl.BatchCreator;

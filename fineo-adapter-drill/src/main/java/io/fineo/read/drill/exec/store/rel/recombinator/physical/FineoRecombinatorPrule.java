@@ -1,6 +1,6 @@
-package io.fineo.read.drill.exec.store.rel.physical;
+package io.fineo.read.drill.exec.store.rel.recombinator.physical;
 
-import io.fineo.read.drill.exec.store.rel.logical.FineoRecombinatorRel;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRel;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
@@ -13,7 +13,10 @@ import org.apache.drill.exec.planner.physical.Prule;
  * Rule to convert to a {@link FineoRecombinatorPrule}.
  */
 public class FineoRecombinatorPrule extends Prule {
-  public FineoRecombinatorPrule() {
+
+  public static FineoRecombinatorPrule INSTANCE = new FineoRecombinatorPrule();
+
+  private FineoRecombinatorPrule() {
     super(RelOptHelper.any(FineoRecombinatorRel.class), "Prel.FineoRecombinatorPrule");
   }
 

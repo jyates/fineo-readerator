@@ -1,9 +1,9 @@
-package io.fineo.read.drill.exec.store.rel.physical.batch;
+package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 
 import com.google.common.base.Preconditions;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
-import io.fineo.read.drill.exec.store.rel.physical.Recombinator;
+import io.fineo.read.drill.exec.store.rel.recombinator.physical.Recombinator;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import org.apache.avro.Schema;
 import org.apache.drill.common.types.TypeProtos;
@@ -28,7 +28,7 @@ import java.util.Map;
 
 import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
-import static io.fineo.read.drill.exec.store.rel.physical.batch.FieldTransferMapper
+import static io.fineo.read.drill.exec.store.rel.recombinator.physical.batch.FieldTransferMapper
   .UNKNOWN_FIELDS_MAP_ALIASES;
 import static io.fineo.schema.avro.AvroSchemaEncoder.BASE_FIELDS_KEY;
 

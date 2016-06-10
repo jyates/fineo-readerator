@@ -2,8 +2,9 @@ package io.fineo.read.drill.exec.store.plugin;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import io.fineo.read.drill.exec.store.rel.logical.FineoRecombinatorRule;
-import io.fineo.read.drill.exec.store.rel.physical.FineoRecombinatorPrule;
+import io.fineo.read.drill.exec.store.rel.fixed.physical.FixedSchemaPrule;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
+import io.fineo.read.drill.exec.store.rel.recombinator.physical.FineoRecombinatorPrule;
 import io.fineo.read.drill.exec.store.schema.FineoSchemaFactory;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
 import org.apache.calcite.plan.RelOptRule;
@@ -16,7 +17,6 @@ import org.apache.drill.common.logical.StoragePluginConfig;
 import org.apache.drill.exec.ops.OptimizerRulesContext;
 import org.apache.drill.exec.physical.base.AbstractGroupScan;
 import org.apache.drill.exec.planner.PlannerPhase;
-import org.apache.drill.exec.planner.logical.DrillScanRule;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.store.AbstractStoragePlugin;
 import org.apache.drill.exec.store.SchemaConfig;
@@ -67,9 +67,11 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
 
 
     // transform FRMR -> FRR
-    rules.put(PlannerPhase.LOGICAL, new FineoRecombinatorRule());
+    rules.put(PlannerPhase.LOGICAL, FineoRecombinatorRule.INSTANCE);
     // transform FRR -> FRPr
-    rules.put(PlannerPhase.PHYSICAL, new FineoRecombinatorPrule());
+    rules.put(PlannerPhase.PHYSICAL, FineoRecombinatorPrule.INSTANCE);
+    // FixedR -> FixedPr
+    rules.put(PlannerPhase.PHYSICAL, FixedSchemaPrule.INSTANCE);
     return rules;
   }
 
