@@ -5,6 +5,7 @@ import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.Recombinator;
 import io.fineo.schema.avro.AvroSchemaEncoder;
+import io.fineo.schema.store.StoreClerk;
 import org.apache.avro.Schema;
 import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.types.Types;
@@ -24,20 +25,17 @@ import org.apache.drill.exec.vector.complex.impl.SingleMapWriter;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
-import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
 import static io.fineo.read.drill.exec.store.rel.recombinator.physical.batch.FieldTransferMapper
   .UNKNOWN_FIELDS_MAP_ALIASES;
-import static io.fineo.schema.avro.AvroSchemaEncoder.BASE_FIELDS_KEY;
 
 /**
  * Do the actual work of transforming input records to the expected customer type
  */
 public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombinator> {
 
-  private final Map<String, List<String>> cnameToAlias;
+  private final StoreClerk.Metric metric;
   private Schema metricSchema;
   private boolean builtSchema;
   private FieldTransferMapper transferMapper;
@@ -51,8 +49,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     super(popConfig, context, incoming);
     // parse out the things we actually care about
     Metric metric = popConfig.getMetricObj();
-    this.cnameToAlias = metric.getMetadata().getCanonicalNamesToAliases();
-    this.metricSchema = new Schema.Parser().parse(metric.getMetricSchema());
+    this.metric = new StoreClerk.Metric(null, metric, null);
     this.transferMapper = new FieldTransferMapper();
   }
 
@@ -152,13 +149,8 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     entries.add(new FieldEntry(FineoCommon.MAP_FIELD, type, UNKNOWN_FIELDS_MAP_ALIASES));
 
     // we know that the first value in the alias map is actually the user visible name right now.
-    for (Map.Entry<String, List<String>> entry : cnameToAlias.entrySet()) {
-      String cname = entry.getKey();
-      if (cname.equals(BASE_FIELDS_KEY)) {
-        continue;
-      }
-      String alias = entry.getValue().get(0);
-      entries.add(new FieldEntry(alias, getFieldType(cname), entry.getValue()));
+    for (StoreClerk.Field field : this.metric.getUserVisibleFields()) {
+      entries.add(new FieldEntry(field.getName(), getType(field), field.getAliases()));
     }
     return entries;
   }
@@ -200,11 +192,8 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     }
   }
 
-  private TypeProtos.MajorType getFieldType(String cname) throws SchemaChangeException {
-    // this is pretty ugly that we just leave this out here. It really should be better encapsulated
-    // in the schema project... but we can do that later. #startup
-    Schema.Field field = this.metricSchema.getField(cname);
-    Schema.Type type = field.schema().getField("value").schema().getType();
+  private static TypeProtos.MajorType getType(StoreClerk.Field field) throws SchemaChangeException {
+    Schema.Type type = field.getType();
     switch (type) {
       case STRING:
         return Types.optional(TypeProtos.MinorType.VARCHAR);
@@ -222,8 +211,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         return Types.optional(TypeProtos.MinorType.BIT);
       default:
         throw new SchemaChangeException(
-          "We don't know how to handle type: " + type + " for field: " + cname + "->" + cnameToAlias
-            .get(cname));
+          "We don't know how to handle type: " + type + " for field: " + field.getName());
     }
   }
 

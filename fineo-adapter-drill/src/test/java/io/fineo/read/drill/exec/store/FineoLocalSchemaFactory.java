@@ -14,7 +14,8 @@ import java.util.Map;
 public class FineoLocalSchemaFactory extends FineoSchemaFactory {
 
   public FineoLocalSchemaFactory(FineoStoragePlugin fineoStoragePlugin, String name) {
-    super(fineoStoragePlugin, name);
+    super(fineoStoragePlugin, name,
+      ((FineoStoragePluginConfig) fineoStoragePlugin.getConfig()).getOrgs());
   }
 
   @Override

@@ -35,7 +35,7 @@ import static org.apache.calcite.plan.RelOptRule.operand;
  */
 public class FineoStoragePlugin extends AbstractStoragePlugin {
 
-  private final FineoStoragePluginConfig config;
+  protected final FineoStoragePluginConfig config;
   private final FineoSchemaFactory factory;
   private final DrillbitContext context;
   private final Multimap<PlannerPhase, RelOptRule> rules;
@@ -86,7 +86,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   }
 
   protected FineoSchemaFactory getFactory(String name) {
-    return new FineoSchemaFactory(this, name);
+    return new FineoSchemaFactory(this, name, this.config.getOrgs());
   }
 
   // definitely don't support a physical scan

@@ -2,7 +2,6 @@ package io.fineo.read.drill.exec.store;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import io.fineo.read.drill.exec.store.plugin.FineoSourceConfig;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
 
 import java.util.List;
@@ -17,8 +16,9 @@ public class FineoLocalTestStoragePluginConfig extends FineoStoragePluginConfig 
     @JsonProperty("repository") Map<String, String> repository,
     @JsonProperty("aws") Map<String, String> aws,
     @JsonProperty("sources")Map<String, List<String>> sources,
-    @JsonProperty("dynamo") Map<String, String> dynamo) {
-    super(repository, aws, sources);
+    @JsonProperty("dynamo") Map<String, String> dynamo,
+    @JsonProperty("orgs")List<String> orgs) {
+    super(repository, aws, sources, orgs);
     this.dynamo = dynamo;
   }
 

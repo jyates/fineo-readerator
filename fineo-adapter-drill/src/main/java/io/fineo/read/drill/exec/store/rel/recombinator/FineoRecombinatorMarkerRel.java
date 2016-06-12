@@ -2,7 +2,7 @@ package io.fineo.read.drill.exec.store.rel.recombinator;
 
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
-import io.fineo.schema.store.SchemaStore;
+import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptSchema;
@@ -21,19 +21,15 @@ import java.util.List;
  * filtered columns actually are to get the sub-columns that we are expanding
  */
 public class FineoRecombinatorMarkerRel extends AbstractRelNode {
-  private final SchemaStore store;
   private final RelOptTable parent;
-  private final String orgId;
-  private final String metricType;
   private List<RelNode> inputs;
+  private StoreClerk.Metric metric;
 
-  public FineoRecombinatorMarkerRel(RelOptCluster cluster, RelTraitSet traits, SchemaStore store,
-    RelOptTable parent, String orgId, String metricType) {
+  public FineoRecombinatorMarkerRel(RelOptCluster cluster, RelTraitSet traits,
+    RelOptTable parent, StoreClerk.Metric metric) {
     super(cluster, traits.plus(Convention.NONE));
-    this.store = store;
     this.parent = parent;
-    this.orgId = orgId;
-    this.metricType = metricType;
+    this.metric = metric;
   }
 
   @Override
@@ -44,14 +40,9 @@ public class FineoRecombinatorMarkerRel extends AbstractRelNode {
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
     FineoRecombinatorMarkerRel rel =
-      new FineoRecombinatorMarkerRel(this.getCluster(), traitSet, this.store, this.parent, orgId,
-        metricType);
+      new FineoRecombinatorMarkerRel(this.getCluster(), traitSet, this.parent, metric);
     rel.setInputs(inputs);
     return rel;
-  }
-
-  public SchemaStore getStore() {
-    return store;
   }
 
   public void setInputs(List<RelNode> inputs) {
@@ -83,11 +74,7 @@ public class FineoRecombinatorMarkerRel extends AbstractRelNode {
     return pw;
   }
 
-  public String getOrgId() {
-    return orgId;
-  }
-
-  public String getMetricType() {
-    return metricType;
+  public StoreClerk.Metric getMetric() {
+    return metric;
   }
 }

@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical;
 
 import io.fineo.internal.customer.Metric;
+import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
@@ -18,7 +19,7 @@ import java.util.List;
  */
 public class FineoRecombinatorRel extends SingleRel implements DrillRel {
 
-  private final Metric metric;
+  private final StoreClerk.Metric metric;
 
   /**
    * Creates a <code>SingleRel</code>.
@@ -29,7 +30,7 @@ public class FineoRecombinatorRel extends SingleRel implements DrillRel {
    * @param metric
    */
   protected FineoRecombinatorRel(RelOptCluster cluster,
-    RelTraitSet traits, RelNode input, Metric metric){
+    RelTraitSet traits, RelNode input, StoreClerk.Metric metric) {
     super(cluster, traits, input);
     this.metric = metric;
   }
@@ -37,12 +38,13 @@ public class FineoRecombinatorRel extends SingleRel implements DrillRel {
   @Override
   public LogicalOperator implement(DrillImplementor implementor) {
     final LogicalOperator input = implementor.visitChild(this, 0, getInput());
-    FineoRecombinatorLogicalOperator op = new FineoRecombinatorLogicalOperator(metric);
+    FineoRecombinatorLogicalOperator op =
+      new FineoRecombinatorLogicalOperator(metric.getUnderlyingMetric());
     op.setInput(input);
     return op;
   }
 
-  public Metric getMetric() {
+  public StoreClerk.Metric getMetric() {
     return this.metric;
   }
 

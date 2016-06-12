@@ -15,14 +15,17 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
   private final Map<String, String> repository;
   private final Map<String, String> aws;
   private final Map<String, List<String>> sources;
+  private final List<String> orgs;
 
   @JsonCreator
   public FineoStoragePluginConfig(@JsonProperty("repository") Map<String, String> repository,
     @JsonProperty("aws") Map<String, String> aws,
-    @JsonProperty("sources") Map<String, List<String>> sources) {
+    @JsonProperty("sources") Map<String, List<String>> sources,
+    @JsonProperty("orgs") List<String> orgs) {
     this.repository = repository;
     this.aws = aws;
     this.sources = sources;
+    this.orgs = orgs;
   }
 
   public Map<String, String> getRepository() {
@@ -57,5 +60,9 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
     int result = getRepository().hashCode();
     result = 31 * result + getAws().hashCode();
     return result;
+  }
+
+  public List<String> getOrgs() {
+    return orgs;
   }
 }

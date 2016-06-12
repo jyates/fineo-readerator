@@ -31,6 +31,7 @@ public class FineoRecombinatorPrule extends Prule {
                                   .plus(DrillDistributionTrait.SINGLETON);
     RelNode convertedInput = convert(rel.getInput(), traits);
     call.transformTo(
-      new FineoRecombinatorPrel(rel.getCluster(), traits, convertedInput, rel.getMetric(), rel.getRowType()));
+      new FineoRecombinatorPrel(rel.getCluster(), traits, convertedInput, rel.getMetric(),
+        rel.getRowType()));
   }
 }

@@ -1,12 +1,8 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical;
 
-import com.google.common.collect.ImmutableList;
-import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.rel.fixed.logical.FixedSchemaProjection;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
-import io.fineo.schema.avro.AvroSchemaEncoder;
-import io.fineo.schema.avro.AvroSchemaManager;
-import io.fineo.schema.store.SchemaStore;
+import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
@@ -19,20 +15,17 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
-import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.drill.exec.planner.StarColumnHelper;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
-import static io.fineo.schema.avro.AvroSchemaEncoder.*;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
+import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 import static java.util.stream.Collectors.toList;
 import static org.apache.drill.exec.planner.logical.DrillRel.DRILL_LOGICAL;
 
@@ -55,11 +48,6 @@ public class FineoRecombinatorRule extends RelOptRule {
   public void onMatch(RelOptRuleCall call) {
     FineoRecombinatorMarkerRel fmr = call.rel(0);
 
-    // need the uppercase names here because that's how we pulled them out of the query
-    SchemaStore store = fmr.getStore();
-    AvroSchemaManager schema = new AvroSchemaManager(store, fmr.getOrgId());
-    Metric metric = schema.getMetricInfo(fmr.getMetricType());
-
     // This is actually a marker for a set of logical unions between types
     RelOptCluster cluster = fmr.getCluster();
     RelBuilder builder = RelBuilder.proto(call.getPlanner().getContext())
@@ -78,7 +66,8 @@ public class FineoRecombinatorRule extends RelOptRule {
       // Child should be the logical equivalent of the filter
       filter = convert(filter, relNode.getTraitSet().plus(DRILL_LOGICAL));
       FineoRecombinatorRel rel =
-        new FineoRecombinatorRel(cluster, relNode.getTraitSet().plus(DRILL_LOGICAL), filter, metric);
+        new FineoRecombinatorRel(cluster, relNode.getTraitSet().plus(DRILL_LOGICAL), filter,
+          fmr.getMetric());
       // that is then wrapped in "fixed row type projection" so the union and downstream
       // projections apply nicely. This is especially important as the StarColumnConverter only
       // pushes down per-table projections when a parent * exists. Thus, the above rel, with the
@@ -87,7 +76,6 @@ public class FineoRecombinatorRule extends RelOptRule {
         new FixedSchemaProjection(cluster, rel.getTraitSet().plus(DRILL_LOGICAL),
           rel, getProjects(cluster.getRexBuilder(), rowType), rowType);
       builder.push(fsp);
-//      addSort(builder, cluster);
       scanCount++;
     }
 
@@ -108,8 +96,9 @@ public class FineoRecombinatorRule extends RelOptRule {
       builder.makeInputRef(input, row.getField(ORG_ID_KEY, false, false).getIndex());
     RexInputRef metric =
       builder.makeInputRef(input, row.getField(ORG_METRIC_TYPE_KEY, false, false).getIndex());
-    RexLiteral orgId = builder.makeLiteral(fmr.getOrgId());
-    RexLiteral metricType = builder.makeLiteral(fmr.getMetricType());
+    StoreClerk.Metric userMetric = fmr.getMetric();
+    RexLiteral orgId = builder.makeLiteral(userMetric.getOrgId());
+    RexLiteral metricType = builder.makeLiteral(userMetric.getMetricId());
     RexNode orgEq = builder.makeCall(SqlStdOperatorTable.EQUALS, org, orgId);
     RexNode metricEq = builder.makeCall(SqlStdOperatorTable.EQUALS, metric, metricType);
     return RexUtil.composeConjunction(builder, of(orgEq, metricEq), false);

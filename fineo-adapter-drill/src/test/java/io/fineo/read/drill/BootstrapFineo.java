@@ -17,6 +17,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,7 @@ public class BootstrapFineo {
   private final Map<String, String> aws = new HashMap<>();
   private final Map<String, String> dynamo = new HashMap<>();
   private final Map<String, List<String>> sources = new HashMap<>();
+  private final List<String> orgs = new ArrayList<>();
   private final List<String> files = new ArrayList<>();
 
   {
@@ -46,6 +48,7 @@ public class BootstrapFineo {
     config.put("aws", aws);
     config.put("dynamo", dynamo);
     config.put("sources", sources);
+    config.put("orgs", orgs);
 
     aws.put("credentials", "provided");
     aws.put("region", "us-east-1");
@@ -78,6 +81,11 @@ public class BootstrapFineo {
       Preconditions.checkArgument(repository.size() > 0, "Must specify a repository table name!");
       ObjectMapper mapper = new ObjectMapper();
       return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(plugin);
+    }
+
+    public DrillConfigBuilder withOrgs(String... orgIds) {
+      BootstrapFineo.this.orgs.addAll(Arrays.asList(orgIds));
+      return this;
     }
   }
 

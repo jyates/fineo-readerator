@@ -1,9 +1,11 @@
 package io.fineo.read.drill.exec.store.schema;
 
+import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.SchemaStore;
+import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
@@ -64,7 +66,7 @@ public class LogicalScanBuilder {
     }
   }
 
-  public FineoRecombinatorMarkerRel buildMarker(SchemaStore store) {
+  public FineoRecombinatorMarkerRel buildMarker(StoreClerk.Metric metric) {
     RelDataType type = this.relOptTable.getRowType();
     int index = type.getFieldNames().indexOf(AvroSchemaEncoder.TIMESTAMP_KEY);
     // ensure that the output is sorted on timestamp ascending with trait
@@ -74,8 +76,7 @@ public class LogicalScanBuilder {
                                 .plus(
                                   RelCollationTraitDef.INSTANCE.canonize(RelCollations.of(sort)));
     FineoRecombinatorMarkerRel marker =
-      new FineoRecombinatorMarkerRel(cluster, traits, store,
-        this.relOptTable, orgId, metricType);
+      new FineoRecombinatorMarkerRel(cluster, traits, this.relOptTable, metric);
     marker.setInputs(this.tables);
     return marker;
   }

@@ -16,6 +16,7 @@ import io.fineo.schema.avro.SchemaTestUtils;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
+import io.fineo.schema.store.StoreClerk;
 import io.fineo.test.rule.TestOutput;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -40,7 +41,6 @@ import java.util.function.Predicate;
 
 import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Maps.fromProperties;
 import static com.google.common.collect.Maps.newHashMap;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
@@ -69,7 +69,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
    */
   @Test
   public void testStoringUserVisibleName() throws Exception {
-    register();
+    TestState state = register();
 
     // write two rows into a json file
     File tmp = folder.newFolder("drill");
@@ -78,7 +78,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     Map<String, Object> values2 = newHashMap(values);
     values.put(fieldname, true);
     List<Map<String, Object>> rows = newArrayList(values, values2);
-    File out = write(tmp, org, metrictype, 1, rows);
+    File out = state.write(tmp, org, metrictype, 1, rows);
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(out);
@@ -109,7 +109,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     File tmp = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(storeFieldName, false);
-    File out = write(tmp, 1, values);
+    File out = state.write(tmp, 1, values);
 
     bootstrap(out);
 
@@ -150,7 +150,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
   @Test
   public void testUnknownFieldType() throws Exception {
-    register();
+    TestState state = register();
 
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, true);
@@ -160,7 +160,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     values.put(uk2, "hello field 2");
 
     File tmp = folder.newFolder("drill");
-    bootstrap(write(tmp, 1, values));
+    bootstrap(state.write(tmp, 1, values));
 
     verifySelectStar(result -> {
       assertTrue(result.next());
@@ -172,14 +172,14 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
   @Test
   public void testUnknownFieldWithRadioName() throws Exception {
-    register();
+    TestState state = register();
 
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, true);
     values.put(FineoCommon.MAP_FIELD, 1L);
 
     File tmp = folder.newFolder("drill");
-    bootstrap(write(tmp, 1, values));
+    bootstrap(state.write(tmp, 1, values));
 
     verifySelectStar(result -> {
       assertTrue(result.next());
@@ -190,7 +190,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
   @Test
   public void testFilterOnUnknownField() throws Exception {
-    register();
+    TestState state = register();
 
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, true);
@@ -198,7 +198,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     values.put(uk, 1L);
 
     File tmp = folder.newFolder("drill");
-    bootstrap(write(tmp, 1, values));
+    bootstrap(state.write(tmp, 1, values));
 
     // definitely doesn't match
     String field = FineoCommon.MAP_FIELD + "['" + uk + "']";
@@ -217,14 +217,14 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
   private void writeAndReadToIndependentFiles(Map<String, Object>... fileContents)
     throws Exception {
-    register();
+    TestState state = register();
 
     // write two rows into a json file
     File tmp = folder.newFolder("drill");
     List<File> files = new ArrayList<>();
     int i = 0;
     for (Map<String, Object> contents : fileContents) {
-      files.add(write(tmp, i++, contents));
+      files.add(state.write(tmp, i++, contents));
     }
 
     // ensure that the fineo-test plugin is enabled
@@ -246,9 +246,9 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
   }
 
   private void verifySelectStar(List<String> wheres, Verify<ResultSet> verify) throws Exception {
-    String from = " FROM fineo.events";
-    String where = wheres == null ? "": " WHERE " + AND.join(wheres);
-    String stmt = "SELECT *" + from + where +" ORDER BY `timestamp` ASC";
+    String from = format(" FROM fineo.%s.%s", org, metrictype);
+    String where = wheres == null ? "" : " WHERE " + AND.join(wheres);
+    String stmt = "SELECT *" + from + where + " ORDER BY `timestamp` ASC";
 //    String stmt = "SELECT *, field1, *" + from + where;
     verify(stmt, verify);
   }
@@ -275,7 +275,8 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     BootstrapFineo.DrillConfigBuilder builder =
       bootstrap.builder()
                .withLocalDynamo(util.getUrl())
-               .withRepository(tables.getTestTableName());
+               .withRepository(tables.getTestTableName())
+               .withOrgs(org);
     for (File file : files) {
       builder.withLocalSource(file);
     }
@@ -303,6 +304,28 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     public TestState(Metric metric, SchemaStore store) {
       this.metric = metric;
       this.store = store;
+    }
+
+    private File write(File dir, long ts, Map<String, Object> values)
+      throws IOException {
+      return write(dir, org, metrictype, ts, newArrayList(values));
+    }
+
+    private File write(File dir, String org, String metricType, long ts,
+      List<Map<String, Object>> values) throws IOException {
+      StoreClerk clerk = new StoreClerk(store, org);
+      for (Map<String, Object> json : values) {
+        json.put(ORG_ID_KEY, org);
+        // get the actual org type
+        StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
+        json.put(ORG_METRIC_TYPE_KEY, metric.getMetricId());
+        json.put(TIMESTAMP_KEY, ts);
+      }
+
+      File out = new File(dir, format("test-%s-%s.json", ts, UUID.randomUUID()));
+      JSON j = JSON.std;
+      j.write(values, out);
+      return out;
     }
   }
 
@@ -335,25 +358,6 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
       cols.add(meta.getColumnName(i + 1));
     }
     return cols;
-  }
-
-  private File write(File dir, long ts, Map<String, Object> values)
-    throws IOException {
-    return write(dir, org, metrictype, ts, newArrayList(values));
-  }
-
-  private File write(File dir, String org, String metricType, long ts,
-    List<Map<String, Object>> values) throws IOException {
-    for (Map<String, Object> json : values) {
-      json.put(ORG_ID_KEY, org);
-      json.put(ORG_METRIC_TYPE_KEY, metricType);
-      json.put(TIMESTAMP_KEY, ts);
-    }
-
-    File out = new File(dir, format("test-%s-%s.json", ts, UUID.randomUUID()));
-    JSON j = JSON.std;
-    j.write(values, out);
-    return out;
   }
 
   private CreateTableRequest getCreateTable(String schemaTable) {

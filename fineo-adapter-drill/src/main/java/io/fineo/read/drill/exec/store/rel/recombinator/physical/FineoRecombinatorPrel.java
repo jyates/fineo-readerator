@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.physical;
 
 import io.fineo.internal.customer.Metric;
+import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
@@ -20,11 +21,11 @@ import java.util.List;
  */
 public class FineoRecombinatorPrel extends SinglePrel implements Prel {
 
-  private final Metric metric;
+  private final StoreClerk.Metric metric;
   private final RelDataType parentRowType;
 
   public FineoRecombinatorPrel(RelOptCluster cluster, RelTraitSet traits, RelNode input,
-    Metric metric, RelDataType rowType) {
+    StoreClerk.Metric metric, RelDataType rowType) {
     super(cluster, traits, input);
     this.metric = metric;
     this.parentRowType = rowType;
@@ -40,7 +41,7 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
     Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
-    Recombinator op = new Recombinator(childPOP, metric);
+    Recombinator op = new Recombinator(childPOP, metric.getUnderlyingMetric());
     return creator.addMetadata(this, op);
   }
 
