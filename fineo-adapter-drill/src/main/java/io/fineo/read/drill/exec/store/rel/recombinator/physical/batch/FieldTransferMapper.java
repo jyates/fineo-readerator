@@ -99,6 +99,7 @@ public class FieldTransferMapper {
         writer.allocate();
 
       } else {
+        LOG.debug("Adding mapping vector from: "+name+" to "+out);
         mapped.add(out);
         this.inOutMapping.add(new Pair<>(wrapper, new VectorOrWriter(out)));
 

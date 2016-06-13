@@ -10,6 +10,7 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.TranslatableTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.drill.exec.planner.logical.DrillTable;
+import org.apache.drill.exec.planner.logical.DynamicDrillTable;
 
 import java.util.function.Function;
 
@@ -21,7 +22,7 @@ import static org.apache.calcite.sql.type.SqlTypeName.VARCHAR;
  * Base access for a logical Fineo table. This actually delegates to a series of unions to
  * underlying dynamo and/or spark tables, depending on the time range we are querying
  */
-public class FineoTable extends DrillTable implements TranslatableTable {
+public class FineoTable extends DynamicDrillTable implements TranslatableTable {
 
   private enum BaseField {
     TIMESTAMP("timestamp", tf -> tf.createSqlType(BIGINT)),
@@ -45,7 +46,8 @@ public class FineoTable extends DrillTable implements TranslatableTable {
 
   public FineoTable(FineoStoragePlugin plugin, String storageEngineName,
     FineoSubSchemas schemas, StoreClerk.Metric metric) {
-    super(storageEngineName, plugin, null, null);
+    super(plugin, storageEngineName, null, null);
+//    super(storageEngineName, plugin, null, null);
     this.schemas = schemas;
     this.metric = metric;
   }
@@ -57,24 +59,25 @@ public class FineoTable extends DrillTable implements TranslatableTable {
       .withOrgId(metric.getOrgId())
       .withMetricType(metric.getUserName());
     schemas.scan(builder);
+//    return builder.getFirstScan();
     return builder.buildMarker(this.metric);
   }
 
-  @Override
-  public RelDataType getRowType(RelDataTypeFactory typeFactory) {
-    RelDataTypeFactory.FieldInfoBuilder builder = typeFactory.builder();
-    // base fields
-    for (BaseField field : BaseField.values()) {
-      field.add(builder, typeFactory);
-    }
-
-    // add all the user visible fields
-    for (StoreClerk.Field field : this.metric.getUserVisibleFields()) {
-      SqlTypeName type = getSqlType(field.getType());
-      builder.add(field.getName(), type);
-    }
-    return builder.build();
-  }
+//  @Override
+//  public RelDataType getRowType(RelDataTypeFactory typeFactory) {
+//    RelDataTypeFactory.FieldInfoBuilder builder = typeFactory.builder();
+//    // base fields
+//    for (BaseField field : BaseField.values()) {
+//      field.add(builder, typeFactory);
+//    }
+//
+//    // add all the user visible fields
+//    for (StoreClerk.Field field : this.metric.getUserVisibleFields()) {
+//      SqlTypeName type = getSqlType(field.getType());
+//      builder.add(field.getName(), type);
+//    }
+//    return builder.build();
+//  }
 
   private SqlTypeName getSqlType(Schema.Type type) {
     switch (type) {

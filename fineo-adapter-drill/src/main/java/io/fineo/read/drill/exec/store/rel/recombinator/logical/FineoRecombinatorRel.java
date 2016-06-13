@@ -1,6 +1,5 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical;
 
-import io.fineo.internal.customer.Metric;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;

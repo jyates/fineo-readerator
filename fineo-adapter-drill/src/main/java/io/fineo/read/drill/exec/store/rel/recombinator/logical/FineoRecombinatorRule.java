@@ -8,6 +8,7 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
@@ -59,6 +60,13 @@ public class FineoRecombinatorRule extends RelOptRule {
     // each input (table) is wrapped with an FRR to normalize output types
     int scanCount = 0;
     for (RelNode relNode : fmr.getInputs()) {
+
+      // TODO project out the actual client fields and the expected types of those fields
+
+//      // TODO remove - add single cast for known field
+//      cluster.getRexBuilder().makeReinterpretCast()
+//      relNode = LogicalProject.create(relNode, of(), null);
+
 
       // wrap with a filter to limit the output to the correct org and metric
       RelNode filter = LogicalFilter

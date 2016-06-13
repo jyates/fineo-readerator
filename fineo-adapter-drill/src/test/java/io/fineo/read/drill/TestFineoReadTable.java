@@ -17,7 +17,9 @@ import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
+import io.fineo.schema.store.StoreManager;
 import io.fineo.test.rule.TestOutput;
+import org.apache.avro.Schema;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -215,6 +217,71 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     });
   }
 
+  @Test
+  public void testSupportedFieldTypes() throws Exception {
+    Map<String, Object> values = bootstrapFileWithFields(
+      f(true, Schema.Type.BOOLEAN),
+      f(new byte[]{1}, Schema.Type.BYTES),
+      f(2.0, Schema.Type.DOUBLE),
+      f(3.0f, Schema.Type.FLOAT),
+      f(4, Schema.Type.INT),
+      f(5L, Schema.Type.LONG),
+      f("6string", Schema.Type.STRING));
+
+//    verify("SELECT *, CAST(f4 as FLOAT) FROM fineo."+org+"."+metrictype, result ->{});
+    verifySelectStar(result -> assertNext(result, values));
+  }
+
+  /**
+   * Write bytes json row and read it back in as bytes. This is an issue because bytes are
+   * mis-mapped from json as varchar
+   *
+   * @throws Exception
+   */
+  @Test
+  public void testBytesTypeRemap() throws Exception {
+    Map<String, Object> values = bootstrapFileWithFields(f(new byte[]{1}, Schema.Type.BYTES));
+    verifySelectStar(result -> assertNext(result, values));
+  }
+
+  private Map<String, Object> bootstrapFileWithFields(FieldInstance<?>... fields)
+    throws IOException {
+    // setup the schema repository
+    DynamoDBRepository repository =
+      new DynamoDBRepository(ValidatorFactory.EMPTY, tables.getAsyncClient(),
+        getCreateTable(tables.getTestTableName()));
+    SchemaStore store = new SchemaStore(repository);
+    StoreManager manager = new StoreManager(store);
+    StoreManager.MetricBuilder builder = manager.newOrg(org)
+                                                .newMetric().setDisplayName(metrictype);
+    Map<String, Object> values = new HashMap<>();
+    for (int i = 0; i < fields.length; i++) {
+      String name = "f" + (i++);
+      FieldInstance<?> field = fields[i];
+      builder.newField().withName(name).withType(field.type.getName()).build();
+      values.put(name, field.inst);
+    }
+
+    File tmp = folder.newFolder("drill");
+    bootstrap(writeJson(store, tmp, org, metrictype, 1, of(values)));
+
+    return values;
+  }
+
+  private class FieldInstance<T> {
+    private final T inst;
+    private final Schema.Type type;
+
+    public FieldInstance(T inst, Schema.Type type) {
+      this.inst = inst;
+      this.type = type;
+    }
+  }
+
+  private <T> FieldInstance<T> f(T inst, Schema.Type type) {
+    return new FieldInstance<>(inst, type);
+  }
+
   private void writeAndReadToIndependentFiles(Map<String, Object>... fileContents)
     throws Exception {
     TestState state = register();
@@ -313,20 +380,25 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
     private File write(File dir, String org, String metricType, long ts,
       List<Map<String, Object>> values) throws IOException {
-      StoreClerk clerk = new StoreClerk(store, org);
-      for (Map<String, Object> json : values) {
-        json.put(ORG_ID_KEY, org);
-        // get the actual org type
-        StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
-        json.put(ORG_METRIC_TYPE_KEY, metric.getMetricId());
-        json.put(TIMESTAMP_KEY, ts);
-      }
-
-      File out = new File(dir, format("test-%s-%s.json", ts, UUID.randomUUID()));
-      JSON j = JSON.std;
-      j.write(values, out);
-      return out;
+      return writeJson(store, dir, org, metricType, ts, values);
     }
+  }
+
+  private static File writeJson(SchemaStore store, File dir, String org, String metricType, long ts,
+    List<Map<String, Object>> values) throws IOException {
+    StoreClerk clerk = new StoreClerk(store, org);
+    for (Map<String, Object> json : values) {
+      json.put(ORG_ID_KEY, org);
+      // get the actual org type
+      StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
+      json.put(ORG_METRIC_TYPE_KEY, metric.getMetricId());
+      json.put(TIMESTAMP_KEY, ts);
+    }
+
+    File out = new File(dir, format("test-%s-%s.json", ts, UUID.randomUUID()));
+    JSON j = JSON.std;
+    j.write(values, out);
+    return out;
   }
 
   private void assertNext(ResultSet result, Map<String, Object> values) throws SQLException {
