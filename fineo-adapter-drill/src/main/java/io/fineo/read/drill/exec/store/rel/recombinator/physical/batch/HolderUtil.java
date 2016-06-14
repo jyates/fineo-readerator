@@ -2,11 +2,13 @@ package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 
 import org.apache.drill.exec.expr.holders.NullableBigIntHolder;
 import org.apache.drill.exec.expr.holders.NullableBitHolder;
+import org.apache.drill.exec.expr.holders.NullableVarBinaryHolder;
 import org.apache.drill.exec.expr.holders.NullableVarCharHolder;
 import org.apache.drill.exec.expr.holders.VarCharHolder;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.NullableBigIntVector;
 import org.apache.drill.exec.vector.NullableBitVector;
+import org.apache.drill.exec.vector.NullableVarBinaryVector;
 import org.apache.drill.exec.vector.NullableVarCharVector;
 import org.apache.drill.exec.vector.ValueVector;
 
@@ -72,5 +74,28 @@ class HolderUtil {
     if (!(holder.isSet == 0)) {
       ((NullableBitVector) out).getMutator().set((outdex), holder.isSet, holder.value);
     }
+  }
+
+  public static void copyBinary(VectorWrapper<?> wrapper, ValueVector out, int inIndex,
+    int outdex) {
+    NullableVarBinaryVector in = (NullableVarBinaryVector) wrapper.getValueVector();
+    NullableVarBinaryHolder holder = holdVarBinary(in, inIndex);
+    if (!(holder.isSet == 0)) {
+      ((NullableVarBinaryVector) out).getMutator()
+                                   .setSafe((outdex), holder.isSet, holder.start, holder.end,
+                                     holder.buffer);
+    }
+  }
+
+  private static NullableVarBinaryHolder holdVarBinary(NullableVarBinaryVector in, int index) {
+    NullableVarBinaryHolder out = new NullableVarBinaryHolder();
+    out.isSet = in.getAccessor().isSet(index);
+    if (out.isSet == 1) {
+      out.buffer = in.getBuffer();
+      long startEnd = in.getAccessor().getStartEnd((index));
+      out.start = ((int) startEnd);
+      out.end = ((int) (startEnd >> 32));
+    }
+    return out;
   }
 }

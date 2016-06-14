@@ -10,6 +10,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexInputRef;
@@ -20,6 +21,7 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.drill.exec.planner.StarColumnHelper;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.google.common.collect.ImmutableList.of;
@@ -64,8 +66,17 @@ public class FineoRecombinatorRule extends RelOptRule {
       // TODO project out the actual client fields and the expected types of those fields
 
 //      // TODO remove - add single cast for known field
-//      cluster.getRexBuilder().makeReinterpretCast()
-//      relNode = LogicalProject.create(relNode, of(), null);
+      relNode.getRowType().getField("f0", false, false);
+      List<RexNode> expanded = new ArrayList<>();
+      for (RelDataTypeField field : relNode.getRowType().getFieldList()) {
+        RexNode node = cluster.getRexBuilder().makeInputRef(relNode, field.getIndex());
+        if (field.getName().equals("f0")) {
+          node =
+            cluster.getRexBuilder().makeCast(rowType.getField("f0", false, false).getType(), node);
+        }
+        expanded.add(node);
+      }
+      relNode = LogicalProject.create(relNode, expanded, relNode.getRowType());
 
 
       // wrap with a filter to limit the output to the correct org and metric

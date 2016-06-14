@@ -48,6 +48,7 @@ import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 import static java.lang.String.format;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -245,7 +246,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
   }
 
   private Map<String, Object> bootstrapFileWithFields(FieldInstance<?>... fields)
-    throws IOException {
+    throws IOException, OldSchemaException {
     // setup the schema repository
     DynamoDBRepository repository =
       new DynamoDBRepository(ValidatorFactory.EMPTY, tables.getAsyncClient(),
@@ -256,11 +257,12 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
                                                 .newMetric().setDisplayName(metrictype);
     Map<String, Object> values = new HashMap<>();
     for (int i = 0; i < fields.length; i++) {
-      String name = "f" + (i++);
+      String name = "f" + i;
       FieldInstance<?> field = fields[i];
       builder.newField().withName(name).withType(field.type.getName()).build();
       values.put(name, field.inst);
     }
+    builder.build().commit();
 
     File tmp = folder.newFolder("drill");
     bootstrap(writeJson(store, tmp, org, metrictype, 1, of(values)));
@@ -396,6 +398,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     }
 
     File out = new File(dir, format("test-%s-%s.json", ts, UUID.randomUUID()));
+    LOG.info("Using input file: "+out);
     JSON j = JSON.std;
     j.write(values, out);
     return out;
@@ -408,7 +411,15 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
           .filter(Predicate.isEqual(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY).negate())
           .forEach(key -> {
             try {
-              assertEquals("Mismatch for column: " + key, values.get(key), result.getObject(key));
+              Object expected = values.get(key);
+              Object actual = result.getObject(key);
+              if (expected instanceof byte[]) {
+                assertArrayEquals("Mismatch for column: " + key, (byte[]) expected,
+                  (byte[]) actual);
+              } else {
+                assertEquals("Mismatch for column: " + key, expected, actual);
+              }
+
             } catch (SQLException e) {
               assertFalse("Got exception: " + e, true);
             }

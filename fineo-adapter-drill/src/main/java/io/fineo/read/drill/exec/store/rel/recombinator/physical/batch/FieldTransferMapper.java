@@ -67,6 +67,10 @@ public class FieldTransferMapper {
     for (VectorWrapper<?> wrapper : in) {
       MaterializedField field = wrapper.getField();
       String name = field.getName();
+      // skip the sub-table expansion field
+      if(name.equals("T0¦¦f0")){
+        continue;
+      }
       name = stripDynamicProjectPrefix(name);
       ValueVector out = getOutput(name);
 
@@ -76,10 +80,6 @@ public class FieldTransferMapper {
           + "field");
         continue;
       }
-
-      //TODO this needs to also project for the non-prefix map field, which means we need a
-      // multi-map OR a custom impl just for the map vector, which, admittedly, is a little bit
-      // weird in context with the rest of the simple vector transfers
 
       // its an unknown field, we need to create a sub-vector for this field inside the map vector
       if (out instanceof MapVector) {
@@ -99,7 +99,7 @@ public class FieldTransferMapper {
         writer.allocate();
 
       } else {
-        LOG.debug("Adding mapping vector from: "+name+" to "+out);
+        LOG.debug("Adding mapping vector from: "+name+"("+wrapper.getField()+") to "+out);
         mapped.add(out);
         this.inOutMapping.add(new Pair<>(wrapper, new VectorOrWriter(out)));
 
@@ -207,6 +207,9 @@ public class FieldTransferMapper {
         break;
       case BIT:
         HolderUtil.copyBit(wrapper, out, inIndex, outIndex);
+        break;
+      case VARBINARY:
+        HolderUtil.copyBinary(wrapper, out, inIndex, outIndex);
         break;
       default:
         throw new UnsupportedOperationException("Cannot convert field: " + field);
