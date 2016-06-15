@@ -78,9 +78,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     File tmp = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, false);
-    Map<String, Object> values2 = newHashMap(values);
-    values.put(fieldname, true);
-    List<Map<String, Object>> rows = newArrayList(values, values2);
+    List<Map<String, Object>> rows = newArrayList(values);
     File out = state.write(tmp, org, metrictype, 1, rows);
 
     // ensure that the fineo-test plugin is enabled
@@ -88,8 +86,6 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
     verifySelectStar(result -> {
       assertNext(result, values);
-      LOG.info("----> Row 1 passed!");
-      assertNext(result, values2);
     });
   }
 
@@ -340,7 +336,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     verifySelectStar(result -> {
       int j = 0;
       for (Map<String, Object> content : fileContents) {
-        LOG.info("Checking row " + j + ".\n\tExpected Content =>" + content);
+        LOG.info("Checking row " + (j++) + ".\n\tExpected Content =>" + content);
         assertNext(result, content);
       }
     });
