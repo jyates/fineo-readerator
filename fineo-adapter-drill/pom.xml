@@ -38,7 +38,7 @@
         <version>1.9.1</version>
         <executions>
           <execution>
-            <id>add-sources-as-resources</id>
+            <id>default-cli</id>
             <phase>process-sources</phase>
             <goals>
               <goal>add-resource</goal>
@@ -131,6 +131,11 @@
       <groupId>org.apache.calcite</groupId>
       <artifactId>calcite-avatica</artifactId>
       <version>${drill.calcite.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+      <version>2.7.1</version>
     </dependency>
 
     <!-- Test Dependencies -->
