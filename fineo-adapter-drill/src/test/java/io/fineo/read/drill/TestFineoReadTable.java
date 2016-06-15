@@ -270,8 +270,11 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
   /**
    * Write bytes json row and read it back in as bytes. This is an issue because bytes are
    * mis-mapped from json as varchar
-   *
-   * @throws Exception
+   * <p>
+   * If you update {@link io.fineo.read.drill.udf.conv.Base64Decoder}, then you need to run
+   * <tt>mvn clean package</tt> again to ensure the latest source gets copied to the output
+   * directory so Drill can compile the generated function from the source code.
+   * </p>
    */
   @Test
   public void testBytesTypeRemap() throws Exception {

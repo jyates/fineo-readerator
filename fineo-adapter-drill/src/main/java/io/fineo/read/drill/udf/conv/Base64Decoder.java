@@ -1,6 +1,5 @@
 package io.fineo.read.drill.udf.conv;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.DrillBuf;
 import org.apache.drill.exec.expr.DrillSimpleFunc;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate;
@@ -29,8 +28,9 @@ public class Base64Decoder implements DrillSimpleFunc {
 
   @Override
   public void eval() {
-    ByteBuf buff =
-      io.netty.handler.codec.base64.Base64.decode(in1.buffer, in1.start, in1.end - in1.end);
+    int length = in1.end - in1.start;
+    io.netty.buffer.ByteBuf buff =
+      io.netty.handler.codec.base64.Base64.decode(in1.buffer, in1.start, length);
     int outputSize = buff.readableBytes();
     out.buffer = buffer.reallocIfNeeded(outputSize);
     out.start = 0;
