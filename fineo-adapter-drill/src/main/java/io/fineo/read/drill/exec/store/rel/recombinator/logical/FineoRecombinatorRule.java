@@ -12,13 +12,16 @@ import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.drill.exec.planner.StarColumnHelper;
+import org.apache.drill.exec.planner.sql.DrillSqlOperator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -116,10 +119,16 @@ public class FineoRecombinatorRule extends RelOptRule {
     call.transformTo(builder.build());
   }
 
-  private RexNode cast(RexBuilder builder, RelDataType finoRowType, StoreClerk.Field storeField,
+  private RexNode cast(RexBuilder builder, RelDataType fineoRowType, StoreClerk.Field storeField,
     RexNode nodetoCast) {
-    return builder
-      .makeCast(finoRowType.getField(storeField.getName(), false, false).getType(), nodetoCast);
+    RelDataType type = fineoRowType.getField(storeField.getName(), false, false).getType();
+    RexNode cast = builder.makeCast(type, nodetoCast);
+    // add a base64 decoding for byte[] stored as text
+    if (type.getSqlTypeName() == SqlTypeName.BINARY) {
+      cast =
+        builder.makeCall(type, new DrillSqlOperator("FINEO_BASE64_DECODE", 1, false), of(cast));
+    }
+    return cast;
   }
 
   private RexNode getOrgAndMetricFilter(RexBuilder builder, FineoRecombinatorMarkerRel fmr,
