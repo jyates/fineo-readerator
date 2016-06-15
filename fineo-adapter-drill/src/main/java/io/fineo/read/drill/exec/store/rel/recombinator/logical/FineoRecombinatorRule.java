@@ -10,7 +10,6 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexInputRef;
@@ -22,7 +21,9 @@ import org.apache.calcite.tools.RelBuilder;
 import org.apache.drill.exec.planner.StarColumnHelper;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
@@ -61,18 +62,25 @@ public class FineoRecombinatorRule extends RelOptRule {
 
     // each input (table) is wrapped with an FRR to normalize output types
     int scanCount = 0;
+    List<StoreClerk.Field> userFields = fmr.getMetric().getUserVisibleFields();
     for (RelNode relNode : fmr.getInputs()) {
+      RelDataType type = relNode.getRowType();
+      Map<RelDataTypeField, StoreClerk.Field> typeToField = new HashMap<>();
+      // add the user fields + aliases - its a dynamic table!
+      for (StoreClerk.Field field : userFields) {
+        typeToField.put(type.getField(field.getName(), false, false), field);
+        for (String alias : field.getAliases()) {
+          typeToField.put(type.getField(alias, false, false), field);
+        }
+      }
 
-      // TODO project out the actual client fields and the expected types of those fields
-
-//      // TODO remove - add single cast for known field
-      relNode.getRowType().getField("f0", false, false);
+      // create proper casts for known fields + expansions
       List<RexNode> expanded = new ArrayList<>();
-      for (RelDataTypeField field : relNode.getRowType().getFieldList()) {
+      for (RelDataTypeField field : type.getFieldList()) {
         RexNode node = cluster.getRexBuilder().makeInputRef(relNode, field.getIndex());
-        if (field.getName().equals("f0")) {
-          node =
-            cluster.getRexBuilder().makeCast(rowType.getField("f0", false, false).getType(), node);
+        StoreClerk.Field storeField = typeToField.get(field);
+        if (storeField != null) {
+          node = cast(cluster.getRexBuilder(), rowType, storeField, node);
         }
         expanded.add(node);
       }
@@ -106,6 +114,12 @@ public class FineoRecombinatorRule extends RelOptRule {
     // result needs to be sorted on the timestamp
     addSort(builder, cluster);
     call.transformTo(builder.build());
+  }
+
+  private RexNode cast(RexBuilder builder, RelDataType finoRowType, StoreClerk.Field storeField,
+    RexNode nodetoCast) {
+    return builder
+      .makeCast(finoRowType.getField(storeField.getName(), false, false).getType(), nodetoCast);
   }
 
   private RexNode getOrgAndMetricFilter(RexBuilder builder, FineoRecombinatorMarkerRel fmr,

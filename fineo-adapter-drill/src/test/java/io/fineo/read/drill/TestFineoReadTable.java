@@ -88,6 +88,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
     verifySelectStar(result -> {
       assertNext(result, values);
+      LOG.info("----> Row 1 passed!");
       assertNext(result, values2);
     });
   }
@@ -173,6 +174,11 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     });
   }
 
+  /**
+   * We can have a field named _fm, but its stored as an unknown field in the _fm map.
+   *
+   * @throws Exception on failure
+   */
   @Test
   public void testUnknownFieldWithRadioName() throws Exception {
     TestState state = register();
@@ -232,6 +238,38 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 //    verify("SELECT *, CAST(f4 as FLOAT) FROM fineo."+org+"."+metrictype, result ->{});
     verifySelectStar(result -> assertNext(result, values));
   }
+
+  @Test
+  public void testSimpleCast() throws Exception {
+    Map<String, Object> values = bootstrapFileWithFields(
+      f(4, Schema.Type.FLOAT));
+    values.put("f0", 4.0f);
+    verifySelectStar(result -> assertNext(result, values));
+  }
+
+  @Test
+  public void testCastWithMultipleFieldAliases() throws Exception {
+    DynamoDBRepository repository =
+      new DynamoDBRepository(ValidatorFactory.EMPTY, tables.getAsyncClient(),
+        getCreateTable(tables.getTestTableName()));
+    SchemaStore store = new SchemaStore(repository);
+    StoreManager manager = new StoreManager(store);
+    StoreManager.MetricBuilder builder = manager.newOrg(org)
+                                                .newMetric().setDisplayName(metrictype);
+    builder.newField().withName("f0").withType(Schema.Type.FLOAT.getName()).withAliases(of("af0"))
+           .build().build().commit();
+
+    Map<String, Object> values = new HashMap<>();
+    values.put("af0", 4);
+
+    File tmp = folder.newFolder("drill");
+    bootstrap(writeJson(store, tmp, org, metrictype, 1, of(values)));
+
+    values.remove("af0");
+    values.put("f0", 4.0f);
+    verifySelectStar(result -> assertNext(result, values));
+  }
+
 
   /**
    * Write bytes json row and read it back in as bytes. This is an issue because bytes are
@@ -398,7 +436,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     }
 
     File out = new File(dir, format("test-%s-%s.json", ts, UUID.randomUUID()));
-    LOG.info("Using input file: "+out);
+    LOG.info("Using input file: " + out);
     JSON j = JSON.std;
     j.write(values, out);
     return out;
