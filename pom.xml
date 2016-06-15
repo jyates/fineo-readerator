@@ -9,9 +9,7 @@
   <version>1.0-SNAPSHOT</version>
   <modules>
     <module>serve</module>
-    <module>spark</module>
     <module>dynamo</module>
-    <module>fineo-adapter</module>
     <module>fineo-adapter-drill</module>
   </modules>
   <packaging>pom</packaging>
