@@ -11,6 +11,7 @@
     <module>serve</module>
     <module>dynamo</module>
     <module>fineo-adapter-drill</module>
+    <module>e2e-testing</module>
   </modules>
   <packaging>pom</packaging>
 

@@ -13,8 +13,12 @@
 
   <build>
     <plugins>
+      <!-- Run local dynamo -->
       <plugin>
         <artifactId>maven-dependency-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
       </plugin>
       <!-- Attach the sources to the build so we can use custom functions -->
       <plugin>

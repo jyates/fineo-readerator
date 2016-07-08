@@ -90,7 +90,7 @@ public class BootstrapFineo {
   }
 
 
-  public void strap(DrillConfigBuilder config) throws IOException {
+  public boolean strap(DrillConfigBuilder config) throws IOException {
     CloseableHttpClient httpclient = HttpClients.createDefault();
     HttpPost post = new HttpPost(URL + "/storage/fineo.json");
     post.setHeader("Content-type", "application/json");
@@ -98,6 +98,7 @@ public class BootstrapFineo {
     post.setEntity(new StringEntity(plugin, ContentType.APPLICATION_JSON));
     CloseableHttpResponse response2 = httpclient.execute(post);
 
+    boolean error = false;
     try {
       System.out.println(response2.getStatusLine());
       HttpEntity entity2 = response2.getEntity();
@@ -106,10 +107,12 @@ public class BootstrapFineo {
         IOUtils.copy(entity2.getContent(), writer);
         String errorContent = writer.toString();
         System.err.println(errorContent);
+        error = true;
       }
       EntityUtils.consume(entity2);
     } finally {
       response2.close();
     }
+    return error;
   }
 }
