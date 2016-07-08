@@ -55,6 +55,7 @@ import static java.lang.String.format;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class TestFineoReadTable extends BaseDynamoTableTest {
@@ -503,6 +504,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     Collections.sort(expectedKeys);
     Collections.sort(actualKeys);
     assertEquals("Wrong number of incoming columns!", expectedKeys, actualKeys);
+    assertNull("Radio wasn't null!", result.getObject(FineoCommon.MAP_FIELD));
   }
 
   private String toStringRow(ResultSet result) throws SQLException {
