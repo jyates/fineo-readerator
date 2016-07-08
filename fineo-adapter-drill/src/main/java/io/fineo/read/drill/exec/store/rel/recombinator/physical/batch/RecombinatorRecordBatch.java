@@ -7,6 +7,7 @@ import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.Recombinator;
 import io.fineo.schema.store.StoreClerk;
 import io.netty.buffer.DrillBuf;
+import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.expr.TypeHelper;
@@ -40,8 +41,7 @@ import java.util.Map;
 public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombinator> {
   private static final Logger LOG = LoggerFactory.getLogger(RecombinatorRecordBatch.class);
 
-  private final StoreClerk.Metric metric;
-  private final Map<String, String> aliasMap;
+  private final AliasFieldNameManager aliasMap;
   private final VectorContainerWriter writer;
   private boolean builtSchema;
   private FieldTransferMapper transferMapper;
@@ -57,29 +57,12 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     super(popConfig, context, incoming);
     // parse out the things we actually care about
     Metric metric = popConfig.getMetricObj();
-    this.metric = new StoreClerk.Metric(null, metric, null);
+    StoreClerk.Metric clerk = new StoreClerk.Metric(null, metric, null);
     this.transferMapper = new FieldTransferMapper();
-    this.aliasMap = getFieldMap();
+    String partitionDesignator =
+      context.getOptions().getOption(ExecConstants.FILESYSTEM_PARTITION_COLUMN_LABEL).string_val;
+    this.aliasMap = new AliasFieldNameManager(clerk, partitionDesignator);
     this.writer = new VectorContainerWriter(mutator, false);
-  }
-
-  private Map<String, String> getFieldMap() {
-    Map<String, String> map = new HashMap<>();
-    // build list of fields that we need to add
-    // required fields
-    for (String field : FineoCommon.REQUIRED_FIELDS) {
-      map.put(field, field);
-    }
-
-    map.put(FineoCommon.MAP_FIELD, FineoCommon.MAP_FIELD);
-
-    for (StoreClerk.Field field : this.metric.getUserVisibleFields()) {
-      map.put(field.getName(), field.getName());
-      for (String alias : field.getAliases()) {
-        map.put(alias, field.getName());
-      }
-    }
-    return map;
   }
 
   /**
@@ -139,6 +122,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
     for (int i = 0; i < incomingRecordCount; i++) {
       writer.setPosition(i);
+      aliasMap.reset();
       for (VectorWrapper wrapper : this.incoming) {
         BaseWriter.MapWriter currentWriter = this.writer.rootAsMap();
         String name = wrapper.getField().getName();
@@ -148,13 +132,13 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         String outputName = stripDynamicProjectPrefix(name);
         if (dynamic) {
           // this is a dynamic field with an alias that we know about
-          if (shouldSkip(outputName)) {
+          if (aliasMap.shouldSkip(outputName)) {
             LOG.debug("Skipping field {} => {}", name, outputName);
             continue;
           }
           currentWriter = currentWriter.map(FineoCommon.MAP_FIELD);
         } else {
-          outputName = aliasMap.get(outputName);
+          outputName = aliasMap.getOutputName(outputName);
         }
         write(outputName, wrapper, currentWriter);
       }
@@ -166,11 +150,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     }
 
     return IterOutcome.OK;
-  }
-
-  private boolean shouldSkip(String outputName) {
-    return (!outputName.equals(FineoCommon.MAP_FIELD)
-           && getOutputFieldName(outputName) != null) || outputName.equals("dir0");
   }
 
   private void write(String outputName, VectorWrapper wrapper, BaseWriter.MapWriter writer) {
@@ -238,18 +217,9 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     }
   }
 
-
-  private byte[] decode(byte[] input) {
-    return Base64.decode(input);
-  }
-
   @Override
   public int getRecordCount() {
     return incoming.getRecordCount();
-  }
-
-  private String getOutputFieldName(String name) {
-    return this.aliasMap.get(name);
   }
 
   private String stripDynamicProjectPrefix(String name) {
@@ -274,15 +244,15 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       boolean dynamic = name.startsWith(prefix);
       if (dynamic) {
         String stripped = stripDynamicProjectPrefix(name);
-        assert getOutputFieldName(stripped) == null :
-          "Got an output field: " + getOutputFieldName(stripped) +
+        assert aliasMap.getOutputName(stripped) == null :
+          "Got an output field: " + aliasMap.getOutputName(stripped) +
           " for input: " + name + " => " + stripped + ", but this field should have been ignored!";
         // get the mapvector for the radio
         MapVector map = container.addOrGet(field, callBack);
         return null;
       }
 
-      String outputName = getOutputFieldName(name);
+      String outputName = aliasMap.getOutputName(name);
       Preconditions.checkNotNull(outputName,
         "Didn't find an output name for: %s, it should be handled as a dynamic _fm field!", name);
       // Check if the field exists.
