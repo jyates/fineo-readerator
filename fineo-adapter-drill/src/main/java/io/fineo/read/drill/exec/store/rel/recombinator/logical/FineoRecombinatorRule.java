@@ -12,7 +12,6 @@ import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
-import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
@@ -63,7 +62,6 @@ public class FineoRecombinatorRule extends RelOptRule {
     // output type to which we need to conform
     RelDataType rowType = fmr.getRowType();
 
-    // each input (table) is wrapped with an FRR to normalize output types
     int scanCount = 0;
     List<StoreClerk.Field> userFields = fmr.getMetric().getUserVisibleFields();
     for (RelNode relNode : fmr.getInputs()) {
@@ -88,7 +86,6 @@ public class FineoRecombinatorRule extends RelOptRule {
         expanded.add(node);
       }
       relNode = LogicalProject.create(relNode, expanded, relNode.getRowType());
-
 
       // wrap with a filter to limit the output to the correct org and metric
       RelNode filter = LogicalFilter

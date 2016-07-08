@@ -1,10 +1,12 @@
 package io.fineo.read.drill.exec.store.plugin;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import org.apache.drill.common.logical.StoragePluginConfigBase;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -14,18 +16,15 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
   public static final String NAME = "fineo";
   private final Map<String, String> repository;
   private final Map<String, String> aws;
-  private final Map<String, List<String>> sources;
-  private final List<String> orgs;
+  private final  Map<String, List<SourceFsTable>> sources;
 
   @JsonCreator
   public FineoStoragePluginConfig(@JsonProperty("repository") Map<String, String> repository,
     @JsonProperty("aws") Map<String, String> aws,
-    @JsonProperty("sources") Map<String, List<String>> sources,
-    @JsonProperty("orgs") List<String> orgs) {
+    @JsonProperty("sources")  Map<String, List<SourceFsTable>> sources) {
     this.repository = repository;
     this.aws = aws;
     this.sources = sources;
-    this.orgs = orgs;
   }
 
   public Map<String, String> getRepository() {
@@ -36,7 +35,7 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
     return aws;
   }
 
-  public Map<String, List<String>> getSources() {
+  public Map<String, List<SourceFsTable>> getSources() {
     return sources;
   }
 
@@ -62,7 +61,8 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
     return result;
   }
 
-  public List<String> getOrgs() {
-    return orgs;
+  @JsonIgnore
+  public Collection<String> getOrgs() {
+    return sources.keySet();
   }
 }

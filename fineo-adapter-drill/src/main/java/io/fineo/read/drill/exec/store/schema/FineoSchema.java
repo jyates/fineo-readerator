@@ -5,7 +5,6 @@ import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.schema.Table;
-import org.apache.drill.exec.store.AbstractSchema;
 
 import java.util.HashSet;
 import java.util.List;
@@ -16,15 +15,15 @@ import java.util.Set;
  */
 public class FineoSchema extends FineoBaseSchema {
   private final FineoStoragePlugin plugin;
-  private final FineoSubSchemas subSchemas;
+  private final SubTableScanBuilder scanner;
   private final StoreClerk clerk;
 
-  public FineoSchema(List<String> parentPath, String name, FineoStoragePlugin plugin,
-    FineoSubSchemas subSchemas, SchemaStore store) {
-    super(parentPath, name);
+  public FineoSchema(List<String> parentPath, String orgAsSchemaName, FineoStoragePlugin plugin,
+    SubTableScanBuilder subSchemas, SchemaStore store) {
+    super(parentPath, orgAsSchemaName);
     this.plugin = plugin;
-    this.subSchemas = subSchemas;
-    this.clerk = new StoreClerk(store, name);
+    this.scanner = subSchemas;
+    this.clerk = new StoreClerk(store, orgAsSchemaName);
   }
 
   @Override
@@ -37,10 +36,10 @@ public class FineoSchema extends FineoBaseSchema {
   }
 
   @Override
-  public Table getTable(String name) {
+  public Table getTable(String tableName) {
     try {
-      StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(name);
-      return new FineoTable(plugin, name, subSchemas, metric);
+      StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(tableName);
+      return new FineoTable(plugin, tableName, scanner, metric);
     } catch (SchemaNotFoundException e) {
       throw new IllegalArgumentException(e);
     }

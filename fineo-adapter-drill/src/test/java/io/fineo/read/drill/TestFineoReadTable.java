@@ -9,8 +9,9 @@ import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
 import io.fineo.read.drill.exec.store.FineoCommon;
+import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
+import io.fineo.read.drill.exec.store.plugin.SourceFsTable;
 import io.fineo.schema.OldSchemaException;
-import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.avro.AvroSchemaManager;
 import io.fineo.schema.avro.SchemaTestUtils;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
@@ -27,9 +28,12 @@ import org.schemarepo.ValidatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -79,13 +83,13 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, false);
     List<Map<String, Object>> rows = newArrayList(values);
-    File out = state.write(tmp, org, metrictype, 1, rows);
+    SourceFsTable out = state.write(tmp, org, metrictype, 1, rows);
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(out);
 
     verifySelectStar(result -> {
-      assertNext(result, values);
+      assertNext(0, result, values);
     });
   }
 
@@ -109,7 +113,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     File tmp = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(storeFieldName, false);
-    File out = state.write(tmp, 1, values);
+    SourceFsTable out = state.write(tmp, 1, values);
 
     bootstrap(out);
 
@@ -118,7 +122,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     values.put(fieldname, value);
 
     verifySelectStar(result -> {
-      assertNext(result, values);
+      assertNext(-1, result, values);
     });
   }
 
@@ -232,7 +236,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
       f("6string", Schema.Type.STRING));
 
 //    verify("SELECT *, CAST(f4 as FLOAT) FROM fineo."+org+"."+metrictype, result ->{});
-    verifySelectStar(result -> assertNext(result, values));
+    verifySelectStar(result -> assertNext(-1, result, values));
   }
 
   @Test
@@ -240,7 +244,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     Map<String, Object> values = bootstrapFileWithFields(
       f(4, Schema.Type.FLOAT));
     values.put("f0", 4.0f);
-    verifySelectStar(result -> assertNext(result, values));
+    verifySelectStar(result -> assertNext(-1, result, values));
   }
 
   @Test
@@ -263,7 +267,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
     values.remove("af0");
     values.put("f0", 4.0f);
-    verifySelectStar(result -> assertNext(result, values));
+    verifySelectStar(result -> assertNext(-1, result, values));
   }
 
 
@@ -279,7 +283,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
   @Test
   public void testBytesTypeRemap() throws Exception {
     Map<String, Object> values = bootstrapFileWithFields(f(new byte[]{1}, Schema.Type.BYTES));
-    verifySelectStar(result -> assertNext(result, values));
+    verifySelectStar(result -> assertNext(-1, result, values));
   }
 
   private Map<String, Object> bootstrapFileWithFields(FieldInstance<?>... fields)
@@ -327,20 +331,19 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
     // write two rows into a json file
     File tmp = folder.newFolder("drill");
-    List<File> files = new ArrayList<>();
+    List<SourceFsTable> files = new ArrayList<>();
     int i = 0;
     for (Map<String, Object> contents : fileContents) {
       files.add(state.write(tmp, i++, contents));
     }
 
     // ensure that the fineo-test plugin is enabled
-    bootstrap(files.toArray(new File[0]));
+    bootstrap(files.toArray(new SourceFsTable[0]));
 
     verifySelectStar(result -> {
       int j = 0;
       for (Map<String, Object> content : fileContents) {
-        LOG.info("Checking row " + (j++) + ".\n\tExpected Content =>" + content);
-        assertNext(result, content);
+        assertNext(j++, result, content);
       }
     });
   }
@@ -375,7 +378,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     void verify(T obj) throws SQLException;
   }
 
-  private void bootstrap(File... files) throws IOException {
+  private void bootstrap(SourceFsTable... files) throws IOException {
     LocalDynamoTestUtil util = dynamo.getUtil();
     BootstrapFineo bootstrap = new BootstrapFineo();
     BootstrapFineo.DrillConfigBuilder builder =
@@ -383,7 +386,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
                .withLocalDynamo(util.getUrl())
                .withRepository(tables.getTestTableName())
                .withOrgs(org);
-    for (File file : files) {
+    for (SourceFsTable file : files) {
       builder.withLocalSource(file);
     }
     bootstrap.strap(builder);
@@ -412,49 +415,77 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
       this.store = store;
     }
 
-    private File write(File dir, long ts, Map<String, Object> values)
+    private SourceFsTable write(File dir, long ts, Map<String, Object> values)
       throws IOException {
       return write(dir, org, metrictype, ts, newArrayList(values));
     }
 
-    private File write(File dir, String org, String metricType, long ts,
+    private SourceFsTable write(File dir, String org, String metricType, long ts,
       List<Map<String, Object>> values) throws IOException {
       return writeJson(store, dir, org, metricType, ts, values);
     }
   }
 
-  private static File writeJson(SchemaStore store, File dir, String org, String metricType, long ts,
+  private static SourceFsTable writeJson(SchemaStore store, File dir, String org, String metricType,
+    long
+      ts,
     List<Map<String, Object>> values) throws IOException {
     StoreClerk clerk = new StoreClerk(store, org);
+
+    // get the actual metric type
+    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
+    String metricId = metric.getMetricId();
+
+    SourceFsTable table = new SourceFsTable("json", dir.getPath(), org);
+    File version = new File(dir, FineoStoragePlugin.VERSION);
+    File format = new File(version, table.getFormat());
+    File orgDir = new File(format, table.getOrg());
+    File metricDir = new File(orgDir, metricId);
+    Date date = new Date(ts);
+    File dateDir = new File(metricDir, date.toString());
+    if (!dateDir.exists()) {
+      assertTrue("Couldn't make output directory! Dir: " + dateDir, dateDir.mkdirs());
+    }
+
     for (Map<String, Object> json : values) {
       json.put(ORG_ID_KEY, org);
-      // get the actual org type
-      StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
-      json.put(ORG_METRIC_TYPE_KEY, metric.getMetricId());
+      json.put(ORG_METRIC_TYPE_KEY, metricId);
       json.put(TIMESTAMP_KEY, ts);
     }
 
-    File out = new File(dir, format("test-%s-%s.json", ts, UUID.randomUUID()));
-    LOG.info("Using input file: " + out);
-    JSON j = JSON.std;
-    j.write(values, out);
-    return out;
+    // actually write the events
+    File out = new File(dateDir, format("test-%s-%s.json", ts, UUID.randomUUID()));
+    try (FileOutputStream fos = new FileOutputStream(out);
+         BufferedOutputStream bos = new BufferedOutputStream(fos)) {
+      LOG.info("Using input file: " + out);
+      JSON j = JSON.std;
+      j.write(values, bos);
+    }
+
+    return table;
   }
 
-  private void assertNext(ResultSet result, Map<String, Object> values) throws SQLException {
+  private void assertNext(int j, ResultSet result, Map<String, Object> values) throws SQLException {
     assertTrue("Could not get next result for values: " + values, result.next());
+    if (j >= 0) {
+      String row = toStringRow(result);
+      LOG.info("Checking row " + j + "." +
+               "\n\tExpected Content =>" + values +
+               "\n\tActual row content: " + row);
+    }
     values.keySet().stream()
-          .filter(Predicate.isEqual(AvroSchemaEncoder.ORG_ID_KEY).negate())
-          .filter(Predicate.isEqual(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY).negate())
+          .filter(Predicate.isEqual(ORG_ID_KEY).negate())
+          .filter(Predicate.isEqual(ORG_METRIC_TYPE_KEY).negate())
           .forEach(key -> {
             try {
               Object expected = values.get(key);
               Object actual = result.getObject(key);
               if (expected instanceof byte[]) {
-                assertArrayEquals("Mismatch for column: " + key, (byte[]) expected,
-                  (byte[]) actual);
+                assertArrayEquals("Mismatch for column: " + key + "\n" + toStringRow(result),
+                  (byte[]) expected, (byte[]) actual);
               } else {
-                assertEquals("Mismatch for column: " + key, expected, actual);
+                assertEquals("Mismatch for column: " + key + "\n" + toStringRow(result),
+                  expected, actual);
               }
 
             } catch (SQLException e) {
@@ -462,13 +493,22 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
             }
           });
     List<String> expectedKeys = newArrayList(values.keySet());
-    expectedKeys.remove(AvroSchemaEncoder.ORG_ID_KEY);
-    expectedKeys.remove(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY);
+    expectedKeys.remove(ORG_ID_KEY);
+    expectedKeys.remove(ORG_METRIC_TYPE_KEY);
     expectedKeys.add(FineoCommon.MAP_FIELD);
     List<String> actualKeys = getColumns(result.getMetaData());
     Collections.sort(expectedKeys);
     Collections.sort(actualKeys);
     assertEquals("Wrong number of incoming columns!", expectedKeys, actualKeys);
+  }
+
+  private String toStringRow(ResultSet result) throws SQLException {
+    StringBuffer sb = new StringBuffer("row=[");
+    ResultSetMetaData meta = result.getMetaData();
+    for (int i = 1; i <= meta.getColumnCount(); i++) {
+      sb.append(meta.getColumnName(i) + " => " + result.getObject(i) + ",");
+    }
+    return sb.toString();
   }
 
   private List<String> getColumns(ResultSetMetaData meta) throws SQLException {
