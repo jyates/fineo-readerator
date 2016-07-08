@@ -78,7 +78,6 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
   public void testStoringUserVisibleName() throws Exception {
     TestState state = register();
 
-    // write two rows into a json file
     File tmp = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, false);
@@ -89,7 +88,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     bootstrap(out);
 
     verifySelectStar(result -> {
-      assertNext(0, result, values);
+      assertNext(result, values);
     });
   }
 
@@ -122,7 +121,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     values.put(fieldname, value);
 
     verifySelectStar(result -> {
-      assertNext(-1, result, values);
+      assertNext(result, values);
     });
   }
 
@@ -236,7 +235,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
       f("6string", Schema.Type.STRING));
 
 //    verify("SELECT *, CAST(f4 as FLOAT) FROM fineo."+org+"."+metrictype, result ->{});
-    verifySelectStar(result -> assertNext(-1, result, values));
+    verifySelectStar(result -> assertNext(result, values));
   }
 
   @Test
@@ -244,7 +243,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     Map<String, Object> values = bootstrapFileWithFields(
       f(4, Schema.Type.FLOAT));
     values.put("f0", 4.0f);
-    verifySelectStar(result -> assertNext(-1, result, values));
+    verifySelectStar(result -> assertNext(result, values));
   }
 
   @Test
@@ -267,7 +266,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
 
     values.remove("af0");
     values.put("f0", 4.0f);
-    verifySelectStar(result -> assertNext(-1, result, values));
+    verifySelectStar(result -> assertNext(result, values));
   }
 
 
@@ -283,7 +282,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
   @Test
   public void testBytesTypeRemap() throws Exception {
     Map<String, Object> values = bootstrapFileWithFields(f(new byte[]{1}, Schema.Type.BYTES));
-    verifySelectStar(result -> assertNext(-1, result, values));
+    verifySelectStar(result -> assertNext(result, values));
   }
 
   private Map<String, Object> bootstrapFileWithFields(FieldInstance<?>... fields)
@@ -463,6 +462,10 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     }
 
     return table;
+  }
+
+  private void assertNext(ResultSet result, Map<String, Object> values) throws SQLException {
+    assertNext(0, result, values);
   }
 
   private void assertNext(int j, ResultSet result, Map<String, Object> values) throws SQLException {
