@@ -23,41 +23,20 @@ import static org.apache.calcite.sql.type.SqlTypeName.VARCHAR;
  */
 public class FineoTable extends DrillTable implements TranslatableTable {
 
-  private enum BaseField {
-    TIMESTAMP("timestamp", tf -> tf.createSqlType(BIGINT)),
-    RADIO("_fm", tf -> tf.createMapType(tf.createSqlType(VARCHAR), tf.createSqlType(ANY)));
-    private final String name;
-    private final Function<RelDataTypeFactory, RelDataType> func;
-
-    BaseField(String name, Function<RelDataTypeFactory, RelDataType> func) {
-      this.name = name;
-      this.func = func;
-    }
-
-    public RelDataTypeFactory.FieldInfoBuilder add(RelDataTypeFactory.FieldInfoBuilder builder,
-      RelDataTypeFactory factory) {
-      return builder.add(name, func.apply(factory));
-    }
-  }
-
-  private final FineoSubSchemas schemas;
+  private final SubTableScanBuilder scanner;
   private final StoreClerk.Metric metric;
 
-  public FineoTable(FineoStoragePlugin plugin, String storageEngineName,
-    FineoSubSchemas schemas, StoreClerk.Metric metric) {
-//    super(plugin, storageEngineName, null, null);
-    super(storageEngineName, plugin, null, null);
-    this.schemas = schemas;
+  public FineoTable(FineoStoragePlugin plugin, String tableName,
+    SubTableScanBuilder scanner, StoreClerk.Metric metric) {
+    super(tableName, plugin, null, null);
+    this.scanner = scanner;
     this.metric = metric;
   }
 
   @Override
   public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
-    LogicalScanBuilder builder = new LogicalScanBuilder(context, relOptTable)
-      // placeholders for values specified on table creation
-      .withOrgId(metric.getOrgId())
-      .withMetricType(metric.getUserName());
-    schemas.scan(builder);
+    LogicalScanBuilder builder = new LogicalScanBuilder(context, relOptTable);
+    scanner.scan(builder, metric.getMetricId());
 //    return builder.getFirstScan();
     return builder.buildMarker(this.metric);
   }
@@ -96,6 +75,23 @@ public class FineoTable extends DrillTable implements TranslatableTable {
         return SqlTypeName.DOUBLE;
       default:
         throw new IllegalArgumentException("We cannot type avro type: " + type);
+    }
+  }
+
+  private enum BaseField {
+    TIMESTAMP("timestamp", tf -> tf.createSqlType(BIGINT)),
+    RADIO("_fm", tf -> tf.createMapType(tf.createSqlType(VARCHAR), tf.createSqlType(ANY)));
+    private final String name;
+    private final Function<RelDataTypeFactory, RelDataType> func;
+
+    BaseField(String name, Function<RelDataTypeFactory, RelDataType> func) {
+      this.name = name;
+      this.func = func;
+    }
+
+    public RelDataTypeFactory.FieldInfoBuilder add(RelDataTypeFactory.FieldInfoBuilder builder,
+      RelDataTypeFactory factory) {
+      return builder.add(name, func.apply(factory));
     }
   }
 }

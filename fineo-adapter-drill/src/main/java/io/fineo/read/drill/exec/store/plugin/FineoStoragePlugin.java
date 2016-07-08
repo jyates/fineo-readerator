@@ -35,6 +35,8 @@ import static org.apache.calcite.plan.RelOptRule.operand;
  */
 public class FineoStoragePlugin extends AbstractStoragePlugin {
 
+  public static String VERSION = "0";
+
   protected final FineoStoragePluginConfig config;
   private final FineoSchemaFactory factory;
   private final DrillbitContext context;
@@ -64,7 +66,6 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
         call.transformTo(ets);
       }
     });
-
 
     // transform FRMR -> FRR
     rules.put(PlannerPhase.LOGICAL, FineoRecombinatorRule.INSTANCE);

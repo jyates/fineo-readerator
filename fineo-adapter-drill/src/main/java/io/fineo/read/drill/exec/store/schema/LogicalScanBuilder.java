@@ -31,8 +31,6 @@ public class LogicalScanBuilder {
   private final RelOptTable relOptTable;
   private final RelOptCluster cluster;
   private List<RelNode> tables = new ArrayList<>();
-  private String orgId;
-  private String metricType;
 
   public LogicalScanBuilder(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
     this.cluster = context.getCluster();
@@ -70,11 +68,10 @@ public class LogicalScanBuilder {
     RelDataType type = this.relOptTable.getRowType();
     int index = type.getFieldNames().indexOf(AvroSchemaEncoder.TIMESTAMP_KEY);
     // ensure that the output is sorted on timestamp ascending with trait
-    RelFieldCollation sort = new RelFieldCollation(index, RelFieldCollation.Direction.ASCENDING);
+//    RelFieldCollation sort = new RelFieldCollation(index, RelFieldCollation.Direction.ASCENDING);
     RelTraitSet traits = cluster.traitSet()
-                                .plus(Convention.NONE)
-                                .plus(
-                                  RelCollationTraitDef.INSTANCE.canonize(RelCollations.of(sort)));
+                                .plus(Convention.NONE);
+//                                .plus(RelCollationTraitDef.INSTANCE.canonize(RelCollations.of(sort)));
     FineoRecombinatorMarkerRel marker =
       new FineoRecombinatorMarkerRel(cluster, traits, this.relOptTable, metric);
     marker.setInputs(this.tables);
@@ -83,15 +80,5 @@ public class LogicalScanBuilder {
 
   public RelNode getFirstScan() {
     return this.tables.get(0);
-  }
-
-  public LogicalScanBuilder withOrgId(String orgid1) {
-    this.orgId = orgid1;
-    return this;
-  }
-
-  public LogicalScanBuilder withMetricType(String metricType) {
-    this.metricType = metricType;
-    return this;
   }
 }

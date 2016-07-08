@@ -7,12 +7,9 @@ import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.Recombinator;
 import io.fineo.schema.store.StoreClerk;
 import io.netty.buffer.DrillBuf;
-import org.apache.avro.Schema;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.expr.TypeHelper;
-import org.apache.drill.exec.expr.holders.NullableVarBinaryHolder;
-import org.apache.drill.exec.expr.holders.VarBinaryHolder;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.impl.OutputMutator;
 import org.apache.drill.exec.planner.StarColumnHelper;
@@ -36,7 +33,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * Do the actual work of transforming input records to the expected customer type
@@ -47,7 +43,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
   private final StoreClerk.Metric metric;
   private final Map<String, String> aliasMap;
   private final VectorContainerWriter writer;
-  private Schema metricSchema;
   private boolean builtSchema;
   private FieldTransferMapper transferMapper;
   private List<TransferPair> transfers;
@@ -153,7 +148,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         String outputName = stripDynamicProjectPrefix(name);
         if (dynamic) {
           // this is a dynamic field with an alias that we know about
-          if (!outputName.equals(FineoCommon.MAP_FIELD) && getOutputFieldName(outputName) != null) {
+          if (shouldSkip(outputName)) {
             LOG.debug("Skipping field {} => {}", name, outputName);
             continue;
           }
@@ -171,6 +166,11 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     }
 
     return IterOutcome.OK;
+  }
+
+  private boolean shouldSkip(String outputName) {
+    return (!outputName.equals(FineoCommon.MAP_FIELD)
+           && getOutputFieldName(outputName) != null) || outputName.equals("dir0");
   }
 
   private void write(String outputName, VectorWrapper wrapper, BaseWriter.MapWriter writer) {
