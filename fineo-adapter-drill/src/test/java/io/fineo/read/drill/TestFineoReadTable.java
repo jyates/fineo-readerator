@@ -22,6 +22,7 @@ import io.fineo.schema.store.StoreManager;
 import io.fineo.test.rule.TestOutput;
 import org.apache.avro.Schema;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.schemarepo.ValidatorFactory;
@@ -37,6 +38,8 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -286,7 +289,110 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     verifySelectStar(result -> assertNext(result, values));
   }
 
+  @Test
+  public void testFilterOnBoolean() throws Exception {
+    TestState state = register();
+
+    Map<String, Object> contents = new HashMap<>();
+    contents.put(fieldname, true);
+
+    // write two different files that occur on different days
+    File tmp = folder.newFolder("drill");
+    List<SourceFsTable> files = new ArrayList<>();
+    Instant now = Instant.now();
+    files.add(state.write(tmp, now.toEpochMilli(), contents));
+
+    // ensure that the fineo-test plugin is enabled
+    bootstrap(files.toArray(new SourceFsTable[0]));
+
+    verifySelectStar(of(fieldname + " IS TRUE"), result -> {
+      assertNext(result, contents);
+    });
+  }
+
+  /**
+   * Corner case where we need to ensure that we create a vector for the field that is missing
+   * in the underlying file so we get the correct matching behavior in upstream filters.
+   */
+  @Test
+  public void testFilterBooleanWhereAllFieldNotPresentInAllRecords() throws Exception {
+    TestState state = register();
+
+    Map<String, Object> contents = new HashMap<>();
+    contents.put(fieldname, true);
+
+    // write two different files that occur on different days
+    File tmp = folder.newFolder("drill");
+    List<SourceFsTable> files = new ArrayList<>();
+    Instant now = Instant.now();
+    files.add(state.write(tmp, now.toEpochMilli(), contents));
+
+    // older record without the value
+    Instant longAgo = now.minus(5, ChronoUnit.DAYS).plus(1, ChronoUnit.MILLIS);
+    files.add(state.write(tmp, longAgo.toEpochMilli(), newHashMap()));
+
+    // ensure that the fineo-test plugin is enabled
+    bootstrap(files.toArray(new SourceFsTable[0]));
+
+    verifySelectStar(of(fieldname + " IS TRUE"), result -> {
+      assertNext(result, contents);
+    });
+  }
+
+  @Test
+  public void testFilterOnTimeRange() throws Exception {
+    TestState state = register();
+
+    Map<String, Object> contents = new HashMap<>();
+    contents.put(fieldname, true);
+
+    // write two different files that occur on different days
+    File tmp = folder.newFolder("drill");
+    List<SourceFsTable> files = new ArrayList<>();
+    Instant now = Instant.now();
+    files.add(state.write(tmp, now.toEpochMilli(), contents));
+    // ensure that the fineo-test plugin is enabled
+    bootstrap(files.toArray(new SourceFsTable[0]));
+
+    verifySelectStar(of("`timestamp` > " + now.minus(5, ChronoUnit.DAYS).toEpochMilli()),
+      result -> {
+        assertNext(result, contents);
+      });
+  }
+
+  @Test
+  public void testFilterOnTimeRangeAcrossMultipleFiles() throws Exception {
+    TestState state = register();
+
+    Map<String, Object> contents = new HashMap<>();
+    contents.put(fieldname, true);
+
+    // write two different files that occur on different days
+    File tmp = folder.newFolder("drill");
+    List<SourceFsTable> files = new ArrayList<>();
+    Instant now = Instant.now();
+    files.add(state.write(tmp, now.toEpochMilli(), contents));
+
+    Map<String, Object> contents2 = new HashMap<>();
+    contents2.put(fieldname, false);
+    Instant longAgo = now.minus(5, ChronoUnit.DAYS);
+    files.add(state.write(tmp, longAgo.toEpochMilli(), contents2));
+
+    // ensure that the fineo-test plugin is enabled
+    bootstrap(files.toArray(new SourceFsTable[0]));
+
+    verifySelectStar(of("`timestamp` > " + longAgo.toEpochMilli()), result -> {
+      assertNext(result, contents);
+    });
+  }
+
+
   private Map<String, Object> bootstrapFileWithFields(FieldInstance<?>... fields)
+    throws IOException, OldSchemaException {
+    return bootstrapFileWithFields(1, fields);
+  }
+
+  private Map<String, Object> bootstrapFileWithFields(long timestamp, FieldInstance<?>... fields)
     throws IOException, OldSchemaException {
     // setup the schema repository
     DynamoDBRepository repository =
@@ -306,7 +412,7 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     builder.build().commit();
 
     File tmp = folder.newFolder("drill");
-    bootstrap(writeJson(store, tmp, org, metrictype, 1, of(values)));
+    bootstrap(writeJson(store, tmp, org, metrictype, timestamp, of(values)));
 
     return values;
   }
@@ -329,7 +435,6 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
     throws Exception {
     TestState state = register();
 
-    // write two rows into a json file
     File tmp = folder.newFolder("drill");
     List<SourceFsTable> files = new ArrayList<>();
     int i = 0;
@@ -488,7 +593,9 @@ public class TestFineoReadTable extends BaseDynamoTableTest {
                 assertArrayEquals("Mismatch for column: " + key + "\n" + toStringRow(result),
                   (byte[]) expected, (byte[]) actual);
               } else {
-                assertEquals("Mismatch for column: " + key + "\n" + toStringRow(result),
+                assertEquals("Mismatch for column: " + key +
+                             ".\nExpected:" + values +
+                             "\nActual:" + toStringRow(result),
                   expected, actual);
               }
 
