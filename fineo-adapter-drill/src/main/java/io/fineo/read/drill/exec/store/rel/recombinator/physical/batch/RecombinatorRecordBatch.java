@@ -1,6 +1,5 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 
-import com.amazonaws.util.Base64;
 import com.google.common.base.Preconditions;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
@@ -18,7 +17,6 @@ import org.apache.drill.exec.record.AbstractSingleRecordBatch;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
-import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.util.CallBack;
 import org.apache.drill.exec.vector.AllocationHelper;
@@ -30,9 +28,7 @@ import org.apache.drill.exec.vector.complex.writer.BaseWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,12 +37,12 @@ import java.util.Map;
 public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombinator> {
   private static final Logger LOG = LoggerFactory.getLogger(RecombinatorRecordBatch.class);
 
-  private final AliasFieldNameManager aliasMap;
+  // Use a VectorContainerWriter + a custom mutator to make it easier to maange vectors, rather than
+  // trying to manage them each independently.
   private final VectorContainerWriter writer;
+
+  private final AliasFieldNameManager aliasMap;
   private boolean builtSchema;
-  private FieldTransferMapper transferMapper;
-  private List<TransferPair> transfers;
-  private List<ValueVector> vectors = new ArrayList<>();
   private Map<String, ValueVector> fieldVectorMap = new HashMap<>();
   private final Mutator mutator = new Mutator();
   private String prefix;
@@ -58,7 +54,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     // parse out the things we actually care about
     Metric metric = popConfig.getMetricObj();
     StoreClerk.Metric clerk = new StoreClerk.Metric(null, metric, null);
-    this.transferMapper = new FieldTransferMapper();
     String partitionDesignator =
       context.getOptions().getOption(ExecConstants.FILESYSTEM_PARTITION_COLUMN_LABEL).string_val;
     this.aliasMap = new AliasFieldNameManager(clerk, partitionDesignator);
@@ -127,7 +122,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         BaseWriter.MapWriter currentWriter = this.writer.rootAsMap();
         String name = wrapper.getField().getName();
         // dynamic fields, i.e. T0¦¦ are only added if they do not have a known alias name. This
-        // ensures that we only handle the casted types, not the ANY typed fields
+        // ensures that we only handle the post-CAST types, not the ANY typed fields
         boolean dynamic = name.startsWith(prefix);
         String outputName = stripDynamicProjectPrefix(name);
         if (dynamic) {
@@ -144,6 +139,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       }
     }
 
+    // transfer the values as we can
     if (mutator.isNewSchema()) {
       container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
       return IterOutcome.OK_NEW_SCHEMA;
@@ -155,10 +151,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
   private void write(String outputName, VectorWrapper wrapper, BaseWriter.MapWriter writer) {
     ValueVector vector = wrapper.getValueVector();
     FieldReader reader = vector.getReader();
-    if (!reader.isSet()) {
-      LOG.debug("No field value set for {} => {}", outputName, wrapper.getField());
-      return;
-    }
     LOG.trace("Mapping {} => {}", wrapper.getField(), outputName);
     switch (wrapper.getField().getType().getMinorType()) {
       case VARCHAR:
