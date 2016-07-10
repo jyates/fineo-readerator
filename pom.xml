@@ -143,16 +143,6 @@
         <groupId>org.apache.drill.exec</groupId>
         <artifactId>drill-java-exec</artifactId>
         <version>${drill.version}</version>
-        <exclusions>
-          <exclusion>
-            <artifactId>hadoop-common</artifactId>
-            <groupId>org.apache.hadoop</groupId>
-          </exclusion>
-          <exclusion>
-            <artifactId>hadoop-clientConf</artifactId>
-            <groupId>org.apache.hadoop</groupId>
-          </exclusion>
-        </exclusions>
       </dependency>
       <dependency>
         <groupId>org.apache.drill.exec</groupId>
@@ -160,21 +150,11 @@
         <version>${drill.version}</version>
         <classifier>tests</classifier>
         <scope>test</scope>
-        <exclusions>
-          <exclusion>
-            <artifactId>hadoop-common</artifactId>
-            <groupId>org.apache.hadoop</groupId>
-          </exclusion>
-          <exclusion>
-            <artifactId>hadoop-clientConf</artifactId>
-            <groupId>org.apache.hadoop</groupId>
-          </exclusion>
-        </exclusions>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>
         <artifactId>aws-java-sdk</artifactId>
-        <version>${aws.java.sdk.version}</version>
+        <version>${a}</version>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>

@@ -16,32 +16,39 @@ public class ParallelScanProperties {
   public static final String NAME = "parallel-scan";
 
   // maximum segments across all the possible endpoints. Will never be exceeded
-  private final int maxSegments;
+  private int maxSegments;
   // maximum number of segments to run per endpoint. May be less than this if you have a low
   // number of max segments and lots of endpoints.
-  private final int segmentsPerEndpoint;
+  private int segmentsPerEndpoint;
   // maximum number of rows to return from each scan request per endpoint.
-  private final int limit;
+  private int limit;
 
-  public ParallelScanProperties(@JsonProperty("max-segments") int maxSegments,
-    @JsonProperty("segments-per-endpoint") int segmentsPerEndpoint,
-    @JsonProperty("rows-per-request") int limit) {
+  @JsonProperty("max-segments")
+  public void setMaxSegments(int maxSegments) {
     this.maxSegments = maxSegments;
-    this.segmentsPerEndpoint = segmentsPerEndpoint;
-    this.limit = limit;
   }
 
-  @JsonProperty
+  @JsonProperty("max-segments")
   public int getMaxSegments() {
     return maxSegments;
   }
 
-  @JsonProperty
+  @JsonProperty("rows-per-request")
+  public void setLimit(int limit) {
+    this.limit = limit;
+  }
+
+  @JsonProperty("rows-per-request")
   public int getLimit() {
     return limit;
   }
 
-  @JsonProperty
+  @JsonProperty("segments-per-endpoint")
+  public void setSegmentsPerEndpoint(int segmentsPerEndpoint) {
+    this.segmentsPerEndpoint = segmentsPerEndpoint;
+  }
+
+  @JsonProperty("segments-per-endpoint")
   public int getSegmentsPerEndpoint() {
     return segmentsPerEndpoint;
   }

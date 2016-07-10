@@ -6,6 +6,11 @@
       credentials: {
         type: "provided"
       },
+      aws: {
+        regionOrUrl: "http://localhost:8080"
+      },
+      parallel-scan: {
+      },
       client: {
         consistentRead: "true"
       }
