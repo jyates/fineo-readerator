@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <artifactId>readerator-parent</artifactId>
+    <groupId>io.fineo.read</groupId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>storage-drill</artifactId>
+  <packaging>pom</packaging>
+
+  <modules>
+    <module>drill-storage-dynamo</module>
+    <module>dynamo-common</module>
+  </modules>
+
+  <properties>
+    <dynamo-local.version>1.10.5.1</dynamo-local.version>
+    <aws-java-sdk.version>1.10.72</aws-java-sdk.version>
+    <maven.dependency.version>2.10</maven.dependency.version>
+  </properties>
+
+  <build>
+    <plugins>
+      <!-- Create test jar -->
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+      </plugin>
+      <!-- run the local dynamo instance -->
+      <plugin>
+        <artifactId>maven-dependency-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-dynamodb</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>DynamoDBLocal</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+</project>

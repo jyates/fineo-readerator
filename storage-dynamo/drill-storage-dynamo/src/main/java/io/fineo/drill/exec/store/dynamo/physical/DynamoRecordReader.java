@@ -1,0 +1,386 @@
+package io.fineo.drill.exec.store.dynamo.physical;
+
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
+import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.ItemCollection;
+import com.amazonaws.services.dynamodbv2.document.Page;
+import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
+import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
+import com.google.common.base.Joiner;
+import com.google.common.base.Stopwatch;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.drill.common.exceptions.DrillRuntimeException;
+import org.apache.drill.common.exceptions.ExecutionSetupException;
+import org.apache.drill.common.expression.PathSegment;
+import org.apache.drill.common.expression.SchemaPath;
+import org.apache.drill.common.types.TypeProtos;
+import org.apache.drill.common.types.Types;
+import org.apache.drill.exec.exception.SchemaChangeException;
+import org.apache.drill.exec.expr.TypeHelper;
+import org.apache.drill.exec.expr.holders.Decimal38SparseHolder;
+import org.apache.drill.exec.ops.OperatorContext;
+import org.apache.drill.exec.physical.impl.OutputMutator;
+import org.apache.drill.exec.record.MaterializedField;
+import org.apache.drill.exec.store.AbstractRecordReader;
+import org.apache.drill.exec.vector.BitVector;
+import org.apache.drill.exec.vector.Decimal38SparseVector;
+import org.apache.drill.exec.vector.NullableBitVector;
+import org.apache.drill.exec.vector.NullableDecimal38SparseVector;
+import org.apache.drill.exec.vector.NullableVarBinaryVector;
+import org.apache.drill.exec.vector.NullableVarCharVector;
+import org.apache.drill.exec.vector.RepeatedBitVector;
+import org.apache.drill.exec.vector.RepeatedDecimal38SparseVector;
+import org.apache.drill.exec.vector.RepeatedVarBinaryVector;
+import org.apache.drill.exec.vector.RepeatedVarCharVector;
+import org.apache.drill.exec.vector.ValueVector;
+import org.apache.drill.exec.vector.VarBinaryVector;
+import org.apache.drill.exec.vector.VarCharVector;
+import org.apache.drill.exec.vector.VectorDescriptor;
+import org.apache.drill.exec.vector.complex.ListVector;
+import org.apache.drill.exec.vector.complex.MapVector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+import static org.apache.drill.common.types.TypeProtos.MajorType;
+import static org.apache.drill.common.types.TypeProtos.MinorType;
+import static org.apache.drill.common.types.TypeProtos.MinorType.VARCHAR;
+
+/**
+ * Actually do the get/query/scan based on the {@link DynamoSubScan.DynamoSubScanSpec}.
+ */
+public class DynamoRecordReader extends AbstractRecordReader {
+
+  private static final Logger LOG = LoggerFactory.getLogger(DynamoRecordReader.class);
+  private static final Joiner DOTS = Joiner.on('.');
+  private static final Joiner COMMAS = Joiner.on(", ");
+
+  private final AWSCredentialsProvider credentials;
+  private final ClientConfiguration clientConf;
+  private final DynamoSubScan.DynamoSubScanSpec scanSpec;
+  private final int limit;
+  private final boolean consistentRead;
+  private OutputMutator outputMutator;
+  private OperatorContext operatorContext;
+  private AmazonDynamoDBAsyncClient client;
+  private Iterator<Page<Item, ScanOutcome>> resultIter;
+  private Map<String, Pair<ValueVector, TypeProtos.MajorType>> scalars = new HashMap<>();
+  private Map<String, MapVector> mapVectors = new HashMap<>();
+  private Map<String, ListVector> listVectors = new HashMap<>();
+
+  public DynamoRecordReader(AWSCredentialsProvider credentials, ClientConfiguration clientConf,
+    DynamoSubScan.DynamoSubScanSpec scanSpec, int limit, List<SchemaPath> columns, boolean
+    consistentRead) {
+    this.credentials = credentials;
+    this.clientConf = clientConf;
+    this.scanSpec = scanSpec;
+    this.limit = limit;
+    this.consistentRead = consistentRead;
+    setColumns(columns);
+  }
+
+  @Override
+  public void setup(OperatorContext context, OutputMutator output) throws ExecutionSetupException {
+    this.operatorContext = context;
+    this.outputMutator = output;
+
+    this.client = new AmazonDynamoDBAsyncClient(credentials, this.clientConf);
+
+    // setup the vectors that we know we will need - the primary key(s)
+    Map<String, String> pkToType = scanSpec.getPrimaryKeyTypes();
+    for (Map.Entry<String, String> pk : pkToType.entrySet()) {
+      // pk has to be a scalar type, so we never get null here
+      MinorType type = translateDynamoToDrillType(pk.getValue()).minor;
+      MajorType mt = Types.required(type);
+      MaterializedField field = MaterializedField.create(pk.getKey(), mt);
+      ValueVector vv = TypeHelper.getNewVector(field, operatorContext.getAllocator(), outputMutator
+        .getCallBack());
+      scalars.put(pk.getKey(), new ImmutablePair<>(vv, mt));
+    }
+
+    Table table = new DynamoDB(client).getTable(scanSpec.getTable());
+    ScanSpec spec = new ScanSpec();
+    // basic scan requirements
+    if (limit > 0) {
+      spec.setMaxPageSize(limit);
+    }
+    spec.withSegment(scanSpec.getSegmentId()).withTotalSegments(scanSpec.getTotalSegments());
+
+    // projections
+    List<String> columns = new ArrayList<>();
+    for (SchemaPath column : getColumns()) {
+      // scalar type or non-nested map request
+      if (column.isSimplePath()) {
+        String fieldName = column.getRootSegment().getPath();
+        columns.add(fieldName);
+      } else {
+        // build the full name of the column
+        List<String> parts = new ArrayList<>();
+        PathSegment.NameSegment name = column.getRootSegment();
+        PathSegment seg = name;
+        parts.add(name.getPath());
+        while ((seg = seg.getChild()) != null) {
+          if (seg.isArray()) {
+            parts.add("["+seg.getArraySegment().getIndex()+"]");
+          } else {
+            parts.add(seg.getNameSegment().getPath());
+          }
+        }
+        columns.add(DOTS.join(parts));
+      }
+    }
+    spec.withProjectionExpression(COMMAS.join(columns));
+    ItemCollection<ScanOutcome> results = table.scan(spec);
+    this.resultIter = results.pages().iterator();
+  }
+
+  private MajorOrMinor translateDynamoToDrillType(String type) {
+    switch (type) {
+      // Scalar types
+      case "S":
+        return new MajorOrMinor(VARCHAR);
+      case "N":
+        return new MajorOrMinor(MinorType.DECIMAL38SPARSE);
+      case "B":
+        return new MajorOrMinor(MinorType.VARBINARY);
+      case "BOOL":
+        return new MajorOrMinor(MinorType.BIT);
+      case "SS":
+        return new MajorOrMinor(Types.repeated(translateDynamoToDrillType("S").minor));
+      case "NS":
+        new MajorOrMinor(Types.repeated(translateDynamoToDrillType("N").minor));
+      case "BS":
+        new MajorOrMinor(Types.repeated(translateDynamoToDrillType("B").minor));
+      case "M":
+        return new MajorOrMinor(MinorType.MAP);
+      case "L":
+        return new MajorOrMinor(MinorType.LIST);
+    }
+    throw new IllegalArgumentException("Don't know how to translate type: " + type);
+  }
+
+  private class MajorOrMinor {
+    private MajorType major;
+    private MinorType minor;
+
+    public MajorOrMinor(MajorType major) {
+      this.major = major;
+    }
+
+    public MajorOrMinor(MinorType minor) {
+      this.minor = minor;
+    }
+  }
+
+  @Override
+  public int next() {
+    Stopwatch watch = Stopwatch.createStarted();
+
+    scalars.values().stream().map(p -> p.getKey()).forEach(vv -> vv.clear());
+    mapVectors.values().stream().forEach(map -> map.clear());
+    listVectors.values().stream().forEach(list -> list.clear());
+
+    int count = 0;
+    Page<Item, ScanOutcome> page;
+    while ((page = resultIter.next()) != null) {
+      for (Item item : page) {
+        int rowCount = count++;
+        for (Map.Entry<String, Object> attribute : item.attributes()) {
+          String name = attribute.getKey();
+          Object value = attribute.getValue();
+          // special handling for non-scalar types
+          if (value instanceof Map) {
+            MapVector map = mapVectors.get(name);
+            if (map == null) {
+              MaterializedField field =
+                MaterializedField.create(attribute.getKey(), Types.optional(MinorType.MAP));
+              try {
+                map = outputMutator.addField(field, MapVector.class);
+                mapVectors.put(name, map);
+              } catch (SchemaChangeException e) {
+                throw new DrillRuntimeException(e);
+              }
+            }
+            addToMap(rowCount, map, (Map<String, Object>) value);
+          } else if (value instanceof List || value instanceof Set) {
+            // sets and lists handled the same - as a repeated list of values
+            ListVector list = listVectors.get(name);
+            if (list == null) {
+              MaterializedField field =
+                MaterializedField.create(name, Types.optional(MinorType.MAP));
+              try {
+                list = outputMutator.addField(field, ListVector.class);
+                listVectors.put(name, list);
+              } catch (SchemaChangeException e) {
+                throw new DrillRuntimeException(e);
+              }
+            }
+            addToList(list, ((Collection<Object>) value), rowCount);
+          } else {
+            writeScalar(rowCount, name, value);
+          }
+        }
+      }
+    }
+    LOG.debug("Took {} ms to get {} records", watch.elapsed(TimeUnit.MILLISECONDS), count);
+    return count;
+  }
+
+  private void addToList(ListVector list, Iterable<Object> values, int index) {
+    list.allocateNew();
+    for (Object val : values) {
+      MinorType minor = getMinorType(val);
+      MajorType major = Types.repeated(minor);
+      ValueVector vector = list.addOrGetVector(new VectorDescriptor(major)).getVector();
+      vector.allocateNew();
+      writeScalar(index, val, vector, major);
+    }
+  }
+
+  private void addToMap(int index, MapVector map, Map<String, Object> values) {
+    map.allocateNew();
+    for (Map.Entry<String, Object> value : values.entrySet()) {
+      MinorType minor = getMinorType(value);
+      MajorType major = Types.optional(minor);
+      ValueVector vector =
+        map.addOrGet(value.getKey(), major, TypeHelper.getValueVectorClass(minor, major.getMode()));
+      vector.allocateNew();
+      writeScalar(index, value.getValue(), vector, major);
+    }
+  }
+
+  private void writeScalar(int index, String key, Object value) {
+    Pair<ValueVector, TypeProtos.MajorType> vector = this.scalars.get(key);
+    if (vector == null) {
+      MinorType minor = getMinorType(value);
+      MajorType type = Types.optional(minor);
+      MaterializedField field = MaterializedField.create(key, type);
+      ValueVector vv = TypeHelper.getNewVector(field, operatorContext.getAllocator(), outputMutator
+        .getCallBack());
+      vv.allocateNew();
+      this.scalars.put(key, new ImmutablePair<>(vv, type));
+    }
+
+    writeScalar(index, value, vector.getKey(), vector.getValue());
+  }
+
+  private void writeScalar(int index, Object value, ValueVector vector, MajorType
+    type) {
+    MinorType minor = type.getMinorType();
+    switch (minor) {
+      case VARCHAR:
+        byte[] bytes = ((String) value).getBytes();
+        switch (type.getMode()) {
+          case OPTIONAL:
+            ((NullableVarCharVector.Mutator) vector.getMutator()).setSafe(index, bytes,
+              0, bytes.length);
+            break;
+          case REQUIRED:
+            ((VarCharVector.Mutator) vector.getMutator()).setSafe(index, bytes);
+            break;
+          case REPEATED:
+            ((RepeatedVarCharVector.Mutator) vector.getMutator()).addSafe(index, bytes);
+            break;
+          default:
+            failForMode(type);
+        }
+      case BIT:
+        int bool = ((Boolean) value).booleanValue() ? 1 : 0;
+        switch (type.getMode()) {
+          case OPTIONAL:
+            ((NullableBitVector.Mutator) vector.getMutator()).setSafe(index, bool);
+            break;
+          case REQUIRED:
+            ((BitVector.Mutator) vector.getMutator()).setSafe(index, bool);
+            break;
+          case REPEATED:
+            ((RepeatedBitVector.Mutator) vector.getMutator()).addSafe(index, bool);
+            break;
+          default:
+            failForMode(type);
+        }
+      case DECIMAL38SPARSE:
+        BigDecimal decimal = (BigDecimal) value;
+        BigInteger intVal = decimal.unscaledValue();
+        byte[] intBytes = intVal.toByteArray();
+        // TODO revisit handling of Decimal38Dense
+        // kind of an ugly way to manage the actual transfer of bytes. However, this is much
+        // easier than trying to manage a larger page of bytes.
+        Decimal38SparseHolder holder = new Decimal38SparseHolder();
+        holder.start = 0;
+        holder.buffer = operatorContext.getManagedBuffer(intBytes.length);
+        holder.precision = decimal.precision();
+        holder.scale = decimal.scale();
+        switch (type.getMode()) {
+          case OPTIONAL:
+            ((NullableDecimal38SparseVector.Mutator) vector.getMutator())
+              .setSafe(index, holder);
+            break;
+          case REQUIRED:
+            ((Decimal38SparseVector.Mutator) vector.getMutator()).setSafe(index, holder);
+            break;
+          case REPEATED:
+            ((RepeatedDecimal38SparseVector.Mutator) vector.getMutator()).addSafe(index, holder);
+            break;
+          default:
+            failForMode(type);
+        }
+      case VARBINARY:
+        byte[] bytesBinary = (byte[]) value;
+        switch (type.getMode()) {
+          case OPTIONAL:
+            ((NullableVarBinaryVector.Mutator) vector.getMutator()).setSafe(index,
+              bytesBinary, 0, bytesBinary.length);
+            break;
+          case REQUIRED:
+            ((VarBinaryVector.Mutator) vector.getMutator()).setSafe(index, bytesBinary);
+            break;
+          case REPEATED:
+            ((RepeatedVarBinaryVector.Mutator) vector.getMutator()).addSafe(index, bytesBinary);
+            break;
+          default:
+            failForMode(type);
+        }
+      default:
+        throw new IllegalArgumentException("Unsupported type: " + type);
+    }
+  }
+
+  private void failForMode(MajorType type) {
+    throw new IllegalArgumentException(
+      "Mode: " + type.getMode() + " not " + "supported for scalar type: " + type);
+  }
+
+  private MinorType getMinorType(Object value) {
+    if (value instanceof String) {
+      return VARCHAR;
+    } else if (value instanceof Boolean) {
+      return MinorType.BIT;
+    } else if (value instanceof BigDecimal) {
+      return MinorType.DECIMAL38SPARSE;
+    } else if (value instanceof byte[]) {
+      return MinorType.VARBINARY;
+    }
+    throw new UnsupportedOperationException("Unexpected type for: " + value);
+  }
+
+  @Override
+  public void close() throws Exception {
+    this.client.shutdown();
+  }
+}
