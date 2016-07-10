@@ -1,6 +1,7 @@
 package io.fineo.drill.exec.store.dynamo.config;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
@@ -19,6 +20,7 @@ public class DynamoStoragePluginConfig extends StoragePluginConfig {
   private final ParallelScanProperties scan;
   private Map<String, Object> credentials;
 
+  @JsonCreator
   public DynamoStoragePluginConfig(
     @JsonProperty("credentials") Map<String, Object> credentials,
     @JsonProperty(DynamoEndpoint.NAME) DynamoEndpoint endpoint,
