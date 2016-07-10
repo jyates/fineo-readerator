@@ -1,0 +1,14 @@
+{
+  "storage":{
+    dynamo : {
+      type: "dynamo",
+      enabled: false,
+      credentials: {
+        type: "provided"
+      },
+      client: {
+        consistentRead: "true"
+      }
+    }
+  }
+}

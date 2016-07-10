@@ -42,7 +42,10 @@ public class DrillLocalClusterE2E {
                .withLocalDynamo("http://" + storeArgs.host + ":" + storeArgs.port)
                .withRepository(storeArgs.schemaTable)
                .withOrgs(drillArgs.orgId);
-    builder.withLocalSource(new File(drillArgs.inputDir));
+    if(true){
+      throw new RuntimeException("Not yet implemented!");
+    }
+//    builder.withLocalSource(new File(drillArgs.inputDir));
     if (!bootstrap.strap(builder)) {
       throw new RuntimeException("Bootstrap step failed!");
     }

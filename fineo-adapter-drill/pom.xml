@@ -60,11 +60,6 @@
     </plugins>
   </build>
 
-  <properties>
-    <drill.version>1.6.0</drill.version>
-    <drill.calcite.version>1.4.0-drill-r10</drill.calcite.version>
-  </properties>
-
   <dependencies>
     <!-- Intra-project -->
     <dependency>
@@ -76,13 +71,6 @@
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk</artifactId>
-      <version>${aws.java.sdk.version}</version>
-      <exclusions>
-        <exclusion>
-          <artifactId>commons-logging</artifactId>
-          <groupId>commons-logging</groupId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.fineo.schema</groupId>
@@ -118,13 +106,6 @@
     <dependency>
       <groupId>org.apache.calcite</groupId>
       <artifactId>calcite-core</artifactId>
-      <version>${drill.calcite.version}</version>
-      <exclusions>
-        <exclusion>
-          <artifactId>commons-logging</artifactId>
-          <groupId>commons-logging</groupId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.calcite</groupId>
