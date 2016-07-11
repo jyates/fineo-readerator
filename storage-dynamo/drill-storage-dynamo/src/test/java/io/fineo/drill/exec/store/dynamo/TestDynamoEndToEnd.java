@@ -28,6 +28,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
+import javax.ws.rs.NotSupportedException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -133,7 +134,7 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
   }
 
   @Test
-  public void testColumnDataTypes() throws Exception {
+  public void testScalar() throws Exception {
     Table table = createHashTable();
     Item item = new Item();
     item.withString(PK, "pk_value");
@@ -145,39 +146,60 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
 
     item.withBoolean("col5_boolean", true);
 
-    Map<String, Object> c6 = new HashMap<>();
-    c6.put("c6.1.1", "v_c6.1");
-    c6.put("c6.1.2", "v_c6.2");
-    item.withMap("col6_map_string", c6);
-    Map<String, Object> c62 = new HashMap<>();
-    c62.put("c6.2.1", true);
-    c62.put("c6.2.2", false);
-    item.withMap("col6-2_map_bool", c62);
+    table.putItem(item);
+    selectStar(table, item);
+  }
 
-    item.withList("col7_list_string", "v7.1", "v7.2", "v7.3");
+  /**
+   * Just request the complex type columns (map, list), rather than trying to read a value out of
+   * the column (that's another test).
+   * @throws Exception on failure
+   */
+  @Test
+  public void testComplexTypesSimpleRead() throws Exception {
+    Table table = createHashTable();
+    Item item = new Item();
+    item.with(PK, "pk_val");
+//    Map<String, Object> c6 = new HashMap<>();
+//    c6.put("c6.1.1", "v_c6.1");
+//    c6.put("c6.1.2", "v_c6.2");
+//    item.withMap("col6_map_string", c6);
+//    Map<String, Object> c62 = new HashMap<>();
+//    c62.put("c6.2.1", true);
+//    c62.put("c6.2.2", false);
+//    item.withMap("col6-2_map_bool", c62);
+
+//    item.withList("col7_list_string", "v7.1", "v7.2", "v7.3");
     item.withList("col7-1_list_bool", true, false, true);
 
-    item.withStringSet("col8_set_string", "a", "b", "c");
-    item.withBinarySet("col8-1_set_binary", new byte[]{1}, new byte[]{2});
-
+//    item.withStringSet("col8_set_string", "a", "b", "c");
+//    item.withBinarySet("col8-1_set_binary", new byte[]{1}, new byte[]{2});
     table.putItem(item);
-    List<QueryDataBatch> results =
-      testSqlWithResults("SELECT * FROM dynamo." + table.getTableName());
+    selectStar(table, item);
+  }
+
+  private void selectStar(Table table, Item... items) throws Exception {
+    runAndVerify("SELECT * FROM dynamo." + table.getTableName(), items);
+  }
+
+  private void runAndVerify(String sql, Item... items) throws Exception {
+    List<QueryDataBatch> results = testSqlWithResults(sql);
     int rowCount = 0;
 
     final RecordBatchLoader loader = new RecordBatchLoader(getAllocator());
     for (final QueryDataBatch result : results) {
       loader.load(result.getHeader().getDef(), result.getData());
       rowCount += result.getHeader().getRowCount();
-      verifyRow(item, loader);
+      verifyRows(loader, items);
       loader.clear();
       result.release();
     }
     assertEquals(1, rowCount);
   }
 
-  private void verifyRow(Item item, RecordBatchLoader loader) {
+  private void verifyRows(RecordBatchLoader loader, Item... items) {
     for (int row = 0; row < loader.getRecordCount(); row++) {
+      Item item = items[row];
       for (VectorWrapper<?> vw : loader) {
         MaterializedField field = vw.getField();
         String name = field.getName();
@@ -203,6 +225,7 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
   @Test
   public void testConvertNumbers() throws Exception {
     Table table = createHashTable();
+    throw new NotSupportedException("Need to implement!");
   }
 
   private Table createHashTable() throws InterruptedException {
