@@ -180,12 +180,27 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
     selectStar(table, item, item2);
   }
 
+  /**
+   * VarChar list elements behave (for some reason) differently than booleans when setting the
+   * values. This makes us set the list value count in the list method, rather than at the end of
+   * #next() when we set all the other top level lengths
+   *
+   * @throws Exception
+   */
   @Test
   public void testVarCharList() throws Exception {
     Item item = new Item();
     item.with(PK, "pk_val_1");
-    item.withList("col7-1_list_bool", "a");
-    putAndSelectStar(item);
+    List<String> values = newArrayList("a");
+    item.withList(COL1, values);
+    Table t = createTableWithItems(item);
+    List<Map<String, Object>> rows = selectStar(t, false, item);
+    List<Text> expected = values.stream().map(s -> new Text(s)).collect(Collectors.toList());
+    assertEquals("Only expected one row, got: " + rows, 1, rows.size());
+    Map<String, Object> row = rows.get(0);
+    assertEquals("Only expected two fields! Got: " + row, 2, row.size());
+    assertEquals("Wrong values for list/set column!", expected, row.get(COL1));
+
   }
 
   @Test
