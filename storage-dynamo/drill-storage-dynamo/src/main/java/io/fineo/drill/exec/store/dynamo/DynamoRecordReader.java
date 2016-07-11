@@ -12,15 +12,13 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.MutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.PathSegment;
 import org.apache.drill.common.expression.SchemaPath;
-import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.types.Types;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.expr.TypeHelper;
@@ -29,6 +27,7 @@ import org.apache.drill.exec.ops.OperatorContext;
 import org.apache.drill.exec.physical.impl.OutputMutator;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.store.AbstractRecordReader;
+import org.apache.drill.exec.vector.AddOrGetResult;
 import org.apache.drill.exec.vector.BitVector;
 import org.apache.drill.exec.vector.Decimal38SparseVector;
 import org.apache.drill.exec.vector.NullableBitVector;
@@ -53,13 +52,17 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.System.arraycopy;
 import static org.apache.drill.common.types.TypeProtos.MajorType;
 import static org.apache.drill.common.types.TypeProtos.MinorType;
@@ -83,9 +86,11 @@ public class DynamoRecordReader extends AbstractRecordReader {
   private OperatorContext operatorContext;
   private AmazonDynamoDBAsyncClient client;
   private Iterator<Page<Item, ScanOutcome>> resultIter;
-  private Map<String, Pair<ValueVector, TypeProtos.MajorType>> scalars = new HashMap<>();
-  private Map<String, MapVector> mapVectors = new HashMap<>();
-  private Map<String, Pair<ListVector, ValueVector>> listVectors = new HashMap<>();
+  private final Multimap<String, Integer> listIndexes = ArrayListMultimap.create();
+
+  private Map<String, ScalarVectorStruct> scalars = new HashMap<>();
+  private Map<String, MapVectorStruct> mapVectors = new HashMap<>();
+  private Map<String, ListVectorStruct> listVectors = new HashMap<>();
 
   public DynamoRecordReader(AWSCredentialsProvider credentials, ClientConfiguration clientConf,
     DynamoEndpoint endpoint, DynamoSubScan.DynamoSubScanSpec scanSpec,
@@ -110,12 +115,13 @@ public class DynamoRecordReader extends AbstractRecordReader {
     Map<String, String> pkToType = scanSpec.getTable().getPkToType();
     for (Map.Entry<String, String> pk : pkToType.entrySet()) {
       // pk has to be a scalar type, so we never get null here
-      MinorType type = translateDynamoToDrillType(pk.getValue()).minor;
-      MajorType mt = Types.required(type);
-      MaterializedField field = MaterializedField.create(pk.getKey(), mt);
-      ValueVector vv = TypeHelper.getNewVector(field, operatorContext.getAllocator(), outputMutator
-        .getCallBack());
-      scalars.put(pk.getKey(), new ImmutablePair<>(vv, mt));
+      MinorType minor = translateDynamoToDrillType(pk.getValue()).minor;
+      MajorType major = Types.required(minor);
+      String name = pk.getKey();
+      MaterializedField field = MaterializedField.create(name, major);
+      Class<? extends ValueVector> clazz = TypeHelper.getValueVectorClass(minor, major.getMode());
+      ValueVector vv = getField(field, clazz);
+      scalars.put(name, new ScalarVectorStruct(vv, major));
     }
 
     Table table = new DynamoDB(client).getTable(scanSpec.getTable().getName());
@@ -141,8 +147,11 @@ public class DynamoRecordReader extends AbstractRecordReader {
         parts.add(name.getPath());
         while ((seg = seg.getChild()) != null) {
           if (seg.isArray()) {
-            parts
-              .add(parts.remove(parts.size() - 1) + "[" + seg.getArraySegment().getIndex() + "]");
+            int index = seg.getArraySegment().getIndex();
+            String fullListName = DOTS.join(parts);
+            String listLeafName = parts.remove(parts.size() - 1);
+            parts.add(listLeafName + "[" + index + "]");
+            listIndexes.put(fullListName, index);
           } else {
             parts.add(seg.getNameSegment().getPath());
           }
@@ -197,13 +206,10 @@ public class DynamoRecordReader extends AbstractRecordReader {
   @Override
   public int next() {
     Stopwatch watch = Stopwatch.createStarted();
-
-    scalars.values().stream().map(p -> p.getKey()).forEach(vv -> vv.clear());
-    mapVectors.values().stream().forEach(map -> map.clear());
-    listVectors.values().stream().forEach(pair -> {
-      pair.getKey().clear();
-      pair.getValue().clear();
-    });
+    // reset all the vectors and prepare them for writing
+    scalars.values().stream().forEach(struct -> struct.reset());
+    mapVectors.values().stream().forEach(map -> map.reset());
+    listVectors.values().stream().forEach(list -> list.reset());
 
     int count = 0;
     Page<Item, ScanOutcome> page;
@@ -214,95 +220,183 @@ public class DynamoRecordReader extends AbstractRecordReader {
         for (Map.Entry<String, Object> attribute : item.attributes()) {
           String name = attribute.getKey();
           Object value = attribute.getValue();
-          // special handling for non-scalar types
-          if (value instanceof Map) {
-            MapVector map = mapVectors.get(name);
-            if (map == null) {
-              MaterializedField field =
-                MaterializedField.create(attribute.getKey(), Types.optional(MinorType.MAP));
-              map = getField(field, MapVector.class);
-              mapVectors.put(name, map);
-            }
-            addToMap(rowCount, map, (Map<String, Object>) value);
-          } else if (value instanceof List || value instanceof Set) {
-            // sets and lists handled the same - as a repeated list of values
-            Pair<ListVector, ValueVector> list = listVectors.get(name);
-            if (list == null) {
-              MaterializedField field =
-                MaterializedField.create(name, Types.optional(MinorType.LIST));
-              list = new MutablePair<>(getField(field, ListVector.class), null);
-              list.getKey().allocateNew();
-              listVectors.put(name, list);
-            }
-            addToList(list, ((Collection<Object>) value), rowCount);
-          } else {
-            writeScalar(rowCount, name, value);
-          }
+          handleField(rowCount, name, value, scalars, mapVectors, listVectors, this::getField);
         }
       }
     }
+
+    int rows = count;
+    scalars.values().stream().forEach(scalar -> scalar.setValueCount(rows));
+    mapVectors.values().stream().forEach(map -> map.setValueCount(rows));
+    listVectors.values().stream().forEach(list -> list.setValueCount(rows));
 
     LOG.debug("Took {} ms to get {} records", watch.elapsed(TimeUnit.MILLISECONDS), count);
     return count;
   }
 
-  private void addToList(Pair<ListVector, ValueVector> pair, Iterable<Object> values, int index) {
-    ListVector list = pair.getKey();
-//    list.getWriter().bit().writeBit(1);
-//    list.getWriter().bit().writeBit(1);
-    UInt4Vector offsets = list.getOffsetVector();
-    int nextOffset = offsets.getAccessor().get(index);
-    list.getMutator().setNotNull(index);
+  private void handleField(int rowCount, String name, Object value,
+    Map<String, ScalarVectorStruct> scalars,
+    Map<String, MapVectorStruct> mapVectors, Map<String, ListVectorStruct> listVectors,
+    BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> vectorFunc) {
+    // special handling for non-scalar types
+    if (value instanceof Map) {
+      handleMap(rowCount, name, value, mapVectors, vectorFunc);
+    } else if (value instanceof List || value instanceof Set) {
+      handleList(rowCount, name, value, listVectors, vectorFunc);
+    } else {
+      writeScalar(rowCount, name, value, scalars, vectorFunc);
+    }
+  }
 
+  private void handleMap(int row, String name, Object value,
+    Map<String, MapVectorStruct> mapVectors,
+    BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> vectorFunc) {
+    MapVectorStruct map = mapVectors.get(name);
+    if (map == null) {
+      MaterializedField field = MaterializedField.create(name, Types.optional(MinorType.MAP));
+      MapVector vector = (MapVector) vectorFunc.apply(field, MapVector.class);
+      vector.allocateNew();
+      map = new MapVectorStruct(vector);
+      mapVectors.put(name, map);
+    }
+
+    Map<String, Object> values = (Map<String, Object>) value;
+    for (Map.Entry<String, Object> entry : values.entrySet()) {
+      String fieldName = entry.getKey();
+      Object fieldValue = entry.getValue();
+      handleField(row, fieldName, fieldValue, map.getScalarStructs(), map.getMapStructs(),
+        map.getListStructs(), map.getVectorFun());
+    }
+    MapVector vector = map.getVector();
+    vector.getMutator().setValueCount(vector.getAccessor().getValueCount() + 1);
+  }
+
+  /**
+   * Sets and lists handled the same - as a repeated list of values
+   *
+   * @param index
+   * @param name
+   * @param value
+   * @param listVectors
+   */
+  private void handleList(int index, String name, Object value,
+    Map<String, ListVectorStruct> listVectors,
+    BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> vectorFun) {
+    value = adjustListValueForPointSelections(name, value);
+
+    // create the struct, if necessary
+    ListVectorStruct struct = listVectors.get(name);
+    if (struct == null) {
+      MaterializedField field =
+        MaterializedField.create(name, Types.optional(MinorType.LIST));
+      ListVector listVector = (ListVector) vectorFun.apply(field, ListVector.class);
+      listVector.allocateNew();
+      struct = new ListVectorStruct(listVector);
+      listVectors.put(name, struct);
+    }
+
+    // find the first item in the list
+    List<Object> values;
+    if (value instanceof List) {
+      values = (List<Object>) value;
+    } else {
+      values = newArrayList((Collection<Object>) value);
+    }
     Object first = values.iterator().next();
     MinorType minor = getMinorType(first);
     MajorType major = Types.optional(minor);
 
-    ValueVector vector = pair.getValue();
-    if (vector == null) {
-      // create the 'writer' vector target
-      vector = list.addOrGetVector(new VectorDescriptor(major)).getVector();
-      vector.allocateNew();
-      pair.setValue(vector);
+    // create the struct map based on the type. We might need to create the struct later, so
+    // generate the right function call too
+    Map map;
+    Function<ValueVector, ? extends ValueVectorStruct> creator;
+    boolean mapField = false, listField = false;
+    switch (minor) {
+      case MAP:
+        map = struct.getMapStructs();
+        creator = (vector) -> new MapVectorStruct((MapVector) vector);
+        mapField = true;
+        break;
+      case LIST:
+        map = struct.getListStructs();
+        creator = (vector) -> new ListVectorStruct((ListVector) vector);
+        listField = true;
+        break;
+      default:
+        map = struct.getScalarStructs();
+        creator = (vector) -> new ScalarVectorStruct(vector, major);
     }
 
+    // there is only ever one vector that we use in a list, and its keyed by null
+    ListVector list = struct.getVector();
+    String vectorName = "_0list_name";
+    ValueVectorStruct vectorStruct = (ValueVectorStruct) map.get(vectorName);
+    if (vectorStruct == null) {
+      // create the 'writer' vector target
+      ValueVector vector = list.addOrGetVector(new VectorDescriptor(major)).getVector();
+      vector.allocateNew();
+      vectorStruct = creator.apply(vector);
+      map.put(vectorName, vectorStruct);
+    }
+
+    UInt4Vector offsets = list.getOffsetVector();
+    int nextOffset = offsets.getAccessor().get(index);
+    list.getMutator().setNotNull(index);
     int listIndex = 0;
+    Map<String, MapVectorStruct> maps = mapField ? map : null;
+    Map<String, ListVectorStruct> lists = listField ? map : null;
+    Map<String, ScalarVectorStruct> scalars = (!mapField && !listField) ? map : null;
     for (Object val : values) {
-      writeScalar(nextOffset + listIndex, val, vector, major);
+      // we should never need to create a sub-vector immediately - we created the vector above -
+      // so send 'null' as the creator function.
+      handleField(nextOffset + listIndex, vectorName, val, scalars, maps, lists, null);
       listIndex++;
     }
+//    vector.getMutator().setValueCount(vector.getAccessor().getValueCount() + listIndex);
     offsets.getMutator().setSafe(index + 1, nextOffset + listIndex);
-
   }
 
-  private void addToMap(int index, MapVector map, Map<String, Object> values) {
-    map.allocateNew();
-    for (Map.Entry<String, Object> entry : values.entrySet()) {
-      String name = entry.getKey();
-      Object value = entry.getValue();
-      MinorType minor = getMinorType(value);
-      MajorType major = Types.optional(minor);
-      ValueVector vector =
-        map.addOrGet(name, major, TypeHelper.getValueVectorClass(minor, major.getMode()));
-      vector.allocateNew();
-      writeScalar(index, value, vector, major);
+  private Object adjustListValueForPointSelections(String name, Object value) {
+    // Sometimes we might want to select an offset into a list. Dynamo handles this as returning
+    // a smaller list. Drill expects the whole list to be there, so we need to fill in the other
+    // parts of the list with nulls, up to the largest value
+    Collection<Integer> indexes = listIndexes.get(name);
+    if (indexes == null || indexes.size() == 0) {
+      return value;
     }
+    List<Integer> sorted = newArrayList(indexes);
+    Collections.sort(sorted);
+    int max = sorted.get(sorted.size() - 1);
+    List<Object> actualValue = (List) value;
+    List<Object> valueOut = new ArrayList<>(max);
+    int last = 0;
+    for (Integer index : sorted) {
+      // fill in nulls between the requested indexes
+      for (int i = last; i < index; i++) {
+        valueOut.add(null);
+      }
+      valueOut.add(actualValue.remove(0));
+      last++;
+    }
+
+    return valueOut;
   }
 
-  private void writeScalar(int index, String column, Object columnValue) {
-    Pair<ValueVector, TypeProtos.MajorType> vector = this.scalars.get(column);
-    ValueVector vv;
-    if (vector == null) {
+  private void writeScalar(int index, String column, Object columnValue, Map<String,
+    ScalarVectorStruct> scalars, BiFunction<MaterializedField, Class<? extends ValueVector>,
+    ValueVector> vectorFunc) {
+    ScalarVectorStruct struct = scalars.get(column);
+    if (struct == null) {
       MinorType minor = getMinorType(columnValue);
       MajorType type = Types.optional(minor);
       MaterializedField field = MaterializedField.create(column, type);
       Class<? extends ValueVector> clazz = TypeHelper.getValueVectorClass(minor, type.getMode());
-      vector = new ImmutablePair<>(getField(field, clazz), type);
-      this.scalars.put(column, vector);
+      ValueVector vv = vectorFunc.apply(field, clazz);
+      vv.allocateNew();
+      struct = new ScalarVectorStruct(vv, type);
+      scalars.put(column, struct);
     }
-    vv = vector.getKey();
-    vv.allocateNew();
-    writeScalar(index, columnValue, vv, vector.getValue());
+    writeScalar(index, columnValue, struct);
   }
 
   private <T extends ValueVector> T getField(MaterializedField field, Class<T> clazz) {
@@ -313,9 +407,13 @@ public class DynamoRecordReader extends AbstractRecordReader {
     }
   }
 
-  private void writeScalar(int index, Object value, ValueVector vector, MajorType
-    type) {
+  private void writeScalar(int index, Object value, ScalarVectorStruct struct) {
+    if (value == null) {
+      return;
+    }
+    MajorType type = struct.getType();
     MinorType minor = type.getMinorType();
+    ValueVector vector = struct.getVector();
     type:
     switch (minor) {
       case VARCHAR:
@@ -340,7 +438,6 @@ public class DynamoRecordReader extends AbstractRecordReader {
           case OPTIONAL:
             NullableBitVector bv = (NullableBitVector) vector;
             bv.getMutator().setSafe(index, bool);
-            bv.getMutator().setValueCount(bv.getAccessor().getValueCount() + 1);
             break type;
           case REQUIRED:
             ((BitVector.Mutator) vector.getMutator()).setSafe(index, bool);
@@ -415,6 +512,10 @@ public class DynamoRecordReader extends AbstractRecordReader {
       return MinorType.DECIMAL38SPARSE;
     } else if (value instanceof byte[]) {
       return MinorType.VARBINARY;
+    } else if (value instanceof Map) {
+      return MinorType.MAP;
+    } else if (value instanceof List) {
+      return MinorType.LIST;
     }
     throw new UnsupportedOperationException("Unexpected type for: " + value);
   }
@@ -422,5 +523,104 @@ public class DynamoRecordReader extends AbstractRecordReader {
   @Override
   public void close() throws Exception {
     this.client.shutdown();
+  }
+
+  // Struct for a logical ValueVector
+  private abstract class ValueVectorStruct<T extends ValueVector> {
+    private final T vector;
+
+    public ValueVectorStruct(T vector) {
+      this.vector = vector;
+    }
+
+    public T getVector() {
+      return vector;
+    }
+
+    public void reset() {
+      this.getVector().clear();
+      this.getVector().allocateNew();
+    }
+
+    public void setValueCount(int valueCount) {
+      this.getVector().getMutator().setValueCount(valueCount);
+    }
+  }
+
+  private class ScalarVectorStruct extends ValueVectorStruct<ValueVector> {
+    private final MajorType type;
+
+    public ScalarVectorStruct(ValueVector vector, MajorType type) {
+      super(vector);
+      this.type = type;
+
+    }
+
+    public MajorType getType() {
+      return type;
+    }
+  }
+
+  private abstract class NestedVectorStruct<T extends ValueVector> extends ValueVectorStruct<T> {
+
+    private final BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector>
+      vectorFun;
+    private Map<String, ScalarVectorStruct> scalarStructs = new HashMap<>();
+    private Map<String, ListVectorStruct> listStructs = new HashMap<>();
+    private Map<String, MapVectorStruct> mapStructs = new HashMap<>();
+
+    public NestedVectorStruct(T vector, BiFunction<MaterializedField,
+      Class<? extends ValueVector>, ValueVector> vectorFunc) {
+      super(vector);
+      this.vectorFun = vectorFunc;
+    }
+
+    public Map<String, ListVectorStruct> getListStructs() {
+      return listStructs;
+    }
+
+    public Map<String, MapVectorStruct> getMapStructs() {
+      return mapStructs;
+    }
+
+    public Map<String, ScalarVectorStruct> getScalarStructs() {
+      return scalarStructs;
+    }
+
+    public BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> getVectorFun() {
+      return vectorFun;
+    }
+
+    public void clear() {
+      this.getVector().clear();
+    }
+
+    @Override
+    public void reset() {
+      super.reset();
+      this.listStructs.values().forEach(s -> s.clear());
+      this.listStructs.clear();
+      this.mapStructs.values().forEach(m -> m.clear());
+      this.mapStructs.clear();
+      this.scalarStructs.values().forEach(s -> s.getVector().clear());
+    }
+  }
+
+  private class MapVectorStruct extends NestedVectorStruct<MapVector> {
+
+    public MapVectorStruct(MapVector vector) {
+      super(vector, (field, clazz) -> vector.addOrGet(field.getName(), field.getType(), clazz));
+    }
+  }
+
+  private class ListVectorStruct extends NestedVectorStruct<ListVector> {
+
+    public ListVectorStruct(final ListVector vector) {
+      super(vector, (field, clazz) -> {
+        AddOrGetResult result = vector.addOrGetVector(new VectorDescriptor(field.getType
+          ()));
+        return result.getVector();
+      });
+    }
   }
 }

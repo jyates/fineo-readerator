@@ -88,18 +88,25 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
 
   @Test
   public void testSimpleReadWrite() throws Exception {
-    Table table = createHashTable();
     // write a single row to the test table
     Item write = item();
     String col1Value = "2_col1_value";
     write.withString(COL1, col1Value);
-    table.putItem(write);
 
     // read that row back with drill
-    List<QueryDataBatch> results =
-      testSqlWithResults("SELECT * FROM dynamo." + table.getTableName());
-    printResult(results);
-    assertEquals(1, results.size());
+    putAndSelectStar(write);
+  }
+
+  @Test
+  public void testMultipleRowsStringReadWrite() throws Exception {
+    Item item1 = new Item();
+    item1.with(PK, "pk1");
+    item1.with(COL1, "c1v1");
+
+    Item item2 = new Item();
+    item2.with(PK, "pk2");
+    item2.with(COL1, "c1v2");
+    putAndSelectStar(item1, item2);
   }
 
   @Test
@@ -174,6 +181,14 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
   }
 
   @Test
+  public void testVarCharList() throws Exception {
+    Item item = new Item();
+    item.with(PK, "pk_val_1");
+    item.withList("col7-1_list_bool", "a");
+    putAndSelectStar(item);
+  }
+
+  @Test
   public void testListReadIntoList() throws Exception {
     Item item = new Item();
     item.with(PK, "pk_val_1");
@@ -216,7 +231,6 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
     item.with(PK, "pk");
     return item;
   }
-
 
   @Test
   public void testtestMapColumnsSimpleRead() throws Exception {
@@ -278,7 +292,10 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
         row.size(), item.asMap().size());
       for (Map.Entry<String, Object> field : row.entrySet()) {
         String name = field.getKey();
-        Object o = field.getKey();
+        Object o = field.getValue();
+        if (o instanceof Text) {
+          o = o.toString();
+        }
         if (o instanceof byte[]) {
           assertArrayEquals("Array mismatch for: " + name, (byte[]) item.get(name), (byte[]) o);
         } else {
