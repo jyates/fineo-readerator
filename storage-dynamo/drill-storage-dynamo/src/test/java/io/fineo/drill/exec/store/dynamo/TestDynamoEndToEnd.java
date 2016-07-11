@@ -174,6 +174,23 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
   }
 
   @Test
+  public void testListReadIntoList() throws Exception {
+    Item item = new Item();
+    item.with(PK, "pk_val_1");
+    List<Boolean> list = newArrayList(true, true, false, true);
+    item.withList(COL1, list);
+    Table table = createTableWithItems(item);
+
+    String sql = "SELECT " + COL1 + "[0]," + COL1 + "[2] FROM dynamo." + table.getTableName();
+    List<Map<String, Object>> rows = runAndReadResults(sql);
+    assertEquals(1, rows.size());
+    Map<String, Object> row = rows.get(0);
+    assertEquals("Expected two columns, one for each list element. Got: " + row, 2, row.size());
+    assertEquals("Mismatch for first column!", list.get(0), row.get("EXPR$0"));
+    assertEquals("Mismatch for second column!", list.get(2), row.get("EXPR$1"));
+  }
+
+  @Test
   public void testSetsAsLists() throws Exception {
     Item item = item();
     List<String> values = newArrayList("a", "b", "c");
@@ -239,12 +256,16 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
   private List<Map<String, Object>> selectStar(Table table, boolean verify, Item... items) throws
     Exception {
     String sql = "SELECT * FROM dynamo." + table.getTableName();
-    List<QueryDataBatch> results = testSqlWithResults(sql);
-    List<Map<String, Object>> rows = readObjects(results);
+    List<Map<String, Object>> rows = runAndReadResults(sql);
     if (verify) {
       verify(rows, items);
     }
     return rows;
+  }
+
+  private List<Map<String, Object>> runAndReadResults(String sql) throws Exception {
+    List<QueryDataBatch> results = testSqlWithResults(sql);
+    return readObjects(results);
   }
 
   private void verify(List<Map<String, Object>> rows, Item[] items) {
@@ -310,6 +331,14 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
   public void testConvertNumbers() throws Exception {
     Table table = createHashTable();
     throw new NotSupportedException("Need to implement!");
+  }
+
+  private Table createTableWithItems(Item... items) throws InterruptedException {
+    Table table = createHashTable();
+    for (Item item : items) {
+      table.putItem(item);
+    }
+    return table;
   }
 
   private Table createHashTable() throws InterruptedException {
