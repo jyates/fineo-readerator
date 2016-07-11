@@ -14,6 +14,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.MutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
@@ -38,6 +39,7 @@ import org.apache.drill.exec.vector.RepeatedBitVector;
 import org.apache.drill.exec.vector.RepeatedDecimal38SparseVector;
 import org.apache.drill.exec.vector.RepeatedVarBinaryVector;
 import org.apache.drill.exec.vector.RepeatedVarCharVector;
+import org.apache.drill.exec.vector.UInt4Vector;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.VarBinaryVector;
 import org.apache.drill.exec.vector.VarCharVector;
@@ -83,7 +85,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
   private Iterator<Page<Item, ScanOutcome>> resultIter;
   private Map<String, Pair<ValueVector, TypeProtos.MajorType>> scalars = new HashMap<>();
   private Map<String, MapVector> mapVectors = new HashMap<>();
-  private Map<String, ListVector> listVectors = new HashMap<>();
+  private Map<String, Pair<ListVector, ValueVector>> listVectors = new HashMap<>();
 
   public DynamoRecordReader(AWSCredentialsProvider credentials, ClientConfiguration clientConf,
     DynamoEndpoint endpoint, DynamoSubScan.DynamoSubScanSpec scanSpec,
@@ -203,7 +205,10 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
     scalars.values().stream().map(p -> p.getKey()).forEach(vv -> vv.clear());
     mapVectors.values().stream().forEach(map -> map.clear());
-    listVectors.values().stream().forEach(list -> list.clear());
+    listVectors.values().stream().forEach(pair -> {
+      pair.getKey().clear();
+      pair.getValue().clear();
+    });
 
     int count = 0;
     Page<Item, ScanOutcome> page;
@@ -226,11 +231,12 @@ public class DynamoRecordReader extends AbstractRecordReader {
             addToMap(rowCount, map, (Map<String, Object>) value);
           } else if (value instanceof List || value instanceof Set) {
             // sets and lists handled the same - as a repeated list of values
-            ListVector list = listVectors.get(name);
+            Pair<ListVector, ValueVector> list = listVectors.get(name);
             if (list == null) {
               MaterializedField field =
                 MaterializedField.create(name, Types.optional(MinorType.LIST));
-              list = getField(field, ListVector.class);
+              list = new MutablePair<>(getField(field, ListVector.class), null);
+              list.getKey().allocateNew();
               listVectors.put(name, list);
             }
             addToList(list, ((Collection<Object>) value), rowCount);
@@ -245,20 +251,33 @@ public class DynamoRecordReader extends AbstractRecordReader {
     return count;
   }
 
-  private void addToList(ListVector list, Iterable<Object> values, int index) {
-    list.allocateNew();
+  private void addToList(Pair<ListVector, ValueVector> pair, Iterable<Object> values, int index) {
+    ListVector list = pair.getKey();
+//    list.getWriter().bit().writeBit(1);
+//    list.getWriter().bit().writeBit(1);
+    UInt4Vector offsets = list.getOffsetVector();
+    int nextOffset = offsets.getAccessor().get(index);
+    list.getMutator().setNotNull(index);
+
     Object first = values.iterator().next();
     MinorType minor = getMinorType(first);
-    MajorType major = Types.repeated(minor);
-    ValueVector vector = list.addOrGetVector(new VectorDescriptor(major)).getVector();
-    int i = 0;
-    for (Object val : values) {
+    MajorType major = Types.optional(minor);
+
+    ValueVector vector = pair.getValue();
+    if (vector == null) {
+      // create the 'writer' vector target
+      vector = list.addOrGetVector(new VectorDescriptor(major)).getVector();
       vector.allocateNew();
-      writeScalar(i++, val, vector, major);
-      vector.getMutator().setValueCount(i);
+      pair.setValue(vector);
     }
-//    vector.getMutator().setValueCount(i);
-//    list.getMutator().setValueCount(list.getAccessor().getValueCount() + 1);
+
+    int listIndex = 0;
+    for (Object val : values) {
+      writeScalar(nextOffset + listIndex, val, vector, major);
+      listIndex++;
+    }
+    offsets.getMutator().setSafe(index + 1, nextOffset + listIndex);
+
   }
 
   private void addToMap(int index, MapVector map, Map<String, Object> values) {
@@ -324,7 +343,9 @@ public class DynamoRecordReader extends AbstractRecordReader {
         int bool = ((Boolean) value).booleanValue() ? 1 : 0;
         switch (type.getMode()) {
           case OPTIONAL:
-            ((NullableBitVector.Mutator) vector.getMutator()).setSafe(index, bool);
+            NullableBitVector bv = (NullableBitVector) vector;
+            bv.getMutator().setSafe(index, bool);
+            bv.getMutator().setValueCount(bv.getAccessor().getValueCount() + 1);
             break type;
           case REQUIRED:
             ((BitVector.Mutator) vector.getMutator()).setSafe(index, bool);
