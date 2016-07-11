@@ -154,7 +154,7 @@
       <dependency>
         <groupId>com.amazonaws</groupId>
         <artifactId>aws-java-sdk</artifactId>
-        <version>${a}</version>
+        <version>${aws.java.sdk.version}</version>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>

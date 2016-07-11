@@ -4,7 +4,7 @@
       type: "dynamo",
       enabled: false,
       credentials: {
-        type: "provided"
+        type: "default"
       },
       aws: {
         regionOrUrl: "http://localhost:8080"

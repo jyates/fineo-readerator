@@ -1,4 +1,4 @@
-package io.fineo.drill.exec.store.dynamo.physical;
+package io.fineo.drill.exec.store.dynamo;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.fasterxml.jackson.annotation.JacksonInject;
@@ -7,8 +7,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
-import io.fineo.drill.exec.store.dynamo.DynamoStoragePlugin;
 import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
+import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
@@ -21,7 +21,6 @@ import org.apache.drill.exec.store.StoragePluginRegistry;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 @JsonTypeName("dynamo-segment-scan")
 public class DynamoSubScan extends AbstractBase implements SubScan {
@@ -31,27 +30,24 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
   private final DynamoStoragePluginConfig storage;
   private final List<SchemaPath> columns;
   private final ClientProperties client;
-  private final int limit;
 
   public DynamoSubScan(@JacksonInject StoragePluginRegistry registry,
     @JsonProperty("storage") StoragePluginConfig storage,
     @JsonProperty("scanSpecList") List<DynamoSubScanSpec> tabletScanSpecList,
     @JsonProperty("columns") List<SchemaPath> columns,
-    @JsonProperty("client") ClientProperties client,
-    @JsonProperty("limit") int limit) throws ExecutionSetupException {
+    @JsonProperty("client") ClientProperties client) throws ExecutionSetupException {
     this((DynamoStoragePlugin) registry.getPlugin(storage), storage, tabletScanSpecList, columns,
-      client, limit);
+      client);
   }
 
   public DynamoSubScan(DynamoStoragePlugin plugin, StoragePluginConfig config,
-    List<DynamoSubScanSpec> specs, List<SchemaPath> columns, ClientProperties client, int limit) {
+    List<DynamoSubScanSpec> specs, List<SchemaPath> columns, ClientProperties client) {
     super((String) null);
     this.plugin = plugin;
     this.specs = specs;
     this.storage = (DynamoStoragePluginConfig) config;
     this.columns = columns;
     this.client = client;
-    this.limit = limit;
   }
 
   public DynamoSubScan(DynamoSubScan other) {
@@ -61,7 +57,6 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     this.storage = other.storage;
     this.columns = other.columns;
     this.client = other.client;
-    this.limit = other.limit;
   }
 
   @Override
@@ -105,33 +100,35 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     return client;
   }
 
-  public int getLimit() {
-    return limit;
+  public DynamoEndpoint getEndpoint() {
+    return this.storage.getEndpoint();
   }
 
   @JsonIgnore
-  public AWSCredentialsProvider getCredentials(){
+  public AWSCredentialsProvider getCredentials() {
     return this.storage.inflateCredentials();
   }
 
   @JsonTypeName("dynamo-sub-scan-spec")
   public static class DynamoSubScanSpec {
-    private final String table;
+    private final DynamoTableDefinition table;
     private final int totalSegments;
     private final int segmentId;
     private final List<SchemaPath> columns;
-    private Map<String, String> primaryKeyTypes;
+    private final int limit;
 
-    public DynamoSubScanSpec(@JsonProperty("table") String table,
+    public DynamoSubScanSpec(@JsonProperty("table") DynamoTableDefinition table,
       @JsonProperty("segments") int totalSegments, @JsonProperty("segment-id") int segmentId,
-      @JsonProperty("projections") List<SchemaPath> columns) {
+      @JsonProperty("projections") List<SchemaPath> columns,
+      @JsonProperty("limit") int limit) {
       this.table = table;
       this.totalSegments = totalSegments;
       this.segmentId = segmentId;
       this.columns = columns;
+      this.limit = limit;
     }
 
-    public String getTable() {
+    public DynamoTableDefinition getTable() {
       return table;
     }
 
@@ -147,8 +144,8 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
       return columns;
     }
 
-    public Map<String, String> getPrimaryKeyTypes() {
-      return primaryKeyTypes;
+    public int getLimit() {
+      return limit;
     }
   }
 }
