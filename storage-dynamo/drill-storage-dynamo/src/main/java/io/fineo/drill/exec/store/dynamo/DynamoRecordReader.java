@@ -247,13 +247,18 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
   private void addToList(ListVector list, Iterable<Object> values, int index) {
     list.allocateNew();
+    Object first = values.iterator().next();
+    MinorType minor = getMinorType(first);
+    MajorType major = Types.repeated(minor);
+    ValueVector vector = list.addOrGetVector(new VectorDescriptor(major)).getVector();
+    int i = 0;
     for (Object val : values) {
-      MinorType minor = getMinorType(val);
-      MajorType major = Types.repeated(minor);
-      ValueVector vector = list.addOrGetVector(new VectorDescriptor(major)).getVector();
       vector.allocateNew();
-      writeScalar(index, val, vector, major);
+      writeScalar(i++, val, vector, major);
+      vector.getMutator().setValueCount(i);
     }
+//    vector.getMutator().setValueCount(i);
+//    list.getMutator().setValueCount(list.getAccessor().getValueCount() + 1);
   }
 
   private void addToMap(int index, MapVector map, Map<String, Object> values) {
