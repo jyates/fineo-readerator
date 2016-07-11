@@ -207,9 +207,9 @@ public class DynamoRecordReader extends AbstractRecordReader {
   public int next() {
     Stopwatch watch = Stopwatch.createStarted();
     // reset all the vectors and prepare them for writing
-    scalars.values().stream().forEach(struct -> struct.reset());
-    mapVectors.values().stream().forEach(map -> map.reset());
-    listVectors.values().stream().forEach(list -> list.reset());
+    scalars.values().stream().forEach(ValueVectorStruct::reset);
+    mapVectors.values().stream().forEach(NestedVectorStruct::reset);
+    listVectors.values().stream().forEach(NestedVectorStruct::reset);
 
     int count = 0;
     Page<Item, ScanOutcome> page;
@@ -228,7 +228,8 @@ public class DynamoRecordReader extends AbstractRecordReader {
     int rows = count;
     scalars.values().stream().forEach(scalar -> scalar.setValueCount(rows));
     mapVectors.values().stream().forEach(map -> map.setValueCount(rows));
-    listVectors.values().stream().forEach(list -> list.setValueCount(rows));
+// list vectors get handled in the list method - this messes up some child vectors
+//    listVectors.values().stream().forEach(list -> list.setValueCount(rows));
 
     LOG.debug("Took {} ms to get {} records", watch.elapsed(TimeUnit.MILLISECONDS), count);
     return count;
@@ -264,8 +265,8 @@ public class DynamoRecordReader extends AbstractRecordReader {
     for (Map.Entry<String, Object> entry : values.entrySet()) {
       String fieldName = entry.getKey();
       Object fieldValue = entry.getValue();
-      handleField(row, fieldName, fieldValue, map.getScalarStructs(), map.getMapStructs(),
-        map.getListStructs(), map.getVectorFun());
+      handleField(row, DOTS.join(name, fieldName), fieldValue, map.getScalarStructs(),
+        map.getMapStructs(), map.getListStructs(), map.getVectorFun());
     }
     MapVector vector = map.getVector();
     vector.getMutator().setValueCount(vector.getAccessor().getValueCount() + 1);
@@ -273,12 +274,8 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
   /**
    * Sets and lists handled the same - as a repeated list of values
-   *
-   * @param index
-   * @param name
-   * @param value
-   * @param listVectors
    */
+  @SuppressWarnings("unchecked")
   private void handleList(int index, String name, Object value,
     Map<String, ListVectorStruct> listVectors,
     BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> vectorFun) {
@@ -331,13 +328,15 @@ public class DynamoRecordReader extends AbstractRecordReader {
     ListVector list = struct.getVector();
     String vectorName = "_0list_name";
     ValueVectorStruct vectorStruct = (ValueVectorStruct) map.get(vectorName);
+    ValueVector elementVector;
     if (vectorStruct == null) {
       // create the 'writer' vector target
-      ValueVector vector = list.addOrGetVector(new VectorDescriptor(major)).getVector();
-      vector.allocateNew();
-      vectorStruct = creator.apply(vector);
+      elementVector = list.addOrGetVector(new VectorDescriptor(major)).getVector();
+      elementVector.allocateNew();
+      vectorStruct = creator.apply(elementVector);
       map.put(vectorName, vectorStruct);
     }
+    elementVector = ((ValueVectorStruct) map.get(vectorName)).getVector();
 
     UInt4Vector offsets = list.getOffsetVector();
     int nextOffset = offsets.getAccessor().get(index);
@@ -352,8 +351,10 @@ public class DynamoRecordReader extends AbstractRecordReader {
       handleField(nextOffset + listIndex, vectorName, val, scalars, maps, lists, null);
       listIndex++;
     }
-//    vector.getMutator().setValueCount(vector.getAccessor().getValueCount() + listIndex);
+    elementVector.getMutator()
+                 .setValueCount(elementVector.getAccessor().getValueCount() + listIndex);
     offsets.getMutator().setSafe(index + 1, nextOffset + listIndex);
+    list.getMutator().setValueCount(list.getAccessor().getValueCount() + listIndex);
   }
 
   private Object adjustListValueForPointSelections(String name, Object value) {
@@ -433,7 +434,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
             failForMode(type);
         }
       case BIT:
-        int bool = ((Boolean) value).booleanValue() ? 1 : 0;
+        int bool = (Boolean) value ? 1 : 0;
         switch (type.getMode()) {
           case OPTIONAL:
             NullableBitVector bv = (NullableBitVector) vector;
@@ -529,11 +530,11 @@ public class DynamoRecordReader extends AbstractRecordReader {
   private abstract class ValueVectorStruct<T extends ValueVector> {
     private final T vector;
 
-    public ValueVectorStruct(T vector) {
+    ValueVectorStruct(T vector) {
       this.vector = vector;
     }
 
-    public T getVector() {
+    T getVector() {
       return vector;
     }
 
@@ -542,7 +543,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
       this.getVector().allocateNew();
     }
 
-    public void setValueCount(int valueCount) {
+    void setValueCount(int valueCount) {
       this.getVector().getMutator().setValueCount(valueCount);
     }
   }
@@ -550,13 +551,13 @@ public class DynamoRecordReader extends AbstractRecordReader {
   private class ScalarVectorStruct extends ValueVectorStruct<ValueVector> {
     private final MajorType type;
 
-    public ScalarVectorStruct(ValueVector vector, MajorType type) {
+    ScalarVectorStruct(ValueVector vector, MajorType type) {
       super(vector);
       this.type = type;
 
     }
 
-    public MajorType getType() {
+    MajorType getType() {
       return type;
     }
   }
@@ -569,38 +570,38 @@ public class DynamoRecordReader extends AbstractRecordReader {
     private Map<String, ListVectorStruct> listStructs = new HashMap<>();
     private Map<String, MapVectorStruct> mapStructs = new HashMap<>();
 
-    public NestedVectorStruct(T vector, BiFunction<MaterializedField,
+    NestedVectorStruct(T vector, BiFunction<MaterializedField,
       Class<? extends ValueVector>, ValueVector> vectorFunc) {
       super(vector);
       this.vectorFun = vectorFunc;
     }
 
-    public Map<String, ListVectorStruct> getListStructs() {
+    Map<String, ListVectorStruct> getListStructs() {
       return listStructs;
     }
 
-    public Map<String, MapVectorStruct> getMapStructs() {
+    Map<String, MapVectorStruct> getMapStructs() {
       return mapStructs;
     }
 
-    public Map<String, ScalarVectorStruct> getScalarStructs() {
+    Map<String, ScalarVectorStruct> getScalarStructs() {
       return scalarStructs;
     }
 
-    public BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> getVectorFun() {
+    BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> getVectorFun() {
       return vectorFun;
     }
 
-    public void clear() {
+    void clear() {
       this.getVector().clear();
     }
 
     @Override
     public void reset() {
       super.reset();
-      this.listStructs.values().forEach(s -> s.clear());
+      this.listStructs.values().forEach(NestedVectorStruct::clear);
       this.listStructs.clear();
-      this.mapStructs.values().forEach(m -> m.clear());
+      this.mapStructs.values().forEach(NestedVectorStruct::clear);
       this.mapStructs.clear();
       this.scalarStructs.values().forEach(s -> s.getVector().clear());
     }
@@ -608,14 +609,14 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
   private class MapVectorStruct extends NestedVectorStruct<MapVector> {
 
-    public MapVectorStruct(MapVector vector) {
+    MapVectorStruct(MapVector vector) {
       super(vector, (field, clazz) -> vector.addOrGet(field.getName(), field.getType(), clazz));
     }
   }
 
   private class ListVectorStruct extends NestedVectorStruct<ListVector> {
 
-    public ListVectorStruct(final ListVector vector) {
+    ListVectorStruct(final ListVector vector) {
       super(vector, (field, clazz) -> {
         AddOrGetResult result = vector.addOrGetVector(new VectorDescriptor(field.getType
           ()));
