@@ -134,25 +134,20 @@ public class DynamoRecordReader extends AbstractRecordReader {
     if (!isStarQuery()) {
       List<String> columns = new ArrayList<>();
       for (SchemaPath column : getColumns()) {
-        // scalar type or non-nested map request
-        if (column.isSimplePath()) {
-          String fieldName = column.getRootSegment().getPath();
-          columns.add(fieldName);
-        } else {
-          // build the full name of the column
-          List<String> parts = new ArrayList<>();
-          PathSegment.NameSegment name = column.getRootSegment();
-          PathSegment seg = name;
-          parts.add(name.getPath());
-          while ((seg = seg.getChild()) != null) {
-            if (seg.isArray()) {
-              parts.add("[" + seg.getArraySegment().getIndex() + "]");
-            } else {
-              parts.add(seg.getNameSegment().getPath());
-            }
+        // build the full name of the column
+        List<String> parts = new ArrayList<>();
+        PathSegment.NameSegment name = column.getRootSegment();
+        PathSegment seg = name;
+        parts.add(name.getPath());
+        while ((seg = seg.getChild()) != null) {
+          if (seg.isArray()) {
+            parts
+              .add(parts.remove(parts.size() - 1) + "[" + seg.getArraySegment().getIndex() + "]");
+          } else {
+            parts.add(seg.getNameSegment().getPath());
           }
-          columns.add(DOTS.join(parts));
         }
+        columns.add(DOTS.join(parts));
       }
       spec.withProjectionExpression(COMMAS.join(columns));
     }
