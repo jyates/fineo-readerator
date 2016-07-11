@@ -1,7 +1,10 @@
 package io.fineo.drill.exec.store.dynamo.config;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+
+import java.util.Map;
 
 /**
  * Statically configured credentials. Its generally not advisable to use this - AWS will load
@@ -26,5 +29,11 @@ public class StaticCredentialsConfig {
 
   public String getSecret() {
     return secret;
+  }
+
+  @JsonIgnore
+  public void setCredentials(Map<String, Object> credentials){
+    credentials.put(CredentialsUtil.CREDENTIALS_TYPE_KEY, NAME);
+    credentials.put(NAME, this);
   }
 }

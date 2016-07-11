@@ -14,10 +14,10 @@ import java.util.Map;
 public class DynamoStoragePluginConfig extends StoragePluginConfig {
   public static final String NAME = "dynamo";
 
-  private final AWSCredentialsProvider inflatedCredentials;
+  private AWSCredentialsProvider inflatedCredentials;
   private DynamoEndpoint endpoint;
   private final ClientProperties client;
-  private final ParallelScanProperties scan;
+  private ParallelScanProperties scan;
   private Map<String, Object> credentials;
 
   @JsonCreator
@@ -86,5 +86,12 @@ public class DynamoStoragePluginConfig extends StoragePluginConfig {
   @JsonIgnore
   public void setCredentialsForTesting(Map<String, Object> credentials) {
     this.credentials = credentials;
+    this.inflatedCredentials = CredentialsUtil.getProvider(credentials);
+  }
+
+  @VisibleForTesting
+  @JsonIgnore
+  public void setScanPropertiesForTesting(ParallelScanProperties scan) {
+    this.scan = scan;
   }
 }

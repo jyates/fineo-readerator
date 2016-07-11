@@ -1,4 +1,4 @@
-package io.fineo.drill.exec.store.dynamo.physical;
+package io.fineo.drill.exec.store.dynamo;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -12,6 +12,7 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
+import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
@@ -57,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static java.lang.System.arraycopy;
 import static org.apache.drill.common.types.TypeProtos.MajorType;
 import static org.apache.drill.common.types.TypeProtos.MinorType;
 import static org.apache.drill.common.types.TypeProtos.MinorType.VARCHAR;
@@ -73,8 +75,8 @@ public class DynamoRecordReader extends AbstractRecordReader {
   private final AWSCredentialsProvider credentials;
   private final ClientConfiguration clientConf;
   private final DynamoSubScan.DynamoSubScanSpec scanSpec;
-  private final int limit;
   private final boolean consistentRead;
+  private final DynamoEndpoint endpoint;
   private OutputMutator outputMutator;
   private OperatorContext operatorContext;
   private AmazonDynamoDBAsyncClient client;
@@ -84,13 +86,13 @@ public class DynamoRecordReader extends AbstractRecordReader {
   private Map<String, ListVector> listVectors = new HashMap<>();
 
   public DynamoRecordReader(AWSCredentialsProvider credentials, ClientConfiguration clientConf,
-    DynamoSubScan.DynamoSubScanSpec scanSpec, int limit, List<SchemaPath> columns, boolean
-    consistentRead) {
+    DynamoEndpoint endpoint, DynamoSubScan.DynamoSubScanSpec scanSpec,
+    List<SchemaPath> columns, boolean consistentRead) {
     this.credentials = credentials;
     this.clientConf = clientConf;
     this.scanSpec = scanSpec;
-    this.limit = limit;
     this.consistentRead = consistentRead;
+    this.endpoint = endpoint;
     setColumns(columns);
   }
 
@@ -100,9 +102,10 @@ public class DynamoRecordReader extends AbstractRecordReader {
     this.outputMutator = output;
 
     this.client = new AmazonDynamoDBAsyncClient(credentials, this.clientConf);
+    endpoint.configure(this.client);
 
     // setup the vectors that we know we will need - the primary key(s)
-    Map<String, String> pkToType = scanSpec.getPrimaryKeyTypes();
+    Map<String, String> pkToType = scanSpec.getTable().getPkToType();
     for (Map.Entry<String, String> pk : pkToType.entrySet()) {
       // pk has to be a scalar type, so we never get null here
       MinorType type = translateDynamoToDrillType(pk.getValue()).minor;
@@ -113,38 +116,45 @@ public class DynamoRecordReader extends AbstractRecordReader {
       scalars.put(pk.getKey(), new ImmutablePair<>(vv, mt));
     }
 
-    Table table = new DynamoDB(client).getTable(scanSpec.getTable());
+    Table table = new DynamoDB(client).getTable(scanSpec.getTable().getName());
     ScanSpec spec = new ScanSpec();
+    spec.withConsistentRead(consistentRead);
     // basic scan requirements
+    int limit = scanSpec.getLimit();
     if (limit > 0) {
       spec.setMaxPageSize(limit);
     }
     spec.withSegment(scanSpec.getSegmentId()).withTotalSegments(scanSpec.getTotalSegments());
 
+    // TODO skip queries, which just want the primary key values
+    // TODO support repeat field projections, e.g. *, field1
     // projections
-    List<String> columns = new ArrayList<>();
-    for (SchemaPath column : getColumns()) {
-      // scalar type or non-nested map request
-      if (column.isSimplePath()) {
-        String fieldName = column.getRootSegment().getPath();
-        columns.add(fieldName);
-      } else {
-        // build the full name of the column
-        List<String> parts = new ArrayList<>();
-        PathSegment.NameSegment name = column.getRootSegment();
-        PathSegment seg = name;
-        parts.add(name.getPath());
-        while ((seg = seg.getChild()) != null) {
-          if (seg.isArray()) {
-            parts.add("["+seg.getArraySegment().getIndex()+"]");
-          } else {
-            parts.add(seg.getNameSegment().getPath());
+    if (!isStarQuery()) {
+      List<String> columns = new ArrayList<>();
+      for (SchemaPath column : getColumns()) {
+        // scalar type or non-nested map request
+        if (column.isSimplePath()) {
+          String fieldName = column.getRootSegment().getPath();
+          columns.add(fieldName);
+        } else {
+          // build the full name of the column
+          List<String> parts = new ArrayList<>();
+          PathSegment.NameSegment name = column.getRootSegment();
+          PathSegment seg = name;
+          parts.add(name.getPath());
+          while ((seg = seg.getChild()) != null) {
+            if (seg.isArray()) {
+              parts.add("[" + seg.getArraySegment().getIndex() + "]");
+            } else {
+              parts.add(seg.getNameSegment().getPath());
+            }
           }
+          columns.add(DOTS.join(parts));
         }
-        columns.add(DOTS.join(parts));
       }
+      spec.withProjectionExpression(COMMAS.join(columns));
     }
-    spec.withProjectionExpression(COMMAS.join(columns));
+
     ItemCollection<ScanOutcome> results = table.scan(spec);
     this.resultIter = results.pages().iterator();
   }
@@ -197,7 +207,8 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
     int count = 0;
     Page<Item, ScanOutcome> page;
-    while ((page = resultIter.next()) != null) {
+    while (resultIter.hasNext()) {
+      page = resultIter.next();
       for (Item item : page) {
         int rowCount = count++;
         for (Map.Entry<String, Object> attribute : item.attributes()) {
@@ -209,12 +220,8 @@ public class DynamoRecordReader extends AbstractRecordReader {
             if (map == null) {
               MaterializedField field =
                 MaterializedField.create(attribute.getKey(), Types.optional(MinorType.MAP));
-              try {
-                map = outputMutator.addField(field, MapVector.class);
-                mapVectors.put(name, map);
-              } catch (SchemaChangeException e) {
-                throw new DrillRuntimeException(e);
-              }
+              map = getField(field, MapVector.class);
+              mapVectors.put(name, map);
             }
             addToMap(rowCount, map, (Map<String, Object>) value);
           } else if (value instanceof List || value instanceof Set) {
@@ -222,13 +229,9 @@ public class DynamoRecordReader extends AbstractRecordReader {
             ListVector list = listVectors.get(name);
             if (list == null) {
               MaterializedField field =
-                MaterializedField.create(name, Types.optional(MinorType.MAP));
-              try {
-                list = outputMutator.addField(field, ListVector.class);
-                listVectors.put(name, list);
-              } catch (SchemaChangeException e) {
-                throw new DrillRuntimeException(e);
-              }
+                MaterializedField.create(name, Types.optional(MinorType.LIST));
+              list = getField(field, ListVector.class);
+              listVectors.put(name, list);
             }
             addToList(list, ((Collection<Object>) value), rowCount);
           } else {
@@ -237,6 +240,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
         }
       }
     }
+
     LOG.debug("Took {} ms to get {} records", watch.elapsed(TimeUnit.MILLISECONDS), count);
     return count;
   }
@@ -254,34 +258,46 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
   private void addToMap(int index, MapVector map, Map<String, Object> values) {
     map.allocateNew();
-    for (Map.Entry<String, Object> value : values.entrySet()) {
+    for (Map.Entry<String, Object> entry : values.entrySet()) {
+      String name = entry.getKey();
+      Object value = entry.getValue();
       MinorType minor = getMinorType(value);
       MajorType major = Types.optional(minor);
       ValueVector vector =
-        map.addOrGet(value.getKey(), major, TypeHelper.getValueVectorClass(minor, major.getMode()));
+        map.addOrGet(name, major, TypeHelper.getValueVectorClass(minor, major.getMode()));
       vector.allocateNew();
-      writeScalar(index, value.getValue(), vector, major);
+      writeScalar(index, value, vector, major);
     }
   }
 
-  private void writeScalar(int index, String key, Object value) {
-    Pair<ValueVector, TypeProtos.MajorType> vector = this.scalars.get(key);
+  private void writeScalar(int index, String column, Object columnValue) {
+    Pair<ValueVector, TypeProtos.MajorType> vector = this.scalars.get(column);
+    ValueVector vv;
     if (vector == null) {
-      MinorType minor = getMinorType(value);
+      MinorType minor = getMinorType(columnValue);
       MajorType type = Types.optional(minor);
-      MaterializedField field = MaterializedField.create(key, type);
-      ValueVector vv = TypeHelper.getNewVector(field, operatorContext.getAllocator(), outputMutator
-        .getCallBack());
-      vv.allocateNew();
-      this.scalars.put(key, new ImmutablePair<>(vv, type));
+      MaterializedField field = MaterializedField.create(column, type);
+      Class<? extends ValueVector> clazz = TypeHelper.getValueVectorClass(minor, type.getMode());
+      vector = new ImmutablePair<>(getField(field, clazz), type);
+      this.scalars.put(column, vector);
     }
+    vv = vector.getKey();
+    vv.allocateNew();
+    writeScalar(index, columnValue, vv, vector.getValue());
+  }
 
-    writeScalar(index, value, vector.getKey(), vector.getValue());
+  private <T extends ValueVector> T getField(MaterializedField field, Class<T> clazz) {
+    try {
+      return outputMutator.addField(field, clazz);
+    } catch (SchemaChangeException e) {
+      throw new DrillRuntimeException("Failed to create vector for field: " + field.getName(), e);
+    }
   }
 
   private void writeScalar(int index, Object value, ValueVector vector, MajorType
     type) {
     MinorType minor = type.getMinorType();
+    type:
     switch (minor) {
       case VARCHAR:
         byte[] bytes = ((String) value).getBytes();
@@ -289,13 +305,13 @@ public class DynamoRecordReader extends AbstractRecordReader {
           case OPTIONAL:
             ((NullableVarCharVector.Mutator) vector.getMutator()).setSafe(index, bytes,
               0, bytes.length);
-            break;
+            break type;
           case REQUIRED:
             ((VarCharVector.Mutator) vector.getMutator()).setSafe(index, bytes);
-            break;
+            break type;
           case REPEATED:
             ((RepeatedVarCharVector.Mutator) vector.getMutator()).addSafe(index, bytes);
-            break;
+            break type;
           default:
             failForMode(type);
         }
@@ -304,39 +320,42 @@ public class DynamoRecordReader extends AbstractRecordReader {
         switch (type.getMode()) {
           case OPTIONAL:
             ((NullableBitVector.Mutator) vector.getMutator()).setSafe(index, bool);
-            break;
+            break type;
           case REQUIRED:
             ((BitVector.Mutator) vector.getMutator()).setSafe(index, bool);
-            break;
+            break type;
           case REPEATED:
             ((RepeatedBitVector.Mutator) vector.getMutator()).addSafe(index, bool);
-            break;
+            break type;
           default:
             failForMode(type);
         }
       case DECIMAL38SPARSE:
         BigDecimal decimal = (BigDecimal) value;
         BigInteger intVal = decimal.unscaledValue();
+        byte[] sparseInt = new byte[24];
         byte[] intBytes = intVal.toByteArray();
+        arraycopy(intBytes, 0, sparseInt, sparseInt.length - intBytes.length, intBytes.length);
         // TODO revisit handling of Decimal38Dense
         // kind of an ugly way to manage the actual transfer of bytes. However, this is much
         // easier than trying to manage a larger page of bytes.
         Decimal38SparseHolder holder = new Decimal38SparseHolder();
         holder.start = 0;
-        holder.buffer = operatorContext.getManagedBuffer(intBytes.length);
+        holder.buffer = operatorContext.getManagedBuffer(sparseInt.length);
+        holder.buffer.setBytes(0, sparseInt);
         holder.precision = decimal.precision();
         holder.scale = decimal.scale();
         switch (type.getMode()) {
           case OPTIONAL:
             ((NullableDecimal38SparseVector.Mutator) vector.getMutator())
               .setSafe(index, holder);
-            break;
+            break type;
           case REQUIRED:
             ((Decimal38SparseVector.Mutator) vector.getMutator()).setSafe(index, holder);
-            break;
+            break type;
           case REPEATED:
             ((RepeatedDecimal38SparseVector.Mutator) vector.getMutator()).addSafe(index, holder);
-            break;
+            break type;
           default:
             failForMode(type);
         }
@@ -346,13 +365,13 @@ public class DynamoRecordReader extends AbstractRecordReader {
           case OPTIONAL:
             ((NullableVarBinaryVector.Mutator) vector.getMutator()).setSafe(index,
               bytesBinary, 0, bytesBinary.length);
-            break;
+            break type;
           case REQUIRED:
             ((VarBinaryVector.Mutator) vector.getMutator()).setSafe(index, bytesBinary);
-            break;
+            break type;
           case REPEATED:
             ((RepeatedVarBinaryVector.Mutator) vector.getMutator()).addSafe(index, bytesBinary);
-            break;
+            break type;
           default:
             failForMode(type);
         }

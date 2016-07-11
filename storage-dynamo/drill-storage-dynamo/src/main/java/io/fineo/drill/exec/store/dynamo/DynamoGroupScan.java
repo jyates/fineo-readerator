@@ -10,19 +10,18 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ListMultimap;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
-import io.fineo.drill.exec.store.dynamo.physical.DynamoSubScan;
+import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.logical.StoragePluginConfig;
-import org.apache.drill.exec.physical.EndpointAffinity;
 import org.apache.drill.exec.physical.PhysicalOperatorSetupException;
 import org.apache.drill.exec.physical.base.AbstractGroupScan;
 import org.apache.drill.exec.physical.base.GroupScan;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
+import org.apache.drill.exec.physical.base.ScanStats;
 import org.apache.drill.exec.physical.base.SubScan;
 import org.apache.drill.exec.proto.CoordinationProtos;
 import org.apache.drill.exec.store.StoragePluginRegistry;
-import org.apache.drill.exec.store.schedule.AffinityCreator;
 import org.apache.drill.exec.store.schedule.AssignmentCreator;
 import org.apache.drill.exec.store.schedule.CompleteWork;
 import org.apache.drill.exec.store.schedule.EndpointByteMap;
@@ -31,7 +30,6 @@ import org.apache.drill.exec.store.schedule.EndpointByteMapImpl;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Logical representation of a scan of a dynamo table. Actual fragments of the scan that get
@@ -49,15 +47,13 @@ public class DynamoGroupScan extends AbstractGroupScan {
   private ListMultimap<Integer, DynamoWork> assignments;
 
   // used to calculate the work distribution
-  private long bytes;
-  private List<EndpointAffinity> affinities;
   private ArrayList<DynamoWork> work;
+  private TableDescription desc;
 
   @JsonCreator
   public DynamoGroupScan(@JsonProperty(DynamoScanSpec.NAME) DynamoScanSpec dynamoSpec,
     @JsonProperty("storage") DynamoStoragePluginConfig storagePluginConfig,
     @JsonProperty("columns") List<SchemaPath> columns,
-    @JsonProperty("credentials") Map<String, Object> credentials,
     @JacksonInject StoragePluginRegistry pluginRegistry) throws IOException,
     ExecutionSetupException {
     this((DynamoStoragePlugin) pluginRegistry.getPlugin(storagePluginConfig), dynamoSpec, columns);
@@ -74,9 +70,11 @@ public class DynamoGroupScan extends AbstractGroupScan {
   }
 
   private void init() {
-    TableDescription desc = this.plugin.getModel().getTable(this.spec.getTableName())
-                                       .getDescription();
-    this.bytes = desc.getTableSizeBytes();
+    try {
+      this.desc = this.plugin.getModel().getTable(this.spec.getTable().getName()).waitForActive();
+    } catch (InterruptedException e) {
+      throw new DrillRuntimeException(e);
+    }
   }
 
   public DynamoGroupScan(DynamoGroupScan other) {
@@ -85,6 +83,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
     this.spec = other.spec;
     this.columns = other.columns;
     this.config = other.config;
+    this.desc = other.desc;
   }
 
   @Override
@@ -99,10 +98,22 @@ public class DynamoGroupScan extends AbstractGroupScan {
       max = totalPerEndpoint;
     }
 
+    // attempt to evenly portion the rows across the endpoints
+    long rowsPerEndpoint = desc.getItemCount() / endpoints.size();
+    long units = rowsPerEndpoint / scan.getApproximateRowsPerEndpoint();
+    // we have less than approx 1 segment's worth of work
+    if (units == 0) {
+      units = 1;
+    }
+
+    if (units > max) {
+      units = max;
+    }
+
     // no affinity for any work unit
     this.work = new ArrayList<>();
-    long portion = this.bytes / max;
-    for (int i = 0; i < max; i++) {
+    long portion = this.desc.getTableSizeBytes() / units;
+    for (int i = 0; i < units; i++) {
       work.add(new DynamoWork(i, portion));
     }
 
@@ -110,24 +121,17 @@ public class DynamoGroupScan extends AbstractGroupScan {
   }
 
   @Override
-  public List<EndpointAffinity> getOperatorAffinity() {
-    if (affinities == null) {
-      affinities = AffinityCreator.getAffinityMap(work);
-    }
-    return affinities;
-  }
-
-  @Override
   public SubScan getSpecificScan(int minorFragmentId) throws ExecutionSetupException {
     List<DynamoWork> segments = assignments.get(minorFragmentId);
     List<DynamoSubScan.DynamoSubScanSpec> subSpecs = new ArrayList<>(segments.size());
     for (DynamoWork work : segments) {
-      subSpecs.add(new DynamoSubScan.DynamoSubScanSpec(getSpec()
-        .getTableName(), assignments.size(), work.getSegment(), getColumns()));
+      subSpecs
+        .add(new DynamoSubScan.DynamoSubScanSpec(getSpec().getTable(), assignments.size(), work
+          .getSegment(), getColumns(), getSpec().getScan().getLimit()));
 
     }
     return new DynamoSubScan(plugin, plugin.getConfig(), subSpecs, this.columns,
-      getSpec().getClient(), getSpec().getScan().getLimit());
+      getSpec().getClient());
   }
 
   @Override
@@ -139,6 +143,19 @@ public class DynamoGroupScan extends AbstractGroupScan {
   @JsonIgnore
   public boolean canPushdownProjects(List<SchemaPath> columns) {
     return true;
+  }
+
+  @Override
+  public ScanStats getScanStats() {
+    // for simple scans, we have to look at all the rows
+    long recordCount = desc.getItemCount();
+    // based on how much information we push down (e.g. filter turns scan in query/get) we can
+    // recalculate the number of rows read
+
+    long cpuCost = 0;
+    long diskCost = 0;
+    return new ScanStats(ScanStats.GroupScanProperty.NO_EXACT_ROW_COUNT, recordCount,
+      cpuCost, diskCost);
   }
 
   @Override

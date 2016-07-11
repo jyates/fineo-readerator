@@ -16,12 +16,14 @@ public class ParallelScanProperties {
   public static final String NAME = "parallel-scan";
 
   // maximum segments across all the possible endpoints. Will never be exceeded
-  private int maxSegments;
+  private int maxSegments = Integer.MAX_VALUE;
   // maximum number of segments to run per endpoint. May be less than this if you have a low
   // number of max segments and lots of endpoints.
-  private int segmentsPerEndpoint;
+  private int segmentsPerEndpoint = -1;
   // maximum number of rows to return from each scan request per endpoint.
-  private int limit;
+  private int limit = -1;
+  // approximate number of rows that each DrillBit should be reading from the whole table
+  private long approximateRowsPerEndpoint = 1000;
 
   @JsonProperty("max-segments")
   public void setMaxSegments(int maxSegments) {
@@ -51,5 +53,15 @@ public class ParallelScanProperties {
   @JsonProperty("segments-per-endpoint")
   public int getSegmentsPerEndpoint() {
     return segmentsPerEndpoint;
+  }
+
+  @JsonProperty("approx-rows-per-bit")
+  public long getApproximateRowsPerEndpoint() {
+    return approximateRowsPerEndpoint;
+  }
+
+  @JsonProperty("approx-rows-per-bit")
+  public void setApproximateRowsPerEndpoint(long approximateRowsPerEndpoint) {
+    this.approximateRowsPerEndpoint = approximateRowsPerEndpoint;
   }
 }
