@@ -114,12 +114,12 @@ public class DynamoRecordReader extends AbstractRecordReader {
     endpoint.configure(this.client);
 
     // setup the vectors that we know we will need - the primary key(s)
-    Map<String, String> pkToType = scanSpec.getTable().getPkToType();
-    for (Map.Entry<String, String> pk : pkToType.entrySet()) {
+    for (DynamoTableDefinition.PrimaryKey pk: scanSpec.getTable().getKeys()) {
+      String name = pk.getName();
+      String type = pk.getType();
       // pk has to be a scalar type, so we never get null here
-      MinorType minor = translateDynamoToDrillType(pk.getValue()).minor;
+      MinorType minor = translateDynamoToDrillType(type).minor;
       MajorType major = required(minor);
-      String name = pk.getKey();
       MaterializedField field = MaterializedField.create(name, major);
       Class<? extends ValueVector> clazz = TypeHelper.getValueVectorClass(minor, major.getMode());
       ValueVector vv = getField(field, clazz);
@@ -137,7 +137,6 @@ public class DynamoRecordReader extends AbstractRecordReader {
     spec.withSegment(scanSpec.getSegmentId()).withTotalSegments(scanSpec.getTotalSegments());
 
     // TODO skip queries, which just want the primary key values
-    // TODO support repeat field projections, e.g. *, field1
     // projections
     if (!isStarQuery()) {
       List<String> columns = new ArrayList<>();

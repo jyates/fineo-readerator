@@ -2,6 +2,7 @@ package io.fineo.drill.exec.store.dynamo;
 
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
+import com.amazonaws.services.dynamodbv2.model.KeyType;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
@@ -13,6 +14,8 @@ import org.apache.drill.exec.planner.logical.DynamicDrillTable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 public class DrillDynamoTable extends DynamicDrillTable {
 
@@ -32,10 +35,18 @@ public class DrillDynamoTable extends DynamicDrillTable {
     spec.setScan(scan);
 
     // figure out the pk map
-    Map<String, String> pks = new HashMap<>();
-    for (AttributeDefinition elem : desc.getAttributeDefinitions()) {
-      pks.put(elem.getAttributeName(), elem.getAttributeType());
+    List<KeySchemaElement> keys = desc.getKeySchema();
+    List<AttributeDefinition> attributes = desc.getAttributeDefinitions();
+    Map<String, DynamoTableDefinition.PrimaryKey> map = new HashMap<>();
+    for(KeySchemaElement key: keys){
+      DynamoTableDefinition.PrimaryKey pk = new DynamoTableDefinition.PrimaryKey(key
+        .getAttributeName(), null, KeyType.valueOf(key.getKeyType()) == KeyType.HASH);
+      map.put(key.getAttributeName(), pk);
     }
+    for (AttributeDefinition elem :  attributes){
+      map.get(elem.getAttributeName()).setType(elem.getAttributeType());
+    }
+    List<DynamoTableDefinition.PrimaryKey> pks = newArrayList(map.values());
     DynamoTableDefinition def = new DynamoTableDefinition(tableName, pks);
     spec.setTable(def);
   }

@@ -49,6 +49,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
   // used to calculate the work distribution
   private ArrayList<DynamoWork> work;
   private TableDescription desc;
+  private boolean filterPushedDown;
 
   @JsonCreator
   public DynamoGroupScan(@JsonProperty(DynamoScanSpec.NAME) DynamoScanSpec dynamoSpec,
@@ -198,6 +199,14 @@ public class DynamoGroupScan extends AbstractGroupScan {
            ", spec=" + spec +
            ", columns=" + columns +
            '}';
+  }
+
+  public boolean isFilterPushedDown() {
+    return filterPushedDown;
+  }
+
+  public void setFilterPushedDown(boolean filterPushedDown) {
+    this.filterPushedDown = filterPushedDown;
   }
 
   private class DynamoWork implements CompleteWork {
