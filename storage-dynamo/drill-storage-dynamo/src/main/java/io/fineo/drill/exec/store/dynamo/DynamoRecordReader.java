@@ -77,6 +77,10 @@ public class DynamoRecordReader extends AbstractRecordReader {
   private static final Logger LOG = LoggerFactory.getLogger(DynamoRecordReader.class);
   private static final Joiner DOTS = Joiner.on('.');
   private static final Joiner COMMAS = Joiner.on(", ");
+  // max depth specified by AWS. See:
+  // http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions
+  // .AccessingItemAttributes.html#DocumentPaths
+  private static final int AMAZON_MAX_DEPTH = 32;
 
   private final AWSCredentialsProvider credentials;
   private final ClientConfiguration clientConf;
@@ -138,29 +142,41 @@ public class DynamoRecordReader extends AbstractRecordReader {
     if (!isStarQuery()) {
       List<String> columns = new ArrayList<>();
       for (SchemaPath column : getColumns()) {
-        // build the full name of the column
-        List<String> parts = new ArrayList<>();
-        PathSegment.NameSegment name = column.getRootSegment();
-        PathSegment seg = name;
-        parts.add(name.getPath());
-        while ((seg = seg.getChild()) != null) {
-          if (seg.isArray()) {
-            int index = seg.getArraySegment().getIndex();
-            String fullListName = DOTS.join(parts);
-            String listLeafName = parts.remove(parts.size() - 1);
-            parts.add(listLeafName + "[" + index + "]");
-            listIndexes.put(fullListName, index);
-          } else {
-            parts.add(seg.getNameSegment().getPath());
-          }
-        }
-        columns.add(DOTS.join(parts));
+        columns.add(buildPathName(column, AMAZON_MAX_DEPTH, listIndexes, true));
       }
       spec.withProjectionExpression(COMMAS.join(columns));
     }
 
     ItemCollection<ScanOutcome> results = table.scan(spec);
     this.resultIter = results.pages().iterator();
+  }
+
+  private String buildPathName(SchemaPath column, int maxDepth, Multimap<String, Integer>
+    listIndexes, boolean includeArrayIndex) {
+    // build the full name of the column
+    List<String> parts = new ArrayList<>();
+    PathSegment.NameSegment name = column.getRootSegment();
+    PathSegment seg = name;
+    parts.add(name.getPath());
+    int i = 0;
+    while (((seg = seg.getChild()) != null) && (i++ < maxDepth)) {
+      if (seg.isArray()) {
+        int index = seg.getArraySegment().getIndex();
+        String fullListName = DOTS.join(parts);
+        String listLeafName = parts.remove(parts.size() - 1);
+        String part = listLeafName;
+        if (includeArrayIndex) {
+          part += "[" + index + "]";
+        }
+        parts.add(part);
+        if (listIndexes != null) {
+          listIndexes.put(fullListName, index);
+        }
+      } else {
+        parts.add(seg.getNameSegment().getPath());
+      }
+    }
+    return DOTS.join(parts);
   }
 
   private MajorOrMinor translateDynamoToDrillType(String type) {
@@ -288,7 +304,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
     // adjust the actual list contents to fill in 'null' values. Has to come after we figure out
     // the minor type so we can generate the right value vector
-    values = adjustListValueForPointSelections(name, values);
+    values = adjustListValueForPointSelections(values, state);
 
     // there is only ever one vector that we use in a list, and its keyed by null
     String vectorName = "_0list_name";
@@ -330,10 +346,17 @@ public class DynamoRecordReader extends AbstractRecordReader {
     offsets.getMutator().setSafe(index + 1, nextOffset + listIndex);
   }
 
-  private List<Object> adjustListValueForPointSelections(String name, List<Object> value) {
-    // Sometimes we might want to select an offset into a list. Dynamo handles this as returning
-    // a smaller list. Drill expects the whole list to be there, so we need to fill in the other
-    // parts of the list with nulls, up to the largest value
+  /**
+   * Sometimes we might want to select an offset into a list. Dynamo handles this as returning
+   * a smaller list. Drill expects the whole list to be there, so we need to fill in the other
+   * parts of the list with nulls, up to the largest value
+   */
+  private List<Object> adjustListValueForPointSelections(List<Object> value,
+    StackState state) {
+    if (isStarQuery()) {
+      return value;
+    }
+    String name = buildPathName(state.column, state.columnPathIndex + 1, null, false);
     Collection<Integer> indexes = listIndexes.get(name);
     if (indexes == null || indexes.size() == 0) {
       return value;

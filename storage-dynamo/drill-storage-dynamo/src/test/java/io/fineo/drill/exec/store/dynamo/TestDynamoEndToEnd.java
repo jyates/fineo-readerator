@@ -255,13 +255,11 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
     item.withList(COL1, list);
     Table table = createTableWithItems(item);
 
-    String sql = "SELECT " + COL1 + "[0]," + COL1 + "[2]" + from(table);
-    List<Map<String, Object>> rows = runAndReadResults(sql);
-    assertEquals(1, rows.size());
-    Map<String, Object> row = rows.get(0);
+    String sql = "SELECT " + COL1 + "[0] as c1," + COL1 + "[2] as c2" + from(table);
+    Map<String, Object> row = justOneRow(runAndReadResults(sql));
     assertEquals("Expected two columns, one for each list element. Got: " + row, 2, row.size());
-    assertEquals("Mismatch for first column!", list.get(0), row.get("EXPR$0"));
-    assertEquals("Mismatch for second column!", list.get(2), row.get("EXPR$1"));
+    assertEquals("Mismatch for first column!", list.get(0), row.get("c1"));
+    assertEquals("Mismatch for second column!", list.get(2), row.get("c2"));
   }
 
   @Test
