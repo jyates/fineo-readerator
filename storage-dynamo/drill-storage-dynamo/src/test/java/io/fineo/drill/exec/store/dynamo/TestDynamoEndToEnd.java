@@ -24,13 +24,14 @@ import org.apache.drill.exec.record.RecordBatchLoader;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.rpc.user.QueryDataBatch;
 import org.apache.drill.exec.store.StoragePluginRegistry;
+import org.apache.drill.exec.util.JsonStringHashMap;
 import org.apache.drill.exec.util.Text;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
-import javax.ws.rs.NotSupportedException;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -150,10 +151,6 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
     Item item = item();
     item.withBinary(COL1, new byte[]{1, 2, 3, 4});
     item.withBinary("col2_bb", ByteBuffer.wrap(new byte[]{5, 6, 7, 8}));
-    // numbers are all converted to BigDecimals on storage
-    item.withInt("col3_int", 1);
-    item.withFloat("col4_float", 4.1f);
-
     item.withBoolean("col5_boolean", true);
 
     table.putItem(item);
@@ -161,10 +158,59 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
   }
 
   /**
-   * Just request List columns (map, list), rather than trying to read a value out of
-   * the column (that's another test).
+   * All numbers are read as strings. Ensure that they preserve the representation
    *
    * @throws Exception on failure
+   */
+  @Test
+  public void testBigDecimalAsString() throws Exception {
+    Table table = createHashTable();
+    Item item = item();
+    String d1 = "4111111111111111111111111111111111111";
+    String c1 = "col4_big_Decimal_noScale";
+    item.with(c1, new BigDecimal(d1));
+    String d2 = "4.222222222222222222222222222222222222";
+    String c2 = "col4_big_Decimal";
+    item.with(c2, new BigDecimal(d2));
+    table.putItem(item);
+
+    List<Map<String, Object>> values = selectStar(table, false, item);
+    assertEquals("Got more than 1 row! Values: " + values, 1, values.size());
+    Map<String, Object> row = values.get(0);
+    assertEquals(item.get(c1), new BigDecimal(row.get(c1).toString()));
+    assertEquals(item.get(c2), new BigDecimal(row.get(c2).toString()));
+  }
+
+  @Test
+  public void testCastValues() throws Exception {
+    Item item = item();
+    item.withFloat("c1", 1.1f);
+    item.withInt("c2", 2);
+    item.withDouble("c3", 3.3);
+    item.withLong("c4", 5l);
+    Table table = createTableWithItems(item);
+
+    List<Map<String, Object>> rows =
+      runAndReadResults("SELECT " +
+                        "CAST(c1 as float) as c1, " +
+                        "CAST(c2 as int) as c2, " +
+                        "CAST(c3 as double) as c3, " +
+                        "CAST(c4 as bigint) as c4 " +
+                        from(table));
+
+    assertEquals("Got rows: " + rows, 1, rows.size());
+    Map<String, Object> expected = new HashMap<>();
+    expected.put("c1", 1.1f);
+    expected.put("c2", 2);
+    expected.put("c3", 3.3);
+    expected.put("c4", 5l);
+    assertEquals(expected, rows.get(0));
+  }
+
+
+  /**
+   * Just request List columns (map, list), rather than trying to read a value out of
+   * the column (that's another test).
    */
   @Test
   public void testListColumnsSimpleRead() throws Exception {
@@ -184,8 +230,6 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
    * VarChar list elements behave (for some reason) differently than booleans when setting the
    * values. This makes us set the list value count in the list method, rather than at the end of
    * #next() when we set all the other top level lengths
-   *
-   * @throws Exception
    */
   @Test
   public void testVarCharList() throws Exception {
@@ -211,7 +255,7 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
     item.withList(COL1, list);
     Table table = createTableWithItems(item);
 
-    String sql = "SELECT " + COL1 + "[0]," + COL1 + "[2] FROM dynamo." + table.getTableName();
+    String sql = "SELECT " + COL1 + "[0]," + COL1 + "[2]" + from(table);
     List<Map<String, Object>> rows = runAndReadResults(sql);
     assertEquals(1, rows.size());
     Map<String, Object> row = rows.get(0);
@@ -233,10 +277,8 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
     item.removeAttribute(COL1);
     item.withList(COL1, values);
     // strings are returned as Text values, so we need to convert the expectation here
-    List<Map<String, Object>> rows = selectStar(t, false, item);
+    Map<String, Object> row = justOneRow(selectStar(t, false, item));
     List<Text> expected = values.stream().map(s -> new Text(s)).collect(Collectors.toList());
-    assertEquals("Only expected one row, got: " + rows, 1, rows.size());
-    Map<String, Object> row = rows.get(0);
     assertEquals("Only expected two fields! Got: " + row, 2, row.size());
     assertEquals("Wrong values for list/set column!", expected, row.get(COL1));
   }
@@ -248,25 +290,93 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
   }
 
   @Test
-  public void testtestMapColumnsSimpleRead() throws Exception {
+  public void testReadMap() throws Exception {
     Table table = createHashTable();
     Item item = item();
-    //    Map<String, Object> c6 = new HashMap<>();
-//    c6.put("c6.1.1", "v_c6.1");
-//    c6.put("c6.1.2", "v_c6.2");
-//    item.withMap("col6_map_string", c6);
-//    Map<String, Object> c62 = new HashMap<>();
-//    c62.put("c6.2.1", true);
-//    c62.put("c6.2.2", false);
-//    item.withMap("col6-2_map_bool", c62);
+    Map<String, Boolean> c1 = new HashMap<>();
+    c1.put("c1.1", true);
+    c1.put("c1.2", false);
+    String boolMapKey = "col6_map_bool";
+    item.withMap(boolMapKey, c1);
+    Map<String, String> c2 = new HashMap<>();
+    c2.put("c2.1", "v1");
+    c2.put("c2.2", "v2");
+    String stringMapKey = "col6-2_map_string";
+    item.withMap(stringMapKey, c2);
 
-//    item.withList("col7_list_string", "v7.1", "v7.2", "v7.3");
-    item.withList("col7-1_list_bool", true, true);//, false, true);
-
-//    item.withStringSet("col8_set_string", "a", "b", "c");
-//    item.withBinarySet("col8-1_set_binary", new byte[]{1}, new byte[]{2});
     table.putItem(item);
-    selectStar(table, item);
+    Map<String, Object> row = justOneRow(selectStar(table, false, item));
+    Map<String, Object> expected = new HashMap<>();
+    expected.put(PK, new Text("pk"));
+
+    Map<String, Boolean> expectedBoolMap = new JsonStringHashMap<>();
+    expectedBoolMap.putAll(c1);
+    expected.put(boolMapKey, expectedBoolMap);
+
+    Map<String, Text> expectedStringMap = new JsonStringHashMap<>();
+    c2.entrySet().stream().forEach(e -> expectedStringMap.put(e.getKey(), new Text(e.getValue())));
+    expected.put(stringMapKey, expectedStringMap);
+
+    assertEquals(expected, row);
+  }
+
+  @Test
+  public void testReadIntoMap() throws Exception {
+    Item item = item();
+    Map<String, Boolean> c1 = new HashMap<>();
+    c1.put("c1_1", true);
+    c1.put("c1_2", false);
+    item.with(COL1, c1);
+    Table table = createTableWithItems(item);
+
+    Map<String, Object> row =
+      // maps require specifying the table when reading them
+      justOneRow(runAndReadResults("SELECT t." + COL1 + ".c1_1 as c1" + from(table) + " t"));
+    assertEquals(true, row.get("c1"));
+  }
+
+  @Test
+  public void testMapNestedInList() throws Exception {
+    Item item = item();
+    List<Map<String, Boolean>> list = new ArrayList<>();
+    Map<String, Boolean> c1 = new HashMap<>();
+    c1.put("c1_1", true);
+    c1.put("c1_2", true);
+    list.add(c1);
+
+    Map<String, Boolean> c2 = new HashMap<>();
+    c2.put("c2_1", false);
+    c2.put("c2_2", false);
+    list.add(c2);
+    item.with(COL1, list);
+    Table table = createTableWithItems(item);
+
+    Map<String, Object> nested =
+      justOneRow(runAndReadResults("SELECT t." + COL1 + "[0].c1_2 as c1" + from(table) + " t"));
+    assertEquals(true, nested.get("c1"));
+    nested =
+      justOneRow(runAndReadResults("SELECT t." + COL1 + "[1].c2_2 as c1" + from(table) + " t"));
+    assertEquals(false, nested.get("c1"));
+  }
+
+  @Test
+  public void testReadListNestedInMap() throws Exception {
+    Item item = item();
+    List<String> l1 = newArrayList("l1_1_value", "l1_2");
+    List<String> l2 = newArrayList("l2_1_value", "l2_2");
+    Map<String, Object> c1 = new HashMap<>();
+    c1.put("l1", l1);
+    c1.put("l2", l2);
+    item.with(COL1, c1);
+    Table table = createTableWithItems(item);
+    Map<String, Object> result = justOneRow(runAndReadResults("SELECT t." + COL1 + ".l1[1] as "
+                                                              + "c1" + from(table) + " t"));
+    assertEquals(new Text(l1.get(1)), result.get("c1"));
+  }
+
+  private Map<String, Object> justOneRow(List<Map<String, Object>> rows) {
+    assertEquals("Got more rows than expected! Rows: " + rows, 1, rows.size());
+    return rows.get(0);
   }
 
   private Table putAndSelectStar(Item... items) throws Exception {
@@ -284,7 +394,7 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
 
   private List<Map<String, Object>> selectStar(Table table, boolean verify, Item... items) throws
     Exception {
-    String sql = "SELECT * FROM dynamo." + table.getTableName();
+    String sql = "SELECT *" + from(table);
     List<Map<String, Object>> rows = runAndReadResults(sql);
     if (verify) {
       verify(rows, items);
@@ -292,12 +402,16 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
     return rows;
   }
 
+  private String from(Table table) {
+    return " FROM dynamo." + table.getTableName();
+  }
+
   private List<Map<String, Object>> runAndReadResults(String sql) throws Exception {
     List<QueryDataBatch> results = testSqlWithResults(sql);
     return readObjects(results);
   }
 
-  private void verify(List<Map<String, Object>> rows, Item[] items) {
+  private void verify(List<Map<String, Object>> rows, Item... items) {
     assertEquals("Wrong number of expected rows! Got rows: " + rows + "\nExpected: " + items,
       rows.size(), items.length);
     for (int i = 0; i < items.length; i++) {
@@ -352,17 +466,6 @@ public class TestDynamoEndToEnd extends BaseTestQuery {
       vw.clear();
     }
     return rows;
-  }
-
-  /**
-   * Ensure that we can correctly convert from the dynamo number to an "easier" type
-   *
-   * @throws Exception on failure
-   */
-  @Test
-  public void testConvertNumbers() throws Exception {
-    Table table = createHashTable();
-    throw new NotSupportedException("Need to implement!");
   }
 
   private Table createTableWithItems(Item... items) throws InterruptedException {
