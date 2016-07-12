@@ -44,6 +44,7 @@ import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.VarBinaryVector;
 import org.apache.drill.exec.vector.VarCharVector;
 import org.apache.drill.exec.vector.VectorDescriptor;
+import org.apache.drill.exec.vector.ZeroVector;
 import org.apache.drill.exec.vector.complex.ListVector;
 import org.apache.drill.exec.vector.complex.MapVector;
 import org.slf4j.Logger;
@@ -61,7 +62,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.System.arraycopy;
@@ -119,7 +119,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
       MaterializedField field = MaterializedField.create(name, major);
       Class<? extends ValueVector> clazz = TypeHelper.getValueVectorClass(minor, major.getMode());
       ValueVector vv = getField(field, clazz);
-      topLevelState.scalars.put(name, new ScalarVectorStruct(vv, major));
+      topLevelState.scalars.put(name, new ScalarVectorStruct(vv));
     }
 
     Table table = new DynamoDB(client).getTable(scanSpec.getTable().getName());
@@ -206,7 +206,8 @@ public class DynamoRecordReader extends AbstractRecordReader {
           String name = attribute.getKey();
           Object value = attribute.getValue();
           SchemaPath column = getSchemaPath(name);
-          handleField(rowCount, name, value, topLevelState.setColumn(column));
+          topLevelState.setColumn(column);
+          handleField(rowCount, name, value, topLevelState);
         }
       }
     }
@@ -233,7 +234,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
     if (value instanceof Map) {
       handleMap(rowCount, name, value, state);
     } else if (value instanceof List || value instanceof Set) {
-      handleList(rowCount, name, value, state)
+      handleList(rowCount, name, value, state);
     } else {
       writeScalar(rowCount, name, value, state);
     }
@@ -264,7 +265,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
    * Sets and lists handled the same - as a repeated list of values
    */
   @SuppressWarnings("unchecked")
-  private void handleList(int index, String name, Object value, StackState state){
+  private void handleList(int index, String name, Object value, StackState state) {
 
     // create the struct, if necessary
     ListVectorStruct struct = state.listVectors.get(name);
@@ -284,72 +285,48 @@ public class DynamoRecordReader extends AbstractRecordReader {
     } else {
       values = newArrayList((Collection<Object>) value);
     }
-    Object first = values.iterator().next();
-    MinorType minor = getMinorType(first);
-    MajorType major = optional(minor);
 
     // adjust the actual list contents to fill in 'null' values. Has to come after we figure out
     // the minor type so we can generate the right value vector
     values = adjustListValueForPointSelections(name, values);
 
-    // move to the next state, but get the next vector already since we need to know the type now
-    state = state.next(null);
-
-    // create the struct map based on the type. We might need to create the struct later, so
-    // generate the right function call too
-    Map map;
-    Function<ValueVector, ? extends ValueVectorStruct> creator;
-    boolean mapField = false, listField = false;
-    switch (minor) {
-      case MAP:
-        map = struct.getMapStructs();
-        creator = (vector) -> new MapVectorStruct((MapVector) vector);
-        mapField = true;
-        break;
-      case LIST:
-        map = struct.getListStructs();
-        creator = (vector) -> new ListVectorStruct((ListVector) vector);
-        listField = true;
-        break;
-      default:
-        map = struct.getScalarStructs();
-        creator = (vector) -> new ScalarVectorStruct(vector, major);
-    }
-
     // there is only ever one vector that we use in a list, and its keyed by null
-    ListVector list = struct.getVector();
     String vectorName = "_0list_name";
-    ValueVectorStruct vectorStruct = (ValueVectorStruct) map.get(vectorName);
-    ValueVector elementVector;
-    if (vectorStruct == null) {
-      // create the 'writer' vector target
-      elementVector = list.addOrGetVector(new VectorDescriptor(major)).getVector();
-      elementVector.allocateNew();
-      vectorStruct = creator.apply(elementVector);
-      map.put(vectorName, vectorStruct);
-    }
-    elementVector = ((ValueVectorStruct) map.get(vectorName)).getVector();
 
-
+    // move to the next state binding whatever gets created to this list
+    ListVector list = struct.getVector();
     UInt4Vector offsets = list.getOffsetVector();
     int nextOffset = offsets.getAccessor().get(index);
     list.getMutator().setNotNull(index);
     int listIndex = 0;
-    Map<String, MapVectorStruct> maps = mapField ? map : null;
-    Map<String, ListVectorStruct> lists = listField ? map : null;
-    Map<String, ScalarVectorStruct> scalars = (!mapField && !listField) ? map : null;
+
+    state = state.next(struct.getVectorFun());
+    // ensure that we use the exact same vector each time and don't try to initialize it again
+    ValueVector data = list.getDataVector();
+    if (data != null && data != ZeroVector.INSTANCE) {
+      if (data instanceof MapVector) {
+        state.mapVectors.put(vectorName, new MapVectorStruct((MapVector) data));
+      } else if (data instanceof ListVector) {
+        state.listVectors.put(vectorName, new ListVectorStruct((ListVector) data));
+      } else {
+        state.scalars.put(vectorName, new ScalarVectorStruct(data));
+      }
+    }
+
     for (Object val : values) {
       // needed to fill the empty location. This would probably be cleaner to reason about by
       // matching up the sorted indexes and the values, but simpler to reason about this way.
       if (val != null) {
         // we should never need to create a sub-vector immediately - we created the vector above -
         // so send 'null' as the creator function.
-        handleField(nextOffset + listIndex, vectorName, val, scalars, maps, lists, null);
+        handleField(nextOffset + listIndex, vectorName, val, state);
       }
       listIndex++;
     }
-    elementVector.getMutator()
-                 .setValueCount(elementVector.getAccessor().getValueCount() + listIndex);
+    // mark down in the vector how far we got
+    data = list.getDataVector();
+    data.getMutator().setValueCount(data.getAccessor().getValueCount() + listIndex);
+    // mark down how far into the vector we got this time
     offsets.getMutator().setSafe(index + 1, nextOffset + listIndex);
   }
 
@@ -378,21 +355,19 @@ public class DynamoRecordReader extends AbstractRecordReader {
     return valueOut;
   }
 
-  private void writeScalar(int index, String column, Object columnValue, Map<String,
-    ScalarVectorStruct> scalars, BiFunction<MaterializedField, Class<? extends ValueVector>,
-    ValueVector> vectorFunc) {
-    ScalarVectorStruct struct = scalars.get(column);
+  private void writeScalar(int index, String column, Object columnValue, StackState state) {
+    ScalarVectorStruct struct = state.scalars.get(column);
     if (struct == null) {
       MinorType minor = getMinorType(columnValue);
       MajorType type = optional(minor);
       MaterializedField field = MaterializedField.create(column, type);
       Class<? extends ValueVector> clazz = TypeHelper.getValueVectorClass(minor, type.getMode());
-      ValueVector vv = vectorFunc.apply(field, clazz);
+      ValueVector vv = state.vectorFunc.apply(field, clazz);
       vv.allocateNew();
-      struct = new ScalarVectorStruct(vv, type);
-      scalars.put(column, struct);
+      struct = new ScalarVectorStruct(vv);
+      state.scalars.put(column, struct);
     }
-    // TODO remove when properly filling decimals
+    // TODO remove when "properly" filling Decimal38
     if (columnValue instanceof BigDecimal) {
       columnValue = ((BigDecimal) columnValue).toPlainString();
     }
@@ -574,16 +549,13 @@ public class DynamoRecordReader extends AbstractRecordReader {
   }
 
   private class ScalarVectorStruct extends ValueVectorStruct<ValueVector> {
-    private final MajorType type;
 
-    ScalarVectorStruct(ValueVector vector, MajorType type) {
+    ScalarVectorStruct(ValueVector vector) {
       super(vector);
-      this.type = type;
-
     }
 
     MajorType getType() {
-      return type;
+      return getVector().getField().getType();
     }
   }
 
@@ -643,8 +615,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
     ListVectorStruct(final ListVector vector) {
       super(vector, (field, clazz) -> {
-        AddOrGetResult result = vector.addOrGetVector(new VectorDescriptor(field.getType
-          ()));
+        AddOrGetResult result = vector.addOrGetVector(new VectorDescriptor(field));
         return result.getVector();
       });
     }
