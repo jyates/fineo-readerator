@@ -13,6 +13,7 @@ import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
@@ -87,10 +88,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
   private AmazonDynamoDBAsyncClient client;
   private Iterator<Page<Item, ScanOutcome>> resultIter;
   private final Multimap<String, Integer> listIndexes = ArrayListMultimap.create();
-
-  private Map<String, ScalarVectorStruct> scalars = new HashMap<>();
-  private Map<String, MapVectorStruct> mapVectors = new HashMap<>();
-  private Map<String, ListVectorStruct> listVectors = new HashMap<>();
+  private final StackState topLevelState = new StackState(this::getField);
 
   public DynamoRecordReader(AWSCredentialsProvider credentials, ClientConfiguration clientConf,
     DynamoEndpoint endpoint, DynamoSubScan.DynamoSubScanSpec scanSpec,
@@ -116,12 +114,12 @@ public class DynamoRecordReader extends AbstractRecordReader {
     for (Map.Entry<String, String> pk : pkToType.entrySet()) {
       // pk has to be a scalar type, so we never get null here
       MinorType minor = translateDynamoToDrillType(pk.getValue()).minor;
-      MajorType major = Types.required(minor);
+      MajorType major = required(minor);
       String name = pk.getKey();
       MaterializedField field = MaterializedField.create(name, major);
       Class<? extends ValueVector> clazz = TypeHelper.getValueVectorClass(minor, major.getMode());
       ValueVector vv = getField(field, clazz);
-      scalars.put(name, new ScalarVectorStruct(vv, major));
+      topLevelState.scalars.put(name, new ScalarVectorStruct(vv, major));
     }
 
     Table table = new DynamoDB(client).getTable(scanSpec.getTable().getName());
@@ -176,16 +174,6 @@ public class DynamoRecordReader extends AbstractRecordReader {
         return new MajorOrMinor(MinorType.VARBINARY);
       case "BOOL":
         return new MajorOrMinor(MinorType.BIT);
-      case "SS":
-        return new MajorOrMinor(Types.repeated(translateDynamoToDrillType("S").minor));
-      case "NS":
-        new MajorOrMinor(Types.repeated(translateDynamoToDrillType("N").minor));
-      case "BS":
-        new MajorOrMinor(Types.repeated(translateDynamoToDrillType("B").minor));
-      case "M":
-        return new MajorOrMinor(MinorType.MAP);
-      case "L":
-        return new MajorOrMinor(MinorType.LIST);
     }
     throw new IllegalArgumentException("Don't know how to translate type: " + type);
   }
@@ -206,10 +194,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
   @Override
   public int next() {
     Stopwatch watch = Stopwatch.createStarted();
-    // reset all the vectors and prepare them for writing
-    scalars.values().stream().forEach(ValueVectorStruct::reset);
-    mapVectors.values().stream().forEach(NestedVectorStruct::reset);
-    listVectors.values().stream().forEach(NestedVectorStruct::reset);
+    topLevelState.reset();
 
     int count = 0;
     Page<Item, ScanOutcome> page;
@@ -220,76 +205,76 @@ public class DynamoRecordReader extends AbstractRecordReader {
         for (Map.Entry<String, Object> attribute : item.attributes()) {
           String name = attribute.getKey();
           Object value = attribute.getValue();
-          handleField(rowCount, name, value, scalars, mapVectors, listVectors, this::getField);
+          SchemaPath column = getSchemaPath(name);
+          handleField(rowCount, name, value, topLevelState.setColumn(column));
         }
       }
     }
 
-    int rows = count;
-    scalars.values().stream().forEach(scalar -> scalar.setValueCount(rows));
-    mapVectors.values().stream().forEach(map -> map.setValueCount(rows));
-// list vectors get handled in the list method - this messes up some child vectors
-//    listVectors.values().stream().forEach(list -> list.setValueCount(rows));
-
+    topLevelState.setRowCount(count);
     LOG.debug("Took {} ms to get {} records", watch.elapsed(TimeUnit.MILLISECONDS), count);
     return count;
   }
 
-  private void handleField(int rowCount, String name, Object value,
-    Map<String, ScalarVectorStruct> scalars,
-    Map<String, MapVectorStruct> mapVectors, Map<String, ListVectorStruct> listVectors,
-    BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> vectorFunc) {
+  private SchemaPath getSchemaPath(String name) {
+    if (this.isStarQuery()) {
+      return null;
+    }
+    for (SchemaPath column : getColumns()) {
+      if (column.getRootSegment().getPath().equals(name)) {
+        return column;
+      }
+    }
+    return null;
+  }
+
+  private void handleField(int rowCount, String name, Object value, StackState state) {
     // special handling for non-scalar types
     if (value instanceof Map) {
-      handleMap(rowCount, name, value, mapVectors, vectorFunc);
+      handleMap(rowCount, name, value, state);
     } else if (value instanceof List || value instanceof Set) {
-      handleList(rowCount, name, value, listVectors, vectorFunc);
+      handleList(rowCount, name, value, state)
     } else {
-      writeScalar(rowCount, name, value, scalars, vectorFunc);
+      writeScalar(rowCount, name, value, state);
     }
   }
 
-  private void handleMap(int row, String name, Object value,
-    Map<String, MapVectorStruct> mapVectors,
-    BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> vectorFunc) {
-    MapVectorStruct map = mapVectors.get(name);
+  private void handleMap(int row, String name, Object value, StackState state) {
+    MapVectorStruct map = state.mapVectors.get(name);
     if (map == null) {
-      MaterializedField field = MaterializedField.create(name, Types.optional(MinorType.MAP));
-      MapVector vector = (MapVector) vectorFunc.apply(field, MapVector.class);
+      MaterializedField field = MaterializedField.create(name, optional(MinorType.MAP));
+      MapVector vector = (MapVector) state.vectorFunc.apply(field, MapVector.class);
       vector.allocateNew();
       map = new MapVectorStruct(vector);
-      mapVectors.put(name, map);
+      state.mapVectors.put(name, map);
     }
+
+    // new level of the stack, make a new state
+    state = state.next(map.getVectorFun());
 
     Map<String, Object> values = (Map<String, Object>) value;
     for (Map.Entry<String, Object> entry : values.entrySet()) {
       String fieldName = entry.getKey();
       Object fieldValue = entry.getValue();
-      handleField(row, DOTS.join(name, fieldName), fieldValue, map.getScalarStructs(),
-        map.getMapStructs(), map.getListStructs(), map.getVectorFun());
+      handleField(row, fieldName, fieldValue, state);
     }
-    MapVector vector = map.getVector();
-    vector.getMutator().setValueCount(vector.getAccessor().getValueCount() + 1);
   }
 
   /**
    * Sets and lists handled the same - as a repeated list of values
    */
   @SuppressWarnings("unchecked")
-  private void handleList(int index, String name, Object value,
-    Map<String, ListVectorStruct> listVectors,
-    BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> vectorFun) {
-    value = adjustListValueForPointSelections(name, value);
+  private void handleList(int index, String name, Object value, StackState state){
 
     // create the struct, if necessary
-    ListVectorStruct struct = listVectors.get(name);
+    ListVectorStruct struct = state.listVectors.get(name);
     if (struct == null) {
       MaterializedField field =
-        MaterializedField.create(name, Types.optional(MinorType.LIST));
-      ListVector listVector = (ListVector) vectorFun.apply(field, ListVector.class);
+        MaterializedField.create(name, optional(MinorType.LIST));
+      ListVector listVector = (ListVector) state.vectorFunc.apply(field, ListVector.class);
       listVector.allocateNew();
       struct = new ListVectorStruct(listVector);
-      listVectors.put(name, struct);
+      state.listVectors.put(name, struct);
     }
 
     // find the first item in the list
@@ -301,7 +286,14 @@ public class DynamoRecordReader extends AbstractRecordReader {
     }
     Object first = values.iterator().next();
     MinorType minor = getMinorType(first);
-    MajorType major = Types.optional(minor);
+    MajorType major = optional(minor);
+
+    // adjust the actual list contents to fill in 'null' values. Has to come after we figure out
+    // the minor type so we can generate the right value vector
+    values = adjustListValueForPointSelections(name, values);
+
+    // move to the next state, but get the next vector already since we need to know the type now
+    state = state.next(null);
 
     // create the struct map based on the type. We might need to create the struct later, so
     // generate the right function call too
@@ -338,6 +330,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
     }
     elementVector = ((ValueVectorStruct) map.get(vectorName)).getVector();
 
+
     UInt4Vector offsets = list.getOffsetVector();
     int nextOffset = offsets.getAccessor().get(index);
     list.getMutator().setNotNull(index);
@@ -346,18 +339,21 @@ public class DynamoRecordReader extends AbstractRecordReader {
     Map<String, ListVectorStruct> lists = listField ? map : null;
     Map<String, ScalarVectorStruct> scalars = (!mapField && !listField) ? map : null;
     for (Object val : values) {
-      // we should never need to create a sub-vector immediately - we created the vector above -
-      // so send 'null' as the creator function.
-      handleField(nextOffset + listIndex, vectorName, val, scalars, maps, lists, null);
+      // needed to fill the empty location. This would probably be cleaner to reason about by
+      // matching up the sorted indexes and the values, but simpler to reason about this way.
+      if (val != null) {
+        // we should never need to create a sub-vector immediately - we created the vector above -
+        // so send 'null' as the creator function.
+        handleField(nextOffset + listIndex, vectorName, val, scalars, maps, lists, null);
+      }
       listIndex++;
     }
     elementVector.getMutator()
                  .setValueCount(elementVector.getAccessor().getValueCount() + listIndex);
     offsets.getMutator().setSafe(index + 1, nextOffset + listIndex);
-    list.getMutator().setValueCount(list.getAccessor().getValueCount() + listIndex);
   }
 
-  private Object adjustListValueForPointSelections(String name, Object value) {
+  private List<Object> adjustListValueForPointSelections(String name, List<Object> value) {
     // Sometimes we might want to select an offset into a list. Dynamo handles this as returning
     // a smaller list. Drill expects the whole list to be there, so we need to fill in the other
     // parts of the list with nulls, up to the largest value
@@ -368,7 +364,6 @@ public class DynamoRecordReader extends AbstractRecordReader {
     List<Integer> sorted = newArrayList(indexes);
     Collections.sort(sorted);
     int max = sorted.get(sorted.size() - 1);
-    List<Object> actualValue = (List) value;
     List<Object> valueOut = new ArrayList<>(max);
     int last = 0;
     for (Integer index : sorted) {
@@ -376,7 +371,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
       for (int i = last; i < index; i++) {
         valueOut.add(null);
       }
-      valueOut.add(actualValue.remove(0));
+      valueOut.add(value.remove(0));
       last++;
     }
 
@@ -389,7 +384,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
     ScalarVectorStruct struct = scalars.get(column);
     if (struct == null) {
       MinorType minor = getMinorType(columnValue);
-      MajorType type = Types.optional(minor);
+      MajorType type = optional(minor);
       MaterializedField field = MaterializedField.create(column, type);
       Class<? extends ValueVector> clazz = TypeHelper.getValueVectorClass(minor, type.getMode());
       ValueVector vv = vectorFunc.apply(field, clazz);
@@ -397,7 +392,30 @@ public class DynamoRecordReader extends AbstractRecordReader {
       struct = new ScalarVectorStruct(vv, type);
       scalars.put(column, struct);
     }
+    // TODO remove when properly filling decimals
+    if (columnValue instanceof BigDecimal) {
+      columnValue = ((BigDecimal) columnValue).toPlainString();
+    }
     writeScalar(index, columnValue, struct);
+  }
+
+  public MajorType optional(MinorType minor) {
+    return setDecimal38ScaleIfNecessary(minor, Types.optional(minor));
+  }
+
+  public MajorType required(MinorType minor) {
+    return setDecimal38ScaleIfNecessary(minor, Types.required(minor));
+  }
+
+  public MajorType repeated(MinorType minor) {
+    return setDecimal38ScaleIfNecessary(minor, Types.repeated(minor));
+  }
+
+  private MajorType setDecimal38ScaleIfNecessary(MinorType minor, MajorType major) {
+    if (minor == MinorType.DECIMAL38SPARSE) {
+      major = MajorType.newBuilder(major).setScale(38).build();
+    }
+    return major;
   }
 
   private <T extends ValueVector> T getField(MaterializedField field, Class<T> clazz) {
@@ -450,11 +468,18 @@ public class DynamoRecordReader extends AbstractRecordReader {
             failForMode(type);
         }
       case DECIMAL38SPARSE:
+        //TODO fix this logic. This is just... wrong, but we get around it by just returning a
+        // string representation of the value
         BigDecimal decimal = (BigDecimal) value;
         BigInteger intVal = decimal.unscaledValue();
+        String zeros = Joiner.on("").join(Iterators.limit(Iterators.cycle("0"), decimal.scale()));
+        BigInteger base = new BigInteger(1 + zeros);
+        intVal = intVal.multiply(base);
+
         byte[] sparseInt = new byte[24];
         byte[] intBytes = intVal.toByteArray();
-        arraycopy(intBytes, 0, sparseInt, sparseInt.length - intBytes.length, intBytes.length);
+        arraycopy(intBytes, 0, sparseInt, 0, intBytes.length);
+//        arraycopy(intBytes, 0, sparseInt, sparseInt.length - intBytes.length, intBytes.length);
         // TODO revisit handling of Decimal38Dense
         // kind of an ugly way to manage the actual transfer of bytes. However, this is much
         // easier than trying to manage a larger page of bytes.
@@ -466,8 +491,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
         holder.scale = decimal.scale();
         switch (type.getMode()) {
           case OPTIONAL:
-            ((NullableDecimal38SparseVector.Mutator) vector.getMutator())
-              .setSafe(index, holder);
+            ((NullableDecimal38SparseVector.Mutator) vector.getMutator()).setSafe(index, holder);
             break type;
           case REQUIRED:
             ((Decimal38SparseVector.Mutator) vector.getMutator()).setSafe(index, holder);
@@ -510,7 +534,8 @@ public class DynamoRecordReader extends AbstractRecordReader {
     } else if (value instanceof Boolean) {
       return MinorType.BIT;
     } else if (value instanceof BigDecimal) {
-      return MinorType.DECIMAL38SPARSE;
+      return MinorType.VARCHAR;
+//      return MinorType.DECIMAL38SPARSE;
     } else if (value instanceof byte[]) {
       return MinorType.VARBINARY;
     } else if (value instanceof Map) {
@@ -622,6 +647,52 @@ public class DynamoRecordReader extends AbstractRecordReader {
           ()));
         return result.getVector();
       });
+    }
+  }
+
+  private class StackState {
+    private final BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector>
+      vectorFunc;
+    // assume we are not deeply nested
+    private Map<String, ScalarVectorStruct> scalars = new HashMap<>(0);
+    private Map<String, MapVectorStruct> mapVectors = new HashMap<>(0);
+    private Map<String, ListVectorStruct> listVectors = new HashMap<>(0);
+    private SchemaPath column;
+    private int columnPathIndex;
+
+    public StackState(BiFunction<MaterializedField,
+      Class<? extends ValueVector>, ValueVector> vectorFunc) {
+      this.vectorFunc = vectorFunc;
+    }
+
+    public void reset() {
+      scalars.values().stream().forEach(ValueVectorStruct::reset);
+      mapVectors.values().stream().forEach(NestedVectorStruct::reset);
+      listVectors.values().stream().forEach(NestedVectorStruct::reset);
+    }
+
+    public void setRowCount(int rows) {
+      scalars.values().stream().forEach(scalar -> scalar.setValueCount(rows));
+
+      // varchar vectors get messed up if you try to set 0 values, so we just skip it if there was
+      // no data
+      if (rows > 0) {
+        mapVectors.values().stream().forEach(map -> map.setValueCount(rows));
+        listVectors.values().stream().forEach(list -> list.setValueCount(rows));
+      }
+    }
+
+    public void setColumn(SchemaPath column) {
+      this.column = column;
+      this.columnPathIndex = 0;
+    }
+
+    public StackState next(
+      BiFunction<MaterializedField, Class<? extends ValueVector>, ValueVector> vectorFun) {
+      StackState state = new StackState(vectorFun);
+      state.setColumn(this.column);
+      state.columnPathIndex = this.columnPathIndex++;
+      return state;
     }
   }
 }
