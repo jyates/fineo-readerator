@@ -1,4 +1,4 @@
-package io.fineo.drill.exec.store.dynamo;
+package io.fineo.drill.exec.store.dynamo.physical;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;

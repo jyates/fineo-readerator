@@ -15,9 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.fineo.drill.exec.store.dynamo;
+package io.fineo.drill.exec.store.dynamo.filter;
 
 import com.google.common.collect.ImmutableList;
+import io.fineo.drill.exec.store.dynamo.DynamoGroupScan;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import org.apache.drill.common.expression.BooleanOperator;
 import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.LogicalExpression;

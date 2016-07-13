@@ -1,4 +1,4 @@
-package io.fineo.drill.exec.store.dynamo;
+package io.fineo.drill.exec.store.dynamo.physical;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -15,6 +15,7 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Multimap;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
 import org.apache.drill.common.exceptions.DrillRuntimeException;

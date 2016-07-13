@@ -1,8 +1,9 @@
-package io.fineo.drill.exec.store.dynamo;
+package io.fineo.drill.exec.store.dynamo.spec;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import io.fineo.drill.exec.store.dynamo.filter.DynamoFilterSpec;
 
 /**
  * Fully define a scan of the table
