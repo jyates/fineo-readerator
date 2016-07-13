@@ -37,6 +37,13 @@ import java.util.function.BiFunction;
  * logical expression and converts them into a filter by finding the 'leaf' expressions (i.e. a =
  * '1') and then progressively combing them with AND/OR expressions based on the function at the
  * layer above.
+ * <p>
+ * There is a subtle difference in how we handle nulls. If the request is <tt>a = null</tt> (with
+ * an optional cast) we do an actual check for the field value being null, e.g. <tt>a = null</tt>.
+ * However, if the request is <tt>isNull(a)</tt> we do <tt>attribute_exists(a)</tt>, which
+ * is also a null check, but only returns if the attribute <i>has not been set</i>, compared to
+ * the former, where it returns if the attribute <i><b>has been set to null</b></i>.
+ * </p>
  */
 public class DynamoFilterBuilder
   extends AbstractExprVisitor<DynamoScanSpec, Void, RuntimeException> {
@@ -74,6 +81,13 @@ public class DynamoFilterBuilder
     DynamoScanSpec parsedSpec = le.accept(this, null);
     if (parsedSpec != null) {
       parsedSpec = mergeScanSpecs("booleanAnd", this.groupScan.getSpec(), parsedSpec);
+
+      // figure out if this spec represents one or more Gets
+      DynamoScanFilterSpec filter = parsedSpec.getFilter();
+      if (filter.getHasHashKey() && filter.getHasRangeKey()) {
+
+      }
+
     }
     return parsedSpec;
   }
@@ -101,8 +115,8 @@ public class DynamoFilterBuilder
     ImmutableList<LogicalExpression> args = call.args;
 
     // its a simple function call, i.e. a = '1', so just build the scan spec for that
-    if (CompareFunctionsProcessor.isCompareFunction(functionName)) {
-      CompareFunctionsProcessor processor = CompareFunctionsProcessor.process(call);
+    if (SingleFunctionProcessor.isCompareFunction(functionName)) {
+      SingleFunctionProcessor processor = SingleFunctionProcessor.process(call);
       if (processor.isSuccess()) {
         nodeScanSpec = createDynamoScanSpec(call, processor);
       }
@@ -141,15 +155,28 @@ public class DynamoFilterBuilder
     DynamoScanSpec right) {
     DynamoScanSpec spec = new DynamoScanSpec(left);
 
-    BiFunction<DynamoFilterSpec, DynamoFilterSpec, DynamoFilterSpec> func =
-      functionName.equals(AND) ? this::and : this::or;
-
     DynamoScanFilterSpec lf = left.getFilter();
     DynamoScanFilterSpec rf = right.getFilter();
-    DynamoFilterSpec hKey = func.apply(lf.getHashKeyFilter(), rf.getHashKeyFilter());
-    DynamoFilterSpec rKey = func.apply(lf.getRangeKeyFilter(), rf.getRangeKeyFilter());
+
+    boolean hasHashKey;
+    BiFunction<DynamoFilterSpec, DynamoFilterSpec, DynamoFilterSpec> func;
+    // query/get requires that you have the hash key in the filter. AND conditions mean you can
+    // have it on either side, while an OR requires it on both sides, hence the 'flipped'
+    // conditional for the hash key below
+    if (functionName.equals(AND)) {
+      func = this::and;
+      hasHashKey = lf.getHasHashKey() || rf.getHasHashKey();
+    } else {
+      func = this::or;
+      hasHashKey = lf.getHasHashKey() && rf.getHasHashKey();
+    }
+
+    // range key just needs to be present in either side for this to have a range key, hence OR
+    boolean rangeKey = lf.getHasRangeKey() || rf.getHasRangeKey();
+
+    DynamoFilterSpec hKey = func.apply(lf.getKeyFilter(), rf.getKeyFilter());
     DynamoFilterSpec attrib = func.apply(lf.getAttributeFilter(), rf.getAttributeFilter());
-    DynamoScanFilterSpec filter = new DynamoScanFilterSpec(hKey, rKey, attrib);
+    DynamoScanFilterSpec filter = new DynamoScanFilterSpec(hKey, hasHashKey, rangeKey, attrib);
     spec.setFilter(filter);
     return spec;
   }
@@ -163,11 +190,11 @@ public class DynamoFilterBuilder
   }
 
   private DynamoScanSpec createDynamoScanSpec(FunctionCall call,
-    CompareFunctionsProcessor processor) {
+    SingleFunctionProcessor processor) {
     String functionName = processor.getFunctionName();
     SchemaPath field = processor.getPath();
     String fieldName = field.getAsUnescapedPath();
-    String fieldValue = processor.getValue();
+    Object fieldValue = processor.getValue();
     boolean isHashKey = this.hash.getName().equals(fieldName);
     boolean isRangeKey = this.range != null && this.range.getName().equals(fieldName);
     assert !(isHashKey && isRangeKey) : fieldName + " be both hash and range key";
@@ -194,8 +221,7 @@ public class DynamoFilterBuilder
     DynamoScanSpec spec = new DynamoScanSpec(groupScan.getSpec());
     // override the filter, of which it can only be one of the three
     spec.setFilter(new DynamoScanFilterSpec(
-      (isHashKey ? filter : null),
-      (isRangeKey ? filter : null),
+      (isHashKey ? filter : null), isHashKey, isRangeKey,
       (!(isHashKey || isRangeKey) ? filter : null)));
     return spec;
   }

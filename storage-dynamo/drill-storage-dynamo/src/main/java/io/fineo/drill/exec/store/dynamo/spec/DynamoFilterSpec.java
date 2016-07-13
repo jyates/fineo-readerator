@@ -39,7 +39,7 @@ public class DynamoFilterSpec {
     // count? -> size
   }
 
-  public static DynamoFilterSpec create(String functionName, String fieldName, String fieldValue) {
+  public static DynamoFilterSpec create(String functionName, String fieldName, Object fieldValue) {
     String op;
     // map or list
     if (fieldName.contains(".") || fieldName.contains("[")) {
@@ -88,7 +88,7 @@ public class DynamoFilterSpec {
       this.root = root;
     }
 
-    public FilterTree(String key, String operand, String value) {
+    public FilterTree(String key, String operand, Object value) {
       this.root = new FilterLeaf(key, operand, value);
     }
 
@@ -202,11 +202,11 @@ public class DynamoFilterSpec {
   public static class FilterLeaf extends FilterNode {
     private String key;
     private String operand;
-    private String value;
+    private Object value;
 
     @JsonCreator
     public FilterLeaf(@JsonProperty("key") String key, @JsonProperty("operand") String operand,
-      @JsonProperty("value") String value) {
+      @JsonProperty("value") Object value) {
       this.key = key;
       this.operand = operand;
       this.value = value;
@@ -228,7 +228,7 @@ public class DynamoFilterSpec {
     }
 
     @JsonProperty
-    public String getValue() {
+    public Object getValue() {
       return value;
     }
   }
