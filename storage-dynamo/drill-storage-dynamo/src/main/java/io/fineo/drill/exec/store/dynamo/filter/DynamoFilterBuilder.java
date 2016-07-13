@@ -19,6 +19,8 @@ package io.fineo.drill.exec.store.dynamo.filter;
 
 import com.google.common.collect.ImmutableList;
 import io.fineo.drill.exec.store.dynamo.DynamoGroupScan;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoScanFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import org.apache.drill.common.expression.BooleanOperator;
@@ -138,12 +140,13 @@ public class DynamoFilterBuilder
     BiFunction<DynamoFilterSpec, DynamoFilterSpec, DynamoFilterSpec> func =
       functionName.equals(AND) ? this::and : this::or;
 
-    DynamoFilterSpec hKey = func.apply(left.getHashKeyFilter(), right.getHashKeyFilter());
-    DynamoFilterSpec rKey = func.apply(left.getRangeKeyFilter(), right.getRangeKeyFilter());
-    DynamoFilterSpec attrib = func.apply(left.getAttributeFilter(), left.getAttributeFilter());
-    spec.setHashKeyFilter(hKey);
-    spec.setRangeKeyFilter(rKey);
-    spec.setAttributeFilter(attrib);
+    DynamoScanFilterSpec lf = left.getFilter();
+    DynamoScanFilterSpec rf = right.getFilter();
+    DynamoFilterSpec hKey = func.apply(lf.getHashKeyFilter(), rf.getHashKeyFilter());
+    DynamoFilterSpec rKey = func.apply(lf.getRangeKeyFilter(), rf.getRangeKeyFilter());
+    DynamoFilterSpec attrib = func.apply(lf.getAttributeFilter(), rf.getAttributeFilter());
+    DynamoScanFilterSpec filter = new DynamoScanFilterSpec(hKey, rKey, attrib);
+    spec.setFilter(filter);
     return spec;
   }
 
@@ -185,10 +188,11 @@ public class DynamoFilterBuilder
     }
 
     DynamoScanSpec spec = new DynamoScanSpec(groupScan.getSpec());
-    // make sure we reset the scan part of the spec
-    spec.setAttributeFilter(isHashKey ? filter : null);
-    spec.setAttributeFilter(isRangeKey ? filter : null);
-    spec.setAttributeFilter(!(isHashKey || isRangeKey) ? filter : null);
+    // override the filter, of which it can only be one of the three
+    spec.setFilter(new DynamoScanFilterSpec(
+      (isHashKey ? filter : null),
+      (isRangeKey ? filter : null),
+      (!(isHashKey || isRangeKey) ? filter : null)));
     return spec;
   }
 }

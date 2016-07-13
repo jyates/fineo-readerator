@@ -2,8 +2,8 @@ package io.fineo.drill.exec.store.dynamo.spec;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import io.fineo.drill.exec.store.dynamo.filter.DynamoFilterSpec;
 
 /**
  * Fully define a scan of the table
@@ -15,12 +15,17 @@ public class DynamoScanSpec {
   public static final String NAME = "dynamo-scan-spec";
 
   private DynamoTableDefinition table;
-  private DynamoFilterSpec hashKeyFilter;
-  private DynamoFilterSpec rangeKeyFilter;
-  private DynamoFilterSpec attributeFilter;
+  private DynamoScanFilterSpec filter;
 
   @JsonCreator
+  public DynamoScanSpec(@JsonProperty("table") DynamoTableDefinition table, @JsonProperty
+    ("filter") DynamoScanFilterSpec filter) {
+    this.table = table;
+    this.filter = filter;
+  }
+
   public DynamoScanSpec(){
+    this.filter = new DynamoScanFilterSpec();
   }
 
   public void setTable(DynamoTableDefinition table) {
@@ -31,34 +36,16 @@ public class DynamoScanSpec {
     return this.table;
   }
 
-  public DynamoFilterSpec getHashKeyFilter() {
-    return hashKeyFilter;
+  public DynamoScanFilterSpec getFilter() {
+    return filter;
   }
 
-  public void setHashKeyFilter(DynamoFilterSpec hashKeyFilter) {
-    this.hashKeyFilter = hashKeyFilter;
-  }
-
-  public DynamoFilterSpec getRangeKeyFilter() {
-    return rangeKeyFilter;
-  }
-
-  public void setRangeKeyFilter(DynamoFilterSpec rangeKeyFilter) {
-    this.rangeKeyFilter = rangeKeyFilter;
-  }
-
-  public DynamoFilterSpec getAttributeFilter() {
-    return attributeFilter;
-  }
-
-  public void setAttributeFilter(DynamoFilterSpec attributeFilter) {
-    this.attributeFilter = attributeFilter;
+  public void setFilter(DynamoScanFilterSpec filter) {
+    this.filter = filter;
   }
 
   public DynamoScanSpec(DynamoScanSpec other) {
     this.table = other.table;
-    this.hashKeyFilter = other.hashKeyFilter;
-    this.rangeKeyFilter = other.rangeKeyFilter;
-    this.attributeFilter = other.attributeFilter;
+    this.filter = other.filter;
   }
 }

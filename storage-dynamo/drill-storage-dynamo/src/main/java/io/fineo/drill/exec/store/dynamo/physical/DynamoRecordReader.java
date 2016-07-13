@@ -3,18 +3,14 @@ package io.fineo.drill.exec.store.dynamo.physical;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
-import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
-import com.amazonaws.services.dynamodbv2.document.ItemCollection;
 import com.amazonaws.services.dynamodbv2.document.Page;
-import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
-import com.amazonaws.services.dynamodbv2.document.Table;
-import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Multimap;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
@@ -78,34 +74,39 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoRecordReader.class);
   private static final Joiner DOTS = Joiner.on('.');
-  private static final Joiner COMMAS = Joiner.on(", ");
+  static final Joiner COMMAS = Joiner.on(", ");
   // max depth specified by AWS. See:
   // http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions
   // .AccessingItemAttributes.html#DocumentPaths
   private static final int AMAZON_MAX_DEPTH = 32;
 
-  private final AWSCredentialsProvider credentials;
-  private final ClientConfiguration clientConf;
-  private final DynamoSubScan.DynamoSubScanSpec scanSpec;
-  private final boolean consistentRead;
-  private final DynamoEndpoint endpoint;
-  private final ParallelScanProperties scanProps;
-  private OutputMutator outputMutator;
-  private OperatorContext operatorContext;
-  private AmazonDynamoDBAsyncClient client;
-  private Iterator<Page<Item, ScanOutcome>> resultIter;
   private final Multimap<String, Integer> listIndexes = ArrayListMultimap.create();
   private final StackState topLevelState = new StackState(this::getField);
 
+  private final AWSCredentialsProvider credentials;
+  private final ClientConfiguration clientConf;
+  private final DynamoSubScan.DynamoSubScanSpec scanSlice;
+  private final boolean consistentRead;
+  private final DynamoEndpoint endpoint;
+  private final ParallelScanProperties scanProps;
+  private final DynamoScanSpec spec;
+  private OutputMutator outputMutator;
+  private OperatorContext operatorContext;
+  private AmazonDynamoDBAsyncClient client;
+
+  private Iterator<Page<Item, ?>> resultIter;
+
   public DynamoRecordReader(AWSCredentialsProvider credentials, ClientConfiguration clientConf,
     DynamoEndpoint endpoint, DynamoSubScan.DynamoSubScanSpec scanSpec,
-    List<SchemaPath> columns, boolean consistentRead, ParallelScanProperties scanProperties) {
+    List<SchemaPath> columns, boolean consistentRead, ParallelScanProperties scanProperties,
+    DynamoScanSpec scan) {
     this.credentials = credentials;
     this.clientConf = clientConf;
-    this.scanSpec = scanSpec;
+    this.scanSlice = scanSpec;
     this.consistentRead = consistentRead;
     this.endpoint = endpoint;
     this.scanProps = scanProperties;
+    this.spec = scan;
     setColumns(columns);
   }
 
@@ -117,8 +118,9 @@ public class DynamoRecordReader extends AbstractRecordReader {
     this.client = new AmazonDynamoDBAsyncClient(credentials, this.clientConf);
     endpoint.configure(this.client);
 
+    DynamoTableDefinition table = spec.getTable();
     // setup the vectors that we know we will need - the primary key(s)
-    for (DynamoTableDefinition.PrimaryKey pk: scanSpec.getTable().getKeys()) {
+    for (DynamoTableDefinition.PrimaryKey pk : table.getKeys()) {
       String name = pk.getName();
       String type = pk.getType();
       // pk has to be a scalar type, so we never get null here
@@ -130,28 +132,21 @@ public class DynamoRecordReader extends AbstractRecordReader {
       topLevelState.scalars.put(name, new ScalarVectorStruct(vv));
     }
 
-    Table table = new DynamoDB(client).getTable(scanSpec.getTable().getName());
-    ScanSpec spec = new ScanSpec();
-    spec.withConsistentRead(consistentRead);
-    // basic scan requirements
-    int limit = scanProps.getLimit();
-    if (limit > 0) {
-      spec.setMaxPageSize(limit);
-    }
-    spec.withSegment(scanSpec.getSegmentId()).withTotalSegments(scanSpec.getTotalSegments());
-
+    DynamoQueryBuilder builder = new DynamoQueryBuilder()
+      .withConsistentRead(consistentRead)
+      .withSlice(scanSlice)
+      .withScanSpec(this.spec)
+      .withProps(scanProps);
     // TODO skip queries, which just want the primary key values
-    // projections
     if (!isStarQuery()) {
       List<String> columns = new ArrayList<>();
       for (SchemaPath column : getColumns()) {
         columns.add(buildPathName(column, AMAZON_MAX_DEPTH, listIndexes, true));
       }
-      spec.withProjectionExpression(COMMAS.join(columns));
+      builder.withColumns(columns);
     }
 
-    ItemCollection<ScanOutcome> results = table.scan(spec);
-    this.resultIter = results.pages().iterator();
+    this.resultIter = builder.query(client);
   }
 
   private String buildPathName(SchemaPath column, int maxDepth, Multimap<String, Integer>
@@ -216,7 +211,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
     topLevelState.reset();
 
     int count = 0;
-    Page<Item, ScanOutcome> page;
+    Page<Item, ?> page;
     while (resultIter.hasNext()) {
       page = resultIter.next();
       for (Item item : page) {

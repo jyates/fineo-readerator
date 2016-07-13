@@ -60,7 +60,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
   public DynamoGroupScan(@JsonProperty(DynamoScanSpec.NAME) DynamoScanSpec dynamoSpec,
     @JsonProperty("storage") DynamoStoragePluginConfig storagePluginConfig,
     @JsonProperty("columns") List<SchemaPath> columns,
-    @JsonProperty("scan")ParallelScanProperties scan,
+    @JsonProperty("scan") ParallelScanProperties scan,
     @JsonProperty("client") ClientProperties client,
     @JacksonInject StoragePluginRegistry pluginRegistry) throws IOException,
     ExecutionSetupException {
@@ -137,12 +137,12 @@ public class DynamoGroupScan extends AbstractGroupScan {
     List<DynamoWork> segments = assignments.get(minorFragmentId);
     List<DynamoSubScan.DynamoSubScanSpec> subSpecs = new ArrayList<>(segments.size());
     for (DynamoWork work : segments) {
-      subSpecs
-        .add(new DynamoSubScan.DynamoSubScanSpec(getSpec().getTable(), assignments.size(), work
-          .getSegment(), getColumns()));
+      subSpecs.add(
+        new DynamoSubScan.DynamoSubScanSpec(assignments.size(), work.getSegment(), getColumns()));
 
     }
-    return new DynamoSubScan(plugin, plugin.getConfig(), subSpecs, this.columns, client, scan);
+    return new DynamoSubScan(plugin, plugin.getConfig(), subSpecs, this.columns, client, scan,
+      spec);
   }
 
   @Override
