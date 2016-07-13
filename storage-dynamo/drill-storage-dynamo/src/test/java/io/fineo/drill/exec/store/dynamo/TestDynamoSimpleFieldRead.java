@@ -45,7 +45,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
-public class TestDynamoEndToEnd extends BaseTestQuery {
+public class TestDynamoSimpleFieldRead extends BaseTestQuery {
 
   @ClassRule
   public static AwsDynamoResource dynamo =
