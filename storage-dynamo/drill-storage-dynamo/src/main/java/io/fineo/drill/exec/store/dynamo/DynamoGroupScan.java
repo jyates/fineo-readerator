@@ -141,7 +141,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
         new DynamoSubScan.DynamoSubScanSpec(assignments.size(), work.getSegment(), getColumns()));
 
     }
-    return new DynamoSubScan(plugin, plugin.getConfig(), subSpecs, this.columns, client, scan,
+    return new DynamoSubScan(plugin, plugin.getConfig(), subSpecs, this.columns, client, scan, 
       spec);
   }
 

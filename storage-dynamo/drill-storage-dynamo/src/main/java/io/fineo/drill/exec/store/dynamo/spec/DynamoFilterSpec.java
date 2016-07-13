@@ -75,8 +75,12 @@ public class DynamoFilterSpec {
     return this;
   }
 
+  public FilterTree getTree() {
+    return tree;
+  }
+
   @JsonTypeName("dyamo-filter-tree")
-  private static class FilterTree {
+  public static class FilterTree {
     private FilterNode root;
 
     @JsonCreator
@@ -127,11 +131,22 @@ public class DynamoFilterSpec {
     }
   }
 
-  private static class FilterNode {
+  public static class FilterNode {
+    private FilterNode parent;
+
+    @JsonIgnore
+    public void setParent(FilterNode parent) {
+      this.parent = parent;
+    }
+
+    @JsonIgnore
+    public FilterNode getParent() {
+      return parent;
+    }
   }
 
   @JsonTypeName("dynamo-filter-tree-inner-node")
-  private static class FilterNodeInner extends FilterNode {
+  public static class FilterNodeInner extends FilterNode {
     private String condition;
     private FilterNode left;
     private FilterNode right;
@@ -140,7 +155,9 @@ public class DynamoFilterSpec {
       @JsonProperty("left") FilterNode left, @JsonProperty("right") FilterNode right) {
       this.condition = bool;
       this.left = left;
+      left.setParent(this);
       this.right = right;
+      right.setParent(this);
     }
 
     @Override
@@ -162,10 +179,27 @@ public class DynamoFilterSpec {
     public FilterNode getRight() {
       return right;
     }
+
+    public void left(FilterLeaf leaf) {
+      this.left = leaf;
+    }
+
+    public void right(FilterLeaf leaf) {
+      this.right = leaf;
+    }
+
+    public void update(FilterNode node, FilterLeaf leaf) {
+      if (node == left) {
+        this.left = leaf;
+      } else {
+        assert this.right == node;
+        this.right = leaf;
+      }
+    }
   }
 
   @JsonTypeName("dynamo-filter-tree-left-node")
-  private static class FilterLeaf extends FilterNode {
+  public static class FilterLeaf extends FilterNode {
     private String key;
     private String operand;
     private String value;
