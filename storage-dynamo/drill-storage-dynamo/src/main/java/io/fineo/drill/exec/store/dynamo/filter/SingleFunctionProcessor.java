@@ -134,104 +134,104 @@ class SingleFunctionProcessor {
   }
 
   private static class ValueVisitor
-    extends AbstractExprVisitor<Object, LogicalExpression, RuntimeException> {
+    extends AbstractExprVisitor<Object, Void, RuntimeException> {
     public boolean success = true;
 
     @Override
-    public Object visitUnknown(LogicalExpression e, LogicalExpression valueArg)
+    public Object visitUnknown(LogicalExpression e, Void valueArg)
       throws RuntimeException {
       this.success = false;
       return null;
     }
 
     @Override
-    public Object visitSchemaPath(SchemaPath path, LogicalExpression value)
+    public Object visitSchemaPath(SchemaPath path, Void value)
       throws RuntimeException {
       return path.getAsUnescapedPath();
     }
 
     @Override
-    public Object visitBooleanConstant(BooleanExpression e, LogicalExpression value)
+    public Object visitBooleanConstant(BooleanExpression e, Void value)
       throws RuntimeException {
       return e.getBoolean();
     }
 
     @Override
-    public Object visitIntConstant(IntExpression intExpr, LogicalExpression value)
+    public Object visitIntConstant(IntExpression intExpr, Void value)
       throws RuntimeException {
       return intExpr.getInt();
     }
 
     @Override
-    public Object visitFloatConstant(FloatExpression fExpr, LogicalExpression value)
+    public Object visitFloatConstant(FloatExpression fExpr, Void value)
       throws RuntimeException {
       return fExpr.getFloat();
     }
 
     @Override
-    public Object visitLongConstant(LongExpression longExpr, LogicalExpression value)
+    public Object visitLongConstant(LongExpression longExpr, Void value)
       throws RuntimeException {
       return longExpr.getLong();
     }
 
     @Override
     public Object visitDecimal28Constant(ValueExpressions.Decimal28Expression decExpr,
-      LogicalExpression value) throws RuntimeException {
+      Void value) throws RuntimeException {
       return decExpr.getBigDecimal();
     }
 
     @Override
     public Object visitDecimal38Constant(ValueExpressions.Decimal38Expression decExpr,
-      LogicalExpression value) throws RuntimeException {
+      Void value) throws RuntimeException {
       return decExpr.getBigDecimal();
     }
 
     @Override
     public Object visitDecimal9Constant(ValueExpressions.Decimal9Expression decExpr,
-      LogicalExpression value) throws RuntimeException {
+      Void value) throws RuntimeException {
       return new BigDecimal(BigInteger.valueOf(decExpr.getIntFromDecimal()), decExpr
         .getScale(), new MathContext(decExpr.getPrecision()));
     }
 
     @Override
     public Object visitDecimal18Constant(ValueExpressions.Decimal18Expression decExpr,
-      LogicalExpression value) throws RuntimeException {
+      Void value) throws RuntimeException {
       return new BigDecimal(BigInteger.valueOf(decExpr.getLongFromDecimal()), decExpr
         .getScale(), new MathContext(decExpr.getPrecision()));
     }
 
     @Override
-    public Object visitDateConstant(DateExpression intExpr, LogicalExpression value)
+    public Object visitDateConstant(DateExpression intExpr, Void value)
       throws RuntimeException {
       return intExpr.getDate();
     }
 
     @Override
-    public Object visitTimeConstant(TimeExpression intExpr, LogicalExpression value)
+    public Object visitTimeConstant(TimeExpression intExpr, Void value)
       throws RuntimeException {
       return intExpr.getTime();
     }
 
     @Override
     public Object visitTimeStampConstant(ValueExpressions.TimeStampExpression intExpr,
-      LogicalExpression value) throws RuntimeException {
+      Void value) throws RuntimeException {
       return intExpr.getTimeStamp();
     }
 
     @Override
     public Object visitDoubleConstant(DoubleExpression dExpr,
-      LogicalExpression value) throws RuntimeException {
+      Void value) throws RuntimeException {
       return dExpr.getDouble();
     }
 
     @Override
-    public Object visitQuotedStringConstant(QuotedString e, LogicalExpression value)
+    public Object visitQuotedStringConstant(QuotedString e, Void value)
       throws RuntimeException {
       return e.getString();
     }
 
     @Override
-    public Object visitCastExpression(CastExpression e, LogicalExpression value)
+    public Object visitCastExpression(CastExpression e, Void value)
       throws RuntimeException {
       switch (e.getMajorType().getMinorType()) {
         case NULL:
@@ -241,7 +241,7 @@ class SingleFunctionProcessor {
     }
 
     @Override
-    public Object visitNullConstant(TypedNullConstant e, LogicalExpression value)
+    public Object visitNullConstant(TypedNullConstant e, Void value)
       throws RuntimeException {
       return null;
     }
