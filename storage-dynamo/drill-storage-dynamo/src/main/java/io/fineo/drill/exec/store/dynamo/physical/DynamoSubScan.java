@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.fineo.drill.exec.store.dynamo.DynamoStoragePlugin;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
@@ -25,7 +25,7 @@ import org.apache.drill.exec.store.StoragePluginRegistry;
 import java.util.Iterator;
 import java.util.List;
 
-@JsonTypeName("dynamo-segment-scan")
+@JsonTypeName("dynamo-segment-scanProps")
 public class DynamoSubScan extends AbstractBase implements SubScan {
 
   private final DynamoStoragePlugin plugin;
@@ -33,28 +33,31 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
   private final DynamoStoragePluginConfig storage;
   private final List<SchemaPath> columns;
   private final ClientProperties client;
-  private final ParallelScanProperties scan;
+  private final ParallelScanProperties scanProps;
+  private final DynamoScanSpec scan;
 
   public DynamoSubScan(@JacksonInject StoragePluginRegistry registry,
     @JsonProperty("storage") StoragePluginConfig storage,
     @JsonProperty("specs") List<DynamoSubScanSpec> tabletScanSpecList,
     @JsonProperty("columns") List<SchemaPath> columns,
     @JsonProperty("client") ClientProperties client,
-    @JsonProperty("scan")ParallelScanProperties scan) throws ExecutionSetupException {
+    @JsonProperty("scanProps") ParallelScanProperties scanProps,
+    @JsonProperty("scan") DynamoScanSpec scan) throws ExecutionSetupException {
     this((DynamoStoragePlugin) registry.getPlugin(storage), storage, tabletScanSpecList, columns,
-      client, scan);
+      client, scanProps, scan);
   }
 
   public DynamoSubScan(DynamoStoragePlugin plugin, StoragePluginConfig config,
     List<DynamoSubScanSpec> specs, List<SchemaPath> columns, ClientProperties client,
-    ParallelScanProperties scan) {
+    ParallelScanProperties scanProps, DynamoScanSpec spec) {
     super((String) null);
     this.plugin = plugin;
     this.specs = specs;
     this.storage = (DynamoStoragePluginConfig) config;
     this.columns = columns;
     this.client = client;
-    this.scan = new ParallelScanProperties();
+    this.scanProps = scanProps;
+    this.scan = spec;
   }
 
   public DynamoSubScan(DynamoSubScan other) {
@@ -64,7 +67,8 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     this.storage = other.storage;
     this.columns = other.columns;
     this.client = other.client;
-    scan = other.scan;
+    this.scanProps = other.scanProps;
+    this.scan = other.scan;
   }
 
   @Override
@@ -112,7 +116,11 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     return this.storage.getEndpoint();
   }
 
-  public ParallelScanProperties getScan() {
+  public ParallelScanProperties getScanProps() {
+    return scanProps;
+  }
+
+  public DynamoScanSpec getScan() {
     return scan;
   }
 
@@ -121,24 +129,18 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     return this.storage.inflateCredentials();
   }
 
-  @JsonTypeName("dynamo-sub-scan-spec")
+  @JsonTypeName("dynamo-sub-scanProps-spec")
   public static class DynamoSubScanSpec {
-    private final DynamoTableDefinition table;
     private final int totalSegments;
     private final int segmentId;
     private final List<SchemaPath> columns;
 
-    public DynamoSubScanSpec(@JsonProperty("table") DynamoTableDefinition table,
-      @JsonProperty("segments") int totalSegments, @JsonProperty("segment-id") int segmentId,
+    public DynamoSubScanSpec(@JsonProperty("segments") int totalSegments,
+      @JsonProperty("segment-id") int segmentId,
       @JsonProperty("projections") List<SchemaPath> columns) {
-      this.table = table;
       this.totalSegments = totalSegments;
       this.segmentId = segmentId;
       this.columns = columns;
-    }
-
-    public DynamoTableDefinition getTable() {
-      return table;
     }
 
     public int getTotalSegments() {

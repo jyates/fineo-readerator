@@ -4,6 +4,7 @@ import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.KeyType;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoScanFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import org.apache.calcite.rel.type.RelDataType;
