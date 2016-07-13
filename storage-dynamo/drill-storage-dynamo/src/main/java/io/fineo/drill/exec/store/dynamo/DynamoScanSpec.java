@@ -21,6 +21,13 @@ public class DynamoScanSpec {
   private DynamoTableDefinition table;
   private ClientProperties client;
   private ParallelScanProperties scan;
+  private DynamoFilterSpec hashKeyFilter;
+  private DynamoFilterSpec rangeKeyFilter;
+  private DynamoFilterSpec attributeFilter;
+
+  @JsonCreator
+  public DynamoScanSpec(){
+  }
 
   public ClientProperties getClient() {
     return client;
@@ -44,5 +51,38 @@ public class DynamoScanSpec {
 
   public DynamoTableDefinition getTable() {
     return this.table;
+  }
+
+  public DynamoFilterSpec getHashKeyFilter() {
+    return hashKeyFilter;
+  }
+
+  public void setHashKeyFilter(DynamoFilterSpec hashKeyFilter) {
+    this.hashKeyFilter = hashKeyFilter;
+  }
+
+  public DynamoFilterSpec getRangeKeyFilter() {
+    return rangeKeyFilter;
+  }
+
+  public void setRangeKeyFilter(DynamoFilterSpec rangeKeyFilter) {
+    this.rangeKeyFilter = rangeKeyFilter;
+  }
+
+  public DynamoFilterSpec getAttributeFilter() {
+    return attributeFilter;
+  }
+
+  public void setAttributeFilter(DynamoFilterSpec attributeFilter) {
+    this.attributeFilter = attributeFilter;
+  }
+
+  public DynamoScanSpec(DynamoScanSpec other) {
+    this.table = other.table;
+    this.client = other.client;
+    this.scan = other.scan;
+    this.hashKeyFilter = other.hashKeyFilter;
+    this.rangeKeyFilter = other.rangeKeyFilter;
+    this.attributeFilter = other.attributeFilter;
   }
 }
