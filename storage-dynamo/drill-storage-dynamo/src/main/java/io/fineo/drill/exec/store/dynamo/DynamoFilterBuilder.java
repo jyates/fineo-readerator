@@ -17,37 +17,52 @@
  */
 package io.fineo.drill.exec.store.dynamo;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import org.apache.drill.common.expression.BooleanOperator;
 import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.expression.visitors.AbstractExprVisitor;
-import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.filter.BinaryComparator;
-import org.apache.hadoop.hbase.filter.ByteArrayComparable;
-import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
-import org.apache.hadoop.hbase.filter.Filter;
-import org.apache.hadoop.hbase.filter.NullComparator;
-import org.apache.hadoop.hbase.filter.RegexStringComparator;
-import org.apache.hadoop.hbase.filter.RowFilter;
-import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 
-import java.util.Arrays;
+import java.util.List;
+import java.util.function.BiFunction;
 
-public class DynamoFilterBuilder extends AbstractExprVisitor<DynamoScanSpec, Void,
-  RuntimeException> {
+/**
+ * Filter builder heavily based on the Drill HBaseFilterBuilder. Depth-first exploration of the
+ * logical expression and converts them into a filter by finding the 'leaf' expressions (i.e. a =
+ * '1') and then progressively combing them with AND/OR expressions based on the function at the
+ * layer above.
+ */
+public class DynamoFilterBuilder
+  extends AbstractExprVisitor<DynamoScanSpec, Void, RuntimeException> {
 
+  private static final String AND = "booleanAnd";
+  private static final String OR = "booleanOr";
   final private DynamoGroupScan groupScan;
 
   final private LogicalExpression le;
+  private final DynamoTableDefinition.PrimaryKey range;
+  private DynamoTableDefinition.PrimaryKey hash;
 
   private boolean allExpressionsConverted = true;
 
   DynamoFilterBuilder(DynamoGroupScan groupScan, LogicalExpression le) {
     this.groupScan = groupScan;
     this.le = le;
+
+    // figure out the pks
+    List<DynamoTableDefinition.PrimaryKey> pks = groupScan.getSpec().getTable().getKeys();
+    this.hash = pks.get(0);
+    if (pks.size() > 1) {
+      if (hash.isHashKey()) {
+        this.range = pks.get(1);
+      } else {
+        this.range = hash;
+        this.hash = pks.get(1);
+      }
+    } else {
+      this.range = null;
+    }
   }
 
   public DynamoScanSpec parseTree() {
@@ -83,12 +98,12 @@ public class DynamoFilterBuilder extends AbstractExprVisitor<DynamoScanSpec, Voi
     if (CompareFunctionsProcessor.isCompareFunction(functionName)) {
       CompareFunctionsProcessor processor = CompareFunctionsProcessor.process(call);
       if (processor.isSuccess()) {
-        nodeScanSpec = createHBaseScanSpec(call, processor);
+        nodeScanSpec = createDynamoScanSpec(call, processor);
       }
     } else {
       switch (functionName) {
-        case "booleanAnd":
-        case "booleanOr":
+        case AND:
+        case OR:
           DynamoScanSpec firstScanSpec = args.get(0).accept(this, null);
           for (int i = 1; i < args.size(); ++i) {
             DynamoScanSpec nextScanSpec = args.get(i).accept(this, null);
@@ -96,7 +111,7 @@ public class DynamoFilterBuilder extends AbstractExprVisitor<DynamoScanSpec, Voi
               nodeScanSpec = mergeScanSpecs(functionName, firstScanSpec, nextScanSpec);
             } else {
               allExpressionsConverted = false;
-              if ("booleanAnd".equals(functionName)) {
+              if (AND.equals(functionName)) {
                 nodeScanSpec = firstScanSpec == null ? nextScanSpec : firstScanSpec;
               }
             }
@@ -113,228 +128,64 @@ public class DynamoFilterBuilder extends AbstractExprVisitor<DynamoScanSpec, Voi
     return nodeScanSpec;
   }
 
-  private DynamoScanSpec mergeScanSpecs(String functionName, DynamoScanSpec leftScanSpec,
-    DynamoScanSpec rightScanSpec) {
-    Filter newFilter = null;
-    byte[] startRow = HConstants.EMPTY_START_ROW;
-    byte[] stopRow = HConstants.EMPTY_END_ROW;
+  private DynamoScanSpec mergeScanSpecs(String functionName, DynamoScanSpec left,
+    DynamoScanSpec right) {
+    DynamoScanSpec spec = new DynamoScanSpec(left);
 
-    switch (functionName) {
-      case "booleanAnd":
-        newFilter = HBaseUtils
-          .andFilterAtIndex(leftScanSpec.filter, HBaseUtils.LAST_FILTER, rightScanSpec.filter);
-        startRow = HBaseUtils.maxOfStartRows(leftScanSpec.startRow, rightScanSpec.startRow);
-        stopRow = HBaseUtils.minOfStopRows(leftScanSpec.stopRow, rightScanSpec.stopRow);
-        break;
-      case "booleanOr":
-        newFilter = HBaseUtils
-          .orFilterAtIndex(leftScanSpec.filter, HBaseUtils.LAST_FILTER, rightScanSpec.filter);
-        startRow = HBaseUtils.minOfStartRows(leftScanSpec.startRow, rightScanSpec.startRow);
-        stopRow = HBaseUtils.maxOfStopRows(leftScanSpec.stopRow, rightScanSpec.stopRow);
-    }
-    return new HBaseScanSpec(groupScan.getTableName(), startRow, stopRow, newFilter);
+    BiFunction<DynamoFilterSpec, DynamoFilterSpec, DynamoFilterSpec> func =
+      functionName.equals(AND) ? this::and : this::or;
+
+    DynamoFilterSpec hKey = func.apply(left.getHashKeyFilter(), right.getHashKeyFilter());
+    DynamoFilterSpec rKey = func.apply(left.getRangeKeyFilter(), right.getRangeKeyFilter());
+    DynamoFilterSpec attrib = func.apply(left.getAttributeFilter(), left.getAttributeFilter());
+    spec.setHashKeyFilter(hKey);
+    spec.setRangeKeyFilter(rKey);
+    spec.setAttributeFilter(attrib);
+    return spec;
   }
 
-  private DynamoScanSpec createHBaseScanSpec(FunctionCall call,
+  private DynamoFilterSpec and(DynamoFilterSpec left, DynamoFilterSpec right) {
+    return left == null ? left : left.and(right);
+  }
+
+  private DynamoFilterSpec or(DynamoFilterSpec left, DynamoFilterSpec right) {
+    return left == null ? left : left.or(right);
+  }
+
+  private DynamoScanSpec createDynamoScanSpec(FunctionCall call,
     CompareFunctionsProcessor processor) {
     String functionName = processor.getFunctionName();
     SchemaPath field = processor.getPath();
-    byte[] fieldValue = processor.getValue();
-    boolean sortOrderAscending = processor.isSortOrderAscending();
-    boolean isRowKey = field.getAsUnescapedPath().equals(ROW_KEY);
-    if (!(
-      isRowKey
-      || (
-        !field.getRootSegment().isLastPath()
-        && field.getRootSegment().getChild().isLastPath()
-        && field.getRootSegment().getChild().isNamed())
-    )
-      ) {
-      /*
-       * if the field in this function is neither the row_key nor a qualified HBase column, return.
-       */
-      return null;
-    }
+    String fieldName = field.getAsUnescapedPath();
+    String fieldValue = processor.getValue();
+    boolean isHashKey = this.hash.getName().equals(fieldName);
+    boolean isRangeKey = this.range != null && this.range.getName().equals(fieldName);
+    assert !(isHashKey && isRangeKey) : fieldName + " be both hash and range key";
 
-    if (processor.isRowKeyPrefixComparison()) {
-      return createRowKeyPrefixScanSpec(call, processor);
-    }
-
-    CompareOp compareOp = null;
-    boolean isNullTest = false;
-    ByteArrayComparable comparator = new BinaryComparator(fieldValue);
-    byte[] startRow = HConstants.EMPTY_START_ROW;
-    byte[] stopRow = HConstants.EMPTY_END_ROW;
+    // normalize function names, since drill can't do this already...apparently
     switch (functionName) {
-      case "equal":
-        compareOp = CompareOp.EQUAL;
-        if (isRowKey) {
-          startRow = fieldValue;
-        /* stopRow should be just greater than 'value'*/
-          stopRow = Arrays.copyOf(fieldValue, fieldValue.length + 1);
-          compareOp = CompareOp.EQUAL;
-        }
-        break;
-      case "not_equal":
-        compareOp = CompareOp.NOT_EQUAL;
-        break;
-      case "greater_than_or_equal_to":
-        if (sortOrderAscending) {
-          compareOp = CompareOp.GREATER_OR_EQUAL;
-          if (isRowKey) {
-            startRow = fieldValue;
-          }
-        } else {
-          compareOp = CompareOp.LESS_OR_EQUAL;
-          if (isRowKey) {
-            // stopRow should be just greater than 'value'
-            stopRow = Arrays.copyOf(fieldValue, fieldValue.length + 1);
-          }
-        }
-        break;
-      case "greater_than":
-        if (sortOrderAscending) {
-          compareOp = CompareOp.GREATER;
-          if (isRowKey) {
-            // startRow should be just greater than 'value'
-            startRow = Arrays.copyOf(fieldValue, fieldValue.length + 1);
-          }
-        } else {
-          compareOp = CompareOp.LESS;
-          if (isRowKey) {
-            stopRow = fieldValue;
-          }
-        }
-        break;
-      case "less_than_or_equal_to":
-        if (sortOrderAscending) {
-          compareOp = CompareOp.LESS_OR_EQUAL;
-          if (isRowKey) {
-            // stopRow should be just greater than 'value'
-            stopRow = Arrays.copyOf(fieldValue, fieldValue.length + 1);
-          }
-        } else {
-          compareOp = CompareOp.GREATER_OR_EQUAL;
-          if (isRowKey) {
-            startRow = fieldValue;
-          }
-        }
-        break;
-      case "less_than":
-        if (sortOrderAscending) {
-          compareOp = CompareOp.LESS;
-          if (isRowKey) {
-            stopRow = fieldValue;
-          }
-        } else {
-          compareOp = CompareOp.GREATER;
-          if (isRowKey) {
-            // startRow should be just greater than 'value'
-            startRow = Arrays.copyOf(fieldValue, fieldValue.length + 1);
-          }
-        }
-        break;
       case "isnull":
       case "isNull":
       case "is null":
-        if (isRowKey) {
-          return null;
-        }
-        isNullTest = true;
-        compareOp = CompareOp.EQUAL;
-        comparator = new NullComparator();
+        functionName = "isNull";
         break;
       case "isnotnull":
       case "isNotNull":
       case "is not null":
-        if (isRowKey) {
-          return null;
-        }
-        compareOp = CompareOp.NOT_EQUAL;
-        comparator = new NullComparator();
-        break;
-      case "like":
-      /*
-       * Convert the LIKE operand to Regular Expression pattern so that we can
-       * apply RegexStringComparator()
-       */
-        HBaseRegexParser parser = new HBaseRegexParser(call).parse();
-        compareOp = CompareOp.EQUAL;
-        comparator = new RegexStringComparator(parser.getRegexString());
-
-      /*
-       * We can possibly do better if the LIKE operator is on the row_key
-       */
-        if (isRowKey) {
-          String prefix = parser.getPrefixString();
-          if (prefix != null) { // group 3 is literal
-          /*
-           * If there is a literal prefix, it can help us prune the scan to a sub range
-           */
-            if (prefix.equals(parser.getLikeString())) {
-            /* The operand value is literal. This turns the LIKE operator to EQUAL operator */
-              startRow = stopRow = fieldValue;
-              compareOp = null;
-            } else {
-              startRow = prefix.getBytes(Charsets.UTF_8);
-              stopRow = startRow.clone();
-              boolean isMaxVal = true;
-              for (int i = stopRow.length - 1; i >= 0; --i) {
-                int nextByteValue = (0xff & stopRow[i]) + 1;
-                if (nextByteValue < 0xff) {
-                  stopRow[i] = (byte) nextByteValue;
-                  isMaxVal = false;
-                  break;
-                } else {
-                  stopRow[i] = 0;
-                }
-              }
-              if (isMaxVal) {
-                stopRow = HConstants.EMPTY_END_ROW;
-              }
-            }
-          }
-        }
+        functionName = "isNotNull";
         break;
     }
-
-    if (compareOp != null || startRow != HConstants.EMPTY_START_ROW || stopRow != HConstants
-      .EMPTY_END_ROW) {
-      Filter filter = null;
-      if (isRowKey) {
-        if (compareOp != null) {
-          filter = new RowFilter(compareOp, comparator);
-        }
-      } else {
-        byte[] family = HBaseUtils.getBytes(field.getRootSegment().getPath());
-        byte[] qualifier =
-          HBaseUtils.getBytes(field.getRootSegment().getChild().getNameSegment().getPath());
-        filter = new SingleColumnValueFilter(family, qualifier, compareOp, comparator);
-        ((SingleColumnValueFilter) filter).setLatestVersionOnly(true);
-        if (!isNullTest) {
-          ((SingleColumnValueFilter) filter).setFilterIfMissing(true);
-        }
-      }
-      return new HBaseScanSpec(groupScan.getTableName(), startRow, stopRow, filter);
-    }
-    // else
-    return null;
-  }
-
-  private DynamoScanSpec createRowKeyPrefixScanSpec(FunctionCall call,
-    CompareFunctionsProcessor processor) {
-    byte[] startRow = processor.getRowKeyPrefixStartRow();
-    byte[] stopRow = processor.getRowKeyPrefixStopRow();
-    Filter filter = processor.getRowKeyPrefixFilter();
-
-    if (startRow != HConstants.EMPTY_START_ROW ||
-        stopRow != HConstants.EMPTY_END_ROW ||
-        filter != null) {
-      return new HBaseScanSpec(groupScan.getTableName(), startRow, stopRow, filter);
+    DynamoFilterSpec filter = DynamoFilterSpec.create(functionName, fieldName, fieldValue);
+    // we don't know how to handle this function
+    if (filter == null) {
+      return null;
     }
 
-    // else
-    return null;
+    DynamoScanSpec spec = new DynamoScanSpec(groupScan.getSpec());
+    // make sure we reset the scan part of the spec
+    spec.setAttributeFilter(isHashKey ? filter : null);
+    spec.setAttributeFilter(isRangeKey ? filter : null);
+    spec.setAttributeFilter(!(isHashKey || isRangeKey) ? filter : null);
+    return spec;
   }
-
 }

@@ -35,6 +35,9 @@ import org.apache.drill.exec.planner.physical.ProjectPrel;
 import org.apache.drill.exec.planner.physical.ScanPrel;
 import org.apache.drill.exec.store.StoragePluginOptimizerRule;
 
+import static org.apache.drill.exec.planner.logical.DrillOptiq.toDrill;
+import static org.apache.drill.exec.planner.physical.PrelUtil.getPlannerSettings;
+
 public final class DynamoPushFilterIntoScan {
 
   private DynamoPushFilterIntoScan() {
@@ -114,14 +117,13 @@ public final class DynamoPushFilterIntoScan {
     }
   };
 
-
-  private static void doPushFilterToScan(final RelOptRuleCall call, final FilterPrel filter, final
-  ProjectPrel project, final ScanPrel scan, final DynamoGroupScan groupScan,
+  private static void doPushFilterToScan(final RelOptRuleCall call, final FilterPrel filter,
+    final ProjectPrel project, final ScanPrel scan, final DynamoGroupScan groupScan,
     final RexNode condition) {
-
-    final LogicalExpression conditionExp = DrillOptiq
-      .toDrill(new DrillParseContext(PrelUtil.getPlannerSettings(call.getPlanner())), scan,
-        condition);
+    // convert the expression
+    final LogicalExpression conditionExp =
+      toDrill(new DrillParseContext(getPlannerSettings(call.getPlanner())), scan, condition);
+    // try to build a new filter
     final DynamoFilterBuilder filterBuilder = new DynamoFilterBuilder(groupScan, conditionExp);
     final DynamoScanSpec newScanSpec = filterBuilder.parseTree();
     if (newScanSpec == null) {
