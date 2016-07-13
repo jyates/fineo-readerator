@@ -100,12 +100,15 @@ public class DynamoFilterBuilder
     String functionName = call.getName();
     ImmutableList<LogicalExpression> args = call.args;
 
+    // its a simple function call, i.e. a = '1', so just build the scan spec for that
     if (CompareFunctionsProcessor.isCompareFunction(functionName)) {
       CompareFunctionsProcessor processor = CompareFunctionsProcessor.process(call);
       if (processor.isSuccess()) {
         nodeScanSpec = createDynamoScanSpec(call, processor);
       }
     } else {
+      // its a more complicated function, of which we only handle the logical bifurcation, so
+      // build up the resulting filter as tiers of conjunction/disjunction
       switch (functionName) {
         case AND:
         case OR:
@@ -126,6 +129,7 @@ public class DynamoFilterBuilder
       }
     }
 
+    // we didn't find a matching function
     if (nodeScanSpec == null) {
       allExpressionsConverted = false;
     }

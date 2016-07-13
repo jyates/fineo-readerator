@@ -130,12 +130,12 @@ public final class DynamoPushFilterIntoScan {
       return; //no filter pushDown ==> No transformation.
     }
 
-    final DynamoGroupScan newGroupsScan = new DynamoGroupScan(groupScan);
-    newGroupsScan.setScanSpec(newScanSpec);
-    newGroupsScan.setFilterPushedDown(true);
+    final DynamoGroupScan newGroupScan = new DynamoGroupScan(groupScan);
+    newGroupScan.setScanSpec(newScanSpec);
+    newGroupScan.setFilterPushedDown(true);
 
     final ScanPrel newScanPrel =
-      ScanPrel.create(scan, filter.getTraitSet(), newGroupsScan, scan.getRowType());
+      ScanPrel.create(scan, filter.getTraitSet(), newGroupScan, scan.getRowType());
 
     // Depending on whether is a project in the middle, assign either scan or copy of project to
     // childRel.
@@ -144,7 +144,7 @@ public final class DynamoPushFilterIntoScan {
 
     if (filterBuilder.isAllExpressionsConverted()) {
         /*
-         * Since we could convert the entire filter condition expression into an HBase filter,
+         * Since we could convert the entire filter condition expression into a Dynamo filter,
          * we can eliminate the filter operator altogether.
          */
       call.transformTo(childRel);
