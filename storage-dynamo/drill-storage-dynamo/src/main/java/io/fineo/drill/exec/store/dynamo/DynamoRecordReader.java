@@ -16,6 +16,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
+import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.PathSegment;
@@ -87,6 +88,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
   private final DynamoSubScan.DynamoSubScanSpec scanSpec;
   private final boolean consistentRead;
   private final DynamoEndpoint endpoint;
+  private final ParallelScanProperties scanProps;
   private OutputMutator outputMutator;
   private OperatorContext operatorContext;
   private AmazonDynamoDBAsyncClient client;
@@ -96,12 +98,13 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
   public DynamoRecordReader(AWSCredentialsProvider credentials, ClientConfiguration clientConf,
     DynamoEndpoint endpoint, DynamoSubScan.DynamoSubScanSpec scanSpec,
-    List<SchemaPath> columns, boolean consistentRead) {
+    List<SchemaPath> columns, boolean consistentRead, ParallelScanProperties scanProperties) {
     this.credentials = credentials;
     this.clientConf = clientConf;
     this.scanSpec = scanSpec;
     this.consistentRead = consistentRead;
     this.endpoint = endpoint;
+    this.scanProps = scanProperties;
     setColumns(columns);
   }
 
@@ -130,7 +133,7 @@ public class DynamoRecordReader extends AbstractRecordReader {
     ScanSpec spec = new ScanSpec();
     spec.withConsistentRead(consistentRead);
     // basic scan requirements
-    int limit = scanSpec.getLimit();
+    int limit = scanProps.getLimit();
     if (limit > 0) {
       spec.setMaxPageSize(limit);
     }

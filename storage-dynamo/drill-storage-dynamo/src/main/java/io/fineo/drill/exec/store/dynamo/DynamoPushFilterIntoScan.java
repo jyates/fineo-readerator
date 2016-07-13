@@ -26,11 +26,9 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rex.RexNode;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.exec.physical.base.GroupScan;
-import org.apache.drill.exec.planner.logical.DrillOptiq;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
 import org.apache.drill.exec.planner.logical.RelOptHelper;
 import org.apache.drill.exec.planner.physical.FilterPrel;
-import org.apache.drill.exec.planner.physical.PrelUtil;
 import org.apache.drill.exec.planner.physical.ProjectPrel;
 import org.apache.drill.exec.planner.physical.ScanPrel;
 import org.apache.drill.exec.store.StoragePluginOptimizerRule;
@@ -42,6 +40,41 @@ public final class DynamoPushFilterIntoScan {
 
   private DynamoPushFilterIntoScan() {
   }
+
+  public static final StoragePluginOptimizerRule FILTER_ON_SCAN = new FilterIntoScanBase(
+    RelOptHelper.some(FilterPrel.class, RelOptHelper.any(ScanPrel.class)),
+    "DynamoPushFilterIntoScan:Filter_On_Scan") {
+
+    @Override
+    protected void pushDown(RelOptRuleCall call) {
+      final FilterPrel filter = call.rel(0);
+      final RexNode condition = filter.getCondition();
+
+      final ScanPrel scan = call.rel(1);
+      DynamoGroupScan groupScan = (DynamoGroupScan) scan.getGroupScan();
+      doPushFilterToScan(call, filter, null, scan, groupScan, condition);
+    }
+  };
+
+
+  public static final StoragePluginOptimizerRule FILTER_ON_PROJECT = new FilterIntoScanBase(
+    RelOptHelper
+      .some(FilterPrel.class,
+        RelOptHelper.some(ProjectPrel.class, RelOptHelper.any(ScanPrel.class))),
+    "DynamoPushFilterIntoScan:Filter_On_Project") {
+
+    @Override
+    protected void pushDown(RelOptRuleCall call) {
+      final FilterPrel filter = call.rel(0);
+      final ProjectPrel project = call.rel(1);
+      final ScanPrel scan = call.rel(2);
+
+      // convert the filter to one that references the child of the project
+      final RexNode condition = RelOptUtil.pushFilterPastProject(filter.getCondition(), project);
+      doPushFilterToScan(call, filter, project, scan, (DynamoGroupScan) scan.getGroupScan(),
+        condition);
+    }
+  };
 
   private abstract static class FilterIntoScanBase extends StoragePluginOptimizerRule {
 
@@ -76,46 +109,11 @@ public final class DynamoPushFilterIntoScan {
          */
         return;
       }
-      pushdown(call);
+      pushDown(call);
     }
 
-    protected abstract void pushdown(RelOptRuleCall call);
+    protected abstract void pushDown(RelOptRuleCall call);
   }
-
-  public static final StoragePluginOptimizerRule FILTER_ON_SCAN = new FilterIntoScanBase(
-    RelOptHelper.some(FilterPrel.class, RelOptHelper.any(ScanPrel.class)),
-    "DynamoPushFilterIntoScan:Filter_On_Scan") {
-
-    @Override
-    protected void pushdown(RelOptRuleCall call) {
-      final FilterPrel filter = call.rel(0);
-      final RexNode condition = filter.getCondition();
-
-      final ScanPrel scan = call.rel(1);
-      DynamoGroupScan groupScan = (DynamoGroupScan) scan.getGroupScan();
-      doPushFilterToScan(call, filter, null, scan, groupScan, condition);
-    }
-  };
-
-
-  public static final StoragePluginOptimizerRule FILTER_ON_PROJECT = new FilterIntoScanBase(
-    RelOptHelper
-      .some(FilterPrel.class,
-        RelOptHelper.some(ProjectPrel.class, RelOptHelper.any(ScanPrel.class))),
-    "DynamoPushFilterIntoScan:Filter_On_Project") {
-
-    @Override
-    protected void pushdown(RelOptRuleCall call) {
-      final FilterPrel filter = call.rel(0);
-      final ProjectPrel project = call.rel(1);
-      final ScanPrel scan = call.rel(2);
-
-      // convert the filter to one that references the child of the project
-      final RexNode condition = RelOptUtil.pushFilterPastProject(filter.getCondition(), project);
-      doPushFilterToScan(call, filter, project, scan, (DynamoGroupScan) scan.getGroupScan(),
-        condition);
-    }
-  };
 
   private static void doPushFilterToScan(final RelOptRuleCall call, final FilterPrel filter,
     final ProjectPrel project, final ScanPrel scan, final DynamoGroupScan groupScan,
@@ -127,11 +125,11 @@ public final class DynamoPushFilterIntoScan {
     final DynamoFilterBuilder filterBuilder = new DynamoFilterBuilder(groupScan, conditionExp);
     final DynamoScanSpec newScanSpec = filterBuilder.parseTree();
     if (newScanSpec == null) {
-      return; //no filter pushdown ==> No transformation.
+      return; //no filter pushDown ==> No transformation.
     }
 
-    final DynamoGroupScan newGroupsScan = new DynamoGroupScan(groupScan.getUserName(), groupScan
-      .getStoragePlugin(), newScanSpec, groupScan.getColumns());
+    final DynamoGroupScan newGroupsScan = new DynamoGroupScan(groupScan);
+    newGroupsScan.setScanSpec(newScanSpec);
     newGroupsScan.setFilterPushedDown(true);
 
     final ScanPrel newScanPrel =
@@ -152,5 +150,4 @@ public final class DynamoPushFilterIntoScan {
       call.transformTo(filter.copy(filter.getTraitSet(), ImmutableList.of(childRel)));
     }
   }
-
 }

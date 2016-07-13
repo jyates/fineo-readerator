@@ -4,8 +4,6 @@ import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.KeyType;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
-import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
-import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
@@ -21,8 +19,7 @@ public class DrillDynamoTable extends DynamicDrillTable {
 
   private final TableDescription desc;
 
-  public DrillDynamoTable(DynamoStoragePlugin plugin, String
-    tableName, ClientProperties clientProps, ParallelScanProperties scan) {
+  public DrillDynamoTable(DynamoStoragePlugin plugin, String tableName) {
     super(plugin, tableName, new DynamoScanSpec());
     try {
       this.desc = plugin.getModel().getTable(tableName).waitForActive();
@@ -31,9 +28,6 @@ public class DrillDynamoTable extends DynamicDrillTable {
     }
 
     DynamoScanSpec spec = ((DynamoScanSpec) this.getSelection());
-    spec.setClient(clientProps);
-    spec.setScan(scan);
-
     // figure out the pk map
     List<KeySchemaElement> keys = desc.getKeySchema();
     List<AttributeDefinition> attributes = desc.getAttributeDefinitions();
