@@ -162,7 +162,7 @@ public class DynamoFilterSpec {
 
     @Override
     public String toString() {
-      return "(" + left.toString() + " " + condition + " " + right.toString() + ")";
+      return "( " + left.toString() + " ) " + condition + " ( " + right.toString() + " )";
     }
 
     @JsonProperty
