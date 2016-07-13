@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.fineo.drill.exec.store.dynamo;
+package io.fineo.drill.exec.store.dynamo.filter;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -125,6 +125,7 @@ class CompareFunctionsProcessor extends
         .add(LongExpression.class)
         .add(QuotedString.class)
         .add(TimeExpression.class)
+        // TODO add support for IN and BETWEEN
         .build();
   }
 

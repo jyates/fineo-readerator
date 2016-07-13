@@ -1,4 +1,4 @@
-package io.fineo.drill.exec.store.dynamo;
+package io.fineo.drill.exec.store.dynamo.filter;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;

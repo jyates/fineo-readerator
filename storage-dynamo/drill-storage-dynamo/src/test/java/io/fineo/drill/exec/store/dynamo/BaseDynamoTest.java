@@ -1,0 +1,222 @@
+package io.fineo.drill.exec.store.dynamo;
+
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
+import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
+import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
+import com.amazonaws.services.dynamodbv2.model.KeyType;
+import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
+import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
+import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
+import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
+import io.fineo.drill.exec.store.dynamo.config.StaticCredentialsConfig;
+import io.fineo.lambda.dynamo.rule.AwsDynamoResource;
+import io.fineo.lambda.dynamo.rule.AwsDynamoTablesResource;
+import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
+import org.apache.drill.BaseTestQuery;
+import org.apache.drill.exec.exception.SchemaChangeException;
+import org.apache.drill.exec.record.MaterializedField;
+import org.apache.drill.exec.record.RecordBatchLoader;
+import org.apache.drill.exec.record.VectorWrapper;
+import org.apache.drill.exec.rpc.user.QueryDataBatch;
+import org.apache.drill.exec.store.StoragePluginRegistry;
+import org.apache.drill.exec.util.Text;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Rule;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+
+/**
+ *
+ */
+public class BaseDynamoTest extends BaseTestQuery {
+
+  @ClassRule
+  public static AwsDynamoResource dynamo =
+    new AwsDynamoResource(BaseDynamoTableTest.STATIC_CREDENTIALS_PROVIDER);
+  @Rule
+  public AwsDynamoTablesResource tables = new AwsDynamoTablesResource(dynamo);
+
+  protected static DynamoStoragePlugin storagePlugin;
+  protected static DynamoStoragePluginConfig storagePluginConfig;
+
+  protected static final String PK = "pk";
+  protected static final String COL1 = "col1";
+
+  @BeforeClass
+  public static void setupDefaultTestCluster() throws Exception {
+    BaseTestQuery.setupDefaultTestCluster();
+
+    final StoragePluginRegistry pluginRegistry = getDrillbitContext().getStorage();
+    storagePlugin = (DynamoStoragePlugin) pluginRegistry.getPlugin(DynamoStoragePlugin.NAME);
+    storagePluginConfig = (DynamoStoragePluginConfig) storagePlugin.getConfig();
+    storagePluginConfig.setEnabled(true);
+
+    DynamoEndpoint endpoint = new DynamoEndpoint(dynamo.getUtil().getUrl());
+    storagePluginConfig.setEndpointForTesting(endpoint);
+
+    Map<String, Object> credentials = new HashMap<>();
+    AWSCredentials creds = BaseDynamoTableTest.STATIC_CREDENTIALS_PROVIDER.getCredentials();
+    StaticCredentialsConfig credentialsConfig = new StaticCredentialsConfig(creds
+      .getAWSAccessKeyId(), creds.getAWSSecretKey());
+    credentialsConfig.setCredentials(credentials);
+    storagePluginConfig.setCredentialsForTesting(credentials);
+
+    ParallelScanProperties scan = new ParallelScanProperties();
+    scan.setMaxSegments(10);
+    scan.setLimit(1);
+    scan.setSegmentsPerEndpoint(1);
+    storagePluginConfig.setScanPropertiesForTesting(scan);
+
+    pluginRegistry.createOrUpdate(DynamoStoragePlugin.NAME, storagePluginConfig, true);
+  }
+
+  protected Item item() {
+    Item item = new Item();
+    item.with(PK, "pk");
+    return item;
+  }
+
+  protected Map<String, Object> justOneRow(List<Map<String, Object>> rows) {
+    assertEquals("Got more rows than expected! Rows: " + rows, 1, rows.size());
+    return rows.get(0);
+  }
+
+  protected Table putAndSelectStar(Item... items) throws Exception {
+    Table table = createHashTable();
+    for (Item item : items) {
+      table.putItem(item);
+    }
+    selectStar(table, items);
+    return table;
+  }
+
+  protected void selectStar(Table table, Item... items) throws Exception {
+    selectStar(table, true, items);
+  }
+
+  protected List<Map<String, Object>> selectStar(Table table, boolean verify, Item... items) throws
+    Exception {
+    String sql = "SELECT *" + from(table);
+    List<Map<String, Object>> rows = runAndReadResults(sql);
+    if (verify) {
+      verify(rows, items);
+    }
+    return rows;
+  }
+
+  protected String from(Table table) {
+    return " FROM dynamo." + table.getTableName() +" ";
+  }
+
+  protected List<Map<String, Object>> runAndReadResults(String sql) throws Exception {
+    List<QueryDataBatch> results = testSqlWithResults(sql);
+    return readObjects(results);
+  }
+
+  protected void verify(List<Map<String, Object>> rows, Item... items) {
+    assertEquals("Wrong number of expected rows! Got rows: " + rows + "\nExpected: " + items,
+      rows.size(), items.length);
+    for (int i = 0; i < items.length; i++) {
+      Map<String, Object> row = rows.get(i);
+      Item item = items[i];
+      assertEquals("Wrong number of fields in row! Got row: " + row + "\nExpected: " + item,
+        row.size(), item.asMap().size());
+      for (Map.Entry<String, Object> field : row.entrySet()) {
+        String name = field.getKey();
+        Object o = field.getValue();
+        if (o instanceof Text) {
+          o = o.toString();
+        }
+        if (o instanceof byte[]) {
+          assertArrayEquals("Array mismatch for: " + name, (byte[]) item.get(name), (byte[]) o);
+        } else {
+          assertEquals("Mismatch for: " + name, item.get(name), o);
+        }
+      }
+    }
+  }
+
+  protected List<Map<String, Object>> readObjects(List<QueryDataBatch> results) throws
+    SchemaChangeException {
+    List<Map<String, Object>> rows = new ArrayList<>();
+    final RecordBatchLoader loader = new RecordBatchLoader(getAllocator());
+    for (final QueryDataBatch result : results) {
+      loader.load(result.getHeader().getDef(), result.getData());
+      List<Map<String, Object>> read = readRow(loader);
+      rows.addAll(read);
+      loader.clear();
+      result.release();
+    }
+    return rows;
+  }
+
+
+  protected List<Map<String, Object>> readRow(RecordBatchLoader loader) {
+    List<Map<String, Object>> rows = new ArrayList<>();
+    for (int row = 0; row < loader.getRecordCount(); row++) {
+      Map<String, Object> rowMap = new HashMap<>();
+      rows.add(rowMap);
+      for (VectorWrapper<?> vw : loader) {
+        MaterializedField field = vw.getField();
+        String name = field.getName();
+        Object o = vw.getValueVector().getAccessor().getObject(row);
+        rowMap.put(name, o);
+      }
+    }
+
+    for (VectorWrapper<?> vw : loader) {
+      vw.clear();
+    }
+    return rows;
+  }
+
+  protected Table createTableWithItems(Item... items) throws InterruptedException {
+    Table table = createHashTable();
+    for (Item item : items) {
+      table.putItem(item);
+    }
+    return table;
+  }
+
+  protected Table createHashTable() throws InterruptedException {
+    // single hash PK
+    ArrayList<AttributeDefinition> attributeDefinitions = new ArrayList<>();
+    attributeDefinitions.add(new AttributeDefinition()
+      .withAttributeName(PK).withAttributeType("S"));
+    ArrayList<KeySchemaElement> keySchema = new ArrayList<>();
+    keySchema.add(new KeySchemaElement().withAttributeName(PK).withKeyType(KeyType.HASH));
+
+    CreateTableRequest request = new CreateTableRequest()
+      .withKeySchema(keySchema)
+      .withAttributeDefinitions(attributeDefinitions);
+    return createTable(request);
+  }
+
+  protected Table createTable(CreateTableRequest request) throws InterruptedException {
+    DynamoDB dynamoDB = new DynamoDB(tables.getAsyncClient());
+    request.withProvisionedThroughput(new ProvisionedThroughput()
+      .withReadCapacityUnits(5L)
+      .withWriteCapacityUnits(6L));
+
+    if (request.getTableName() == null) {
+      String tableName = tables.getTestTableName();
+      tableName = tableName.replace('-', '_');
+      request.setTableName(tableName);
+    }
+
+    Table table = dynamoDB.createTable(request);
+    table.waitForActive();
+    return table;
+  }
+}

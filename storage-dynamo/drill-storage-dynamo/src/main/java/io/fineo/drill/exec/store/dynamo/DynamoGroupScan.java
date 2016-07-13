@@ -11,6 +11,8 @@ import com.google.common.collect.ListMultimap;
 import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
+import io.fineo.drill.exec.store.dynamo.physical.DynamoSubScan;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
