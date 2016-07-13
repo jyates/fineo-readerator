@@ -8,6 +8,7 @@ import com.amazonaws.services.dynamodbv2.document.Page;
 import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
 import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
@@ -68,9 +69,9 @@ public class DynamoQueryBuilder {
     DynamoScanFilterSpec filters = scanSpec.getFilter();
     DynamoTableDefinition tableDef = scanSpec.getTable();
     Table table = new DynamoDB(client).getTable(tableDef.getName());
-    if (filters.getHashKeyFilter() != null) {
+    if (filters.getKeyFilter() != null) {
       Iterator iter;
-      if (tableDef.getKeys().size() == 1 || filters.getRangeKeyFilter() != null) {
+      if (tableDef.getKeys().size() == 1 ) {
         iter = buildGet(table);
       } else {
         iter = buildQuery(table);
@@ -120,6 +121,7 @@ public class DynamoQueryBuilder {
   }
 
   private Iterator<Page<Item, ?>> buildGet(Table table) {
+    GetItemSpec spec = new GetItemSpec();
     return null;
   }
 
@@ -163,8 +165,8 @@ public class DynamoQueryBuilder {
       return add(":n", name, nameMap);
     }
 
-    public String value(String value) {
-      return add(":s", value, valueMap);
+    public String value(Object value) {
+      return add("#s", value, valueMap);
     }
 
     private <IN extends Object> String add(String prefix, IN in, Map<String, IN> map) {
