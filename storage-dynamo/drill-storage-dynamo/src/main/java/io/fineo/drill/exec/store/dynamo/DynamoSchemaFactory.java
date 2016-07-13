@@ -47,7 +47,7 @@ public class DynamoSchemaFactory implements SchemaFactory {
 
     @Override
     public Table getTable(String name) {
-      return new DrillDynamoTable(plugin, name, conf.getClient(), conf.getScan());
+      return new DrillDynamoTable(plugin, name);
     }
 
     @Override

@@ -5,17 +5,24 @@ import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
+import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.drill.common.JSONOptions;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.logical.StoragePluginConfig;
+import org.apache.drill.exec.ops.OptimizerRulesContext;
 import org.apache.drill.exec.physical.base.AbstractGroupScan;
+import org.apache.drill.exec.planner.PlannerPhase;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.store.AbstractStoragePlugin;
 import org.apache.drill.exec.store.SchemaConfig;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+
+import static com.google.common.collect.Sets.newHashSet;
 
 public class DynamoStoragePlugin extends AbstractStoragePlugin {
 
@@ -52,11 +59,22 @@ public class DynamoStoragePlugin extends AbstractStoragePlugin {
     DynamoScanSpec scanSpec = selection.getListWith(new ObjectMapper(), new
       TypeReference<DynamoScanSpec>() {
       });
-    return new DynamoGroupScan(this, scanSpec, columns);
+    return new DynamoGroupScan(this, scanSpec, columns, config.getScan(), config.getClient());
   }
 
   public DrillbitContext getContext() {
     return context;
+  }
+
+  @Override
+  public Set<? extends RelOptRule> getOptimizerRules(OptimizerRulesContext optimizerContext,
+    PlannerPhase phase) {
+    switch (phase) {
+      case PHYSICAL:
+        return newHashSet(DynamoPushFilterIntoScan.FILTER_ON_PROJECT,
+          DynamoPushFilterIntoScan.FILTER_ON_SCAN);
+    }
+    return Collections.emptySet();
   }
 
   @Override

@@ -10,6 +10,7 @@ import com.google.common.collect.Iterators;
 import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
+import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.logical.StoragePluginConfig;
@@ -30,24 +31,28 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
   private final DynamoStoragePluginConfig storage;
   private final List<SchemaPath> columns;
   private final ClientProperties client;
+  private final ParallelScanProperties scan;
 
   public DynamoSubScan(@JacksonInject StoragePluginRegistry registry,
     @JsonProperty("storage") StoragePluginConfig storage,
-    @JsonProperty("scanSpecList") List<DynamoSubScanSpec> tabletScanSpecList,
+    @JsonProperty("specs") List<DynamoSubScanSpec> tabletScanSpecList,
     @JsonProperty("columns") List<SchemaPath> columns,
-    @JsonProperty("client") ClientProperties client) throws ExecutionSetupException {
+    @JsonProperty("client") ClientProperties client,
+    @JsonProperty("scan")ParallelScanProperties scan) throws ExecutionSetupException {
     this((DynamoStoragePlugin) registry.getPlugin(storage), storage, tabletScanSpecList, columns,
-      client);
+      client, scan);
   }
 
   public DynamoSubScan(DynamoStoragePlugin plugin, StoragePluginConfig config,
-    List<DynamoSubScanSpec> specs, List<SchemaPath> columns, ClientProperties client) {
+    List<DynamoSubScanSpec> specs, List<SchemaPath> columns, ClientProperties client,
+    ParallelScanProperties scan) {
     super((String) null);
     this.plugin = plugin;
     this.specs = specs;
     this.storage = (DynamoStoragePluginConfig) config;
     this.columns = columns;
     this.client = client;
+    this.scan = new ParallelScanProperties();
   }
 
   public DynamoSubScan(DynamoSubScan other) {
@@ -57,6 +62,7 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     this.storage = other.storage;
     this.columns = other.columns;
     this.client = other.client;
+    scan = other.scan;
   }
 
   @Override
@@ -104,6 +110,10 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     return this.storage.getEndpoint();
   }
 
+  public ParallelScanProperties getScan() {
+    return scan;
+  }
+
   @JsonIgnore
   public AWSCredentialsProvider getCredentials() {
     return this.storage.inflateCredentials();
@@ -115,17 +125,14 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     private final int totalSegments;
     private final int segmentId;
     private final List<SchemaPath> columns;
-    private final int limit;
 
     public DynamoSubScanSpec(@JsonProperty("table") DynamoTableDefinition table,
       @JsonProperty("segments") int totalSegments, @JsonProperty("segment-id") int segmentId,
-      @JsonProperty("projections") List<SchemaPath> columns,
-      @JsonProperty("limit") int limit) {
+      @JsonProperty("projections") List<SchemaPath> columns) {
       this.table = table;
       this.totalSegments = totalSegments;
       this.segmentId = segmentId;
       this.columns = columns;
-      this.limit = limit;
     }
 
     public DynamoTableDefinition getTable() {
@@ -142,10 +149,6 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
 
     public List<SchemaPath> getColumns() {
       return columns;
-    }
-
-    public int getLimit() {
-      return limit;
     }
   }
 }

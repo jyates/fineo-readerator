@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ListMultimap;
+import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
@@ -41,9 +42,11 @@ public class DynamoGroupScan extends AbstractGroupScan {
   private static final int MAX_DYNAMO_PARALLELIZATION = 1000000;
 
   private final DynamoStoragePlugin plugin;
-  private final DynamoScanSpec spec;
+  private DynamoScanSpec spec;
   private List<SchemaPath> columns;
   private final StoragePluginConfig config;
+  private final ParallelScanProperties scan;
+  private final ClientProperties client;
   private ListMultimap<Integer, DynamoWork> assignments;
 
   // used to calculate the work distribution
@@ -55,18 +58,23 @@ public class DynamoGroupScan extends AbstractGroupScan {
   public DynamoGroupScan(@JsonProperty(DynamoScanSpec.NAME) DynamoScanSpec dynamoSpec,
     @JsonProperty("storage") DynamoStoragePluginConfig storagePluginConfig,
     @JsonProperty("columns") List<SchemaPath> columns,
+    @JsonProperty("scan")ParallelScanProperties scan,
+    @JsonProperty("client") ClientProperties client,
     @JacksonInject StoragePluginRegistry pluginRegistry) throws IOException,
     ExecutionSetupException {
-    this((DynamoStoragePlugin) pluginRegistry.getPlugin(storagePluginConfig), dynamoSpec, columns);
+    this((DynamoStoragePlugin) pluginRegistry.getPlugin(storagePluginConfig), dynamoSpec,
+      columns, scan, client);
   }
 
   public DynamoGroupScan(DynamoStoragePlugin plugin, DynamoScanSpec dynamoSpec,
-    List<SchemaPath> columns) {
+    List<SchemaPath> columns, ParallelScanProperties scan, ClientProperties client) {
     super((String) null);
     this.plugin = plugin;
     this.spec = dynamoSpec;
     this.columns = columns;
     this.config = plugin.getConfig();
+    this.scan = scan;
+    this.client = client;
     init();
   }
 
@@ -85,12 +93,13 @@ public class DynamoGroupScan extends AbstractGroupScan {
     this.columns = other.columns;
     this.config = other.config;
     this.desc = other.desc;
+    this.scan = other.scan;
+    this.client = other.client;
   }
 
   @Override
   public void applyAssignments(List<CoordinationProtos.DrillbitEndpoint> endpoints)
     throws PhysicalOperatorSetupException {
-    ParallelScanProperties scan = getSpec().getScan();
     int max = getMaxParallelizationWidth();
     // determine how many segments we can add to each endpoint
     int totalPerEndpoint = scan.getSegmentsPerEndpoint() * endpoints.size();
@@ -128,16 +137,15 @@ public class DynamoGroupScan extends AbstractGroupScan {
     for (DynamoWork work : segments) {
       subSpecs
         .add(new DynamoSubScan.DynamoSubScanSpec(getSpec().getTable(), assignments.size(), work
-          .getSegment(), getColumns(), getSpec().getScan().getLimit()));
+          .getSegment(), getColumns()));
 
     }
-    return new DynamoSubScan(plugin, plugin.getConfig(), subSpecs, this.columns,
-      getSpec().getClient());
+    return new DynamoSubScan(plugin, plugin.getConfig(), subSpecs, this.columns, client, scan);
   }
 
   @Override
   public int getMaxParallelizationWidth() {
-    return Math.min(getSpec().getScan().getMaxSegments(), MAX_DYNAMO_PARALLELIZATION);
+    return Math.min(scan.getMaxSegments(), MAX_DYNAMO_PARALLELIZATION);
   }
 
   @Override
@@ -207,6 +215,10 @@ public class DynamoGroupScan extends AbstractGroupScan {
 
   public void setFilterPushedDown(boolean filterPushedDown) {
     this.filterPushedDown = filterPushedDown;
+  }
+
+  public void setScanSpec(DynamoScanSpec scanSpec) {
+    this.spec = scanSpec;
   }
 
   private class DynamoWork implements CompleteWork {

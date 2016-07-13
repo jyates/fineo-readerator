@@ -32,7 +32,7 @@ public class DynamoScanBatchCreator implements BatchCreator<DynamoSubScan> {
     for (DynamoSubScan.DynamoSubScanSpec scanSpec : subScan.getSpecs()) {
       try {
         readers.add(new DynamoRecordReader(credentials, client, endpoint, scanSpec, columns,
-          clientProps.getConsistentRead()));
+          clientProps.getConsistentRead(), subScan.getScan()));
       } catch (Exception e1) {
         throw new ExecutionSetupException(e1);
       }
