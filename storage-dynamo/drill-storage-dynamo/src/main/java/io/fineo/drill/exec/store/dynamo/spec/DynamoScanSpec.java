@@ -15,17 +15,17 @@ public class DynamoScanSpec {
   public static final String NAME = "dynamo-scan-spec";
 
   private DynamoTableDefinition table;
-  private DynamoScanFilterSpec filter;
+  private DynamoReadFilterSpec filter;
 
   @JsonCreator
   public DynamoScanSpec(@JsonProperty("table") DynamoTableDefinition table, @JsonProperty
-    ("filter") DynamoScanFilterSpec filter) {
+    ("filter") DynamoReadFilterSpec filter) {
     this.table = table;
     this.filter = filter;
   }
 
   public DynamoScanSpec(){
-    this.filter = new DynamoScanFilterSpec();
+    this.filter = new DynamoReadFilterSpec();
   }
 
   public void setTable(DynamoTableDefinition table) {
@@ -36,11 +36,11 @@ public class DynamoScanSpec {
     return this.table;
   }
 
-  public DynamoScanFilterSpec getFilter() {
+  public DynamoReadFilterSpec getFilter() {
     return filter;
   }
 
-  public void setFilter(DynamoScanFilterSpec filter) {
+  public void setFilter(DynamoReadFilterSpec filter) {
     this.filter = filter;
   }
 

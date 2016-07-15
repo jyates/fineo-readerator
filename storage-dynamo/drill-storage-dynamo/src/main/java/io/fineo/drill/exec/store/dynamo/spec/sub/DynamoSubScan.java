@@ -1,4 +1,4 @@
-package io.fineo.drill.exec.store.dynamo.physical;
+package io.fineo.drill.exec.store.dynamo.spec.sub;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.fasterxml.jackson.annotation.JacksonInject;
@@ -8,11 +8,11 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.fineo.drill.exec.store.dynamo.DynamoStoragePlugin;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.logical.StoragePluginConfig;
@@ -29,27 +29,27 @@ import java.util.List;
 public class DynamoSubScan extends AbstractBase implements SubScan {
 
   private final DynamoStoragePlugin plugin;
-  private final List<DynamoSubScanSpec> specs;
+  private final List<DynamoSubReadSpec> specs;
   private final DynamoStoragePluginConfig storage;
   private final List<SchemaPath> columns;
   private final ClientProperties client;
   private final ParallelScanProperties scanProps;
-  private final DynamoScanSpec scan;
+  private final DynamoTableDefinition table;
 
   public DynamoSubScan(@JacksonInject StoragePluginRegistry registry,
     @JsonProperty("storage") StoragePluginConfig storage,
-    @JsonProperty("specs") List<DynamoSubScanSpec> tabletScanSpecList,
+    @JsonProperty("specs") List<DynamoSubReadSpec> subReadList,
     @JsonProperty("columns") List<SchemaPath> columns,
     @JsonProperty("client") ClientProperties client,
     @JsonProperty("scanProps") ParallelScanProperties scanProps,
-    @JsonProperty("scan") DynamoScanSpec scan) throws ExecutionSetupException {
-    this((DynamoStoragePlugin) registry.getPlugin(storage), storage, tabletScanSpecList, columns,
-      client, scanProps, scan);
+    @JsonProperty("table") DynamoTableDefinition table) throws ExecutionSetupException {
+    this((DynamoStoragePlugin) registry.getPlugin(storage), storage, subReadList, columns,
+      client, scanProps, table);
   }
 
   public DynamoSubScan(DynamoStoragePlugin plugin, StoragePluginConfig config,
-    List<DynamoSubScanSpec> specs, List<SchemaPath> columns, ClientProperties client,
-    ParallelScanProperties scanProps, DynamoScanSpec spec) {
+    List<DynamoSubReadSpec> specs, List<SchemaPath> columns, ClientProperties client,
+    ParallelScanProperties scanProps, DynamoTableDefinition spec) {
     super((String) null);
     this.plugin = plugin;
     this.specs = specs;
@@ -57,7 +57,7 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     this.columns = columns;
     this.client = client;
     this.scanProps = scanProps;
-    this.scan = spec;
+    this.table = spec;
   }
 
   public DynamoSubScan(DynamoSubScan other) {
@@ -68,7 +68,7 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     this.columns = other.columns;
     this.client = other.client;
     this.scanProps = other.scanProps;
-    this.scan = other.scan;
+    this.table = other.table;
   }
 
   @Override
@@ -100,7 +100,7 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     return false;
   }
 
-  public List<DynamoSubScanSpec> getSpecs() {
+  public List<DynamoSubReadSpec>  getSpecs() {
     return specs;
   }
 
@@ -120,8 +120,8 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     return scanProps;
   }
 
-  public DynamoScanSpec getScan() {
-    return scan;
+  public DynamoTableDefinition getTable() {
+    return table;
   }
 
   @JsonIgnore
@@ -129,30 +129,4 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
     return this.storage.inflateCredentials();
   }
 
-  @JsonTypeName("dynamo-sub-scanProps-spec")
-  public static class DynamoSubScanSpec {
-    private final int totalSegments;
-    private final int segmentId;
-    private final List<SchemaPath> columns;
-
-    public DynamoSubScanSpec(@JsonProperty("segments") int totalSegments,
-      @JsonProperty("segment-id") int segmentId,
-      @JsonProperty("projections") List<SchemaPath> columns) {
-      this.totalSegments = totalSegments;
-      this.segmentId = segmentId;
-      this.columns = columns;
-    }
-
-    public int getTotalSegments() {
-      return totalSegments;
-    }
-
-    public int getSegmentId() {
-      return segmentId;
-    }
-
-    public List<SchemaPath> getColumns() {
-      return columns;
-    }
-  }
 }

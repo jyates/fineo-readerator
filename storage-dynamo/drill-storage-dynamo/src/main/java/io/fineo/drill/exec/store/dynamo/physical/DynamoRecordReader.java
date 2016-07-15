@@ -10,10 +10,10 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Multimap;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
-import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
+import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubReadSpec;
+import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubScanSpec;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.PathSegment;
@@ -68,9 +68,9 @@ import static org.apache.drill.common.types.TypeProtos.MinorType;
 import static org.apache.drill.common.types.TypeProtos.MinorType.VARCHAR;
 
 /**
- * Actually do the get/query/scan based on the {@link DynamoSubScan.DynamoSubScanSpec}.
+ * Actually do the get/query/scan based on the {@link DynamoSubScanSpec}.
  */
-public class DynamoRecordReader extends AbstractRecordReader {
+public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends AbstractRecordReader {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoRecordReader.class);
   private static final Joiner DOTS = Joiner.on('.');
@@ -85,11 +85,10 @@ public class DynamoRecordReader extends AbstractRecordReader {
 
   private final AWSCredentialsProvider credentials;
   private final ClientConfiguration clientConf;
-  private final DynamoSubScan.DynamoSubScanSpec scanSlice;
+  protected final T scanSlice;
   private final boolean consistentRead;
   private final DynamoEndpoint endpoint;
-  private final ParallelScanProperties scanProps;
-  private final DynamoScanSpec spec;
+  private final DynamoTableDefinition tableDef;
   private OutputMutator outputMutator;
   private OperatorContext operatorContext;
   private AmazonDynamoDBAsyncClient client;
@@ -97,16 +96,14 @@ public class DynamoRecordReader extends AbstractRecordReader {
   private Iterator<Page<Item, ?>> resultIter;
 
   public DynamoRecordReader(AWSCredentialsProvider credentials, ClientConfiguration clientConf,
-    DynamoEndpoint endpoint, DynamoSubScan.DynamoSubScanSpec scanSpec,
-    List<SchemaPath> columns, boolean consistentRead, ParallelScanProperties scanProperties,
-    DynamoScanSpec scan) {
+    DynamoEndpoint endpoint, T scanSpec, List<SchemaPath> columns, boolean consistentRead,
+    DynamoTableDefinition tableDef) {
     this.credentials = credentials;
     this.clientConf = clientConf;
     this.scanSlice = scanSpec;
     this.consistentRead = consistentRead;
     this.endpoint = endpoint;
-    this.scanProps = scanProperties;
-    this.spec = scan;
+    this.tableDef = tableDef;
     setColumns(columns);
   }
 
@@ -118,9 +115,8 @@ public class DynamoRecordReader extends AbstractRecordReader {
     this.client = new AmazonDynamoDBAsyncClient(credentials, this.clientConf);
     endpoint.configure(this.client);
 
-    DynamoTableDefinition table = spec.getTable();
     // setup the vectors that we know we will need - the primary key(s)
-    for (DynamoTableDefinition.PrimaryKey pk : table.getKeys()) {
+    for (DynamoTableDefinition.PrimaryKey pk : tableDef.getKeys()) {
       String name = pk.getName();
       String type = pk.getType();
       // pk has to be a scalar type, so we never get null here
@@ -133,10 +129,9 @@ public class DynamoRecordReader extends AbstractRecordReader {
     }
 
     DynamoQueryBuilder builder = new DynamoQueryBuilder()
-      .withConsistentRead(consistentRead)
       .withSlice(scanSlice)
-      .withScanSpec(this.spec)
-      .withProps(scanProps);
+      .withConsistentRead(consistentRead)
+      .withTable(tableDef);
     // TODO skip queries, which just want the primary key values
     if (!isStarQuery()) {
       List<String> columns = new ArrayList<>();
@@ -146,8 +141,11 @@ public class DynamoRecordReader extends AbstractRecordReader {
       builder.withColumns(columns);
     }
 
-    this.resultIter = builder.query(client);
+    this.resultIter = buildQuery(builder, client);
   }
+
+  protected abstract Iterator<Page<Item, ?>> buildQuery(DynamoQueryBuilder builder,
+    AmazonDynamoDBAsyncClient client);
 
   private String buildPathName(SchemaPath column, int maxDepth, Multimap<String, Integer>
     listIndexes, boolean includeArrayIndex) {

@@ -11,8 +11,14 @@ import com.google.common.collect.ListMultimap;
 import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
-import io.fineo.drill.exec.store.dynamo.physical.DynamoSubScan;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoGetFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
+import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubGetSpec;
+import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubQuerySpec;
+import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubReadSpec;
+import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubScan;
+import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubScanSpec;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
@@ -33,6 +39,7 @@ import org.apache.drill.exec.store.schedule.EndpointByteMapImpl;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Logical representation of a scan of a dynamo table. Actual fragments of the scan that get
@@ -44,7 +51,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
   private static final int MAX_DYNAMO_PARALLELIZATION = 1000000;
 
   private final DynamoStoragePlugin plugin;
-  private DynamoScanSpec spec;
+  private DynamoGroupScanSpec spec;
   private List<SchemaPath> columns;
   private final StoragePluginConfig config;
   private final ParallelScanProperties scan;
@@ -57,7 +64,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
   private boolean filterPushedDown;
 
   @JsonCreator
-  public DynamoGroupScan(@JsonProperty(DynamoScanSpec.NAME) DynamoScanSpec dynamoSpec,
+  public DynamoGroupScan(@JsonProperty(DynamoGroupScanSpec.NAME) DynamoGroupScanSpec dynamoSpec,
     @JsonProperty("storage") DynamoStoragePluginConfig storagePluginConfig,
     @JsonProperty("columns") List<SchemaPath> columns,
     @JsonProperty("scan") ParallelScanProperties scan,
@@ -68,7 +75,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
       columns, scan, client);
   }
 
-  public DynamoGroupScan(DynamoStoragePlugin plugin, DynamoScanSpec dynamoSpec,
+  public DynamoGroupScan(DynamoStoragePlugin plugin, DynamoGroupScanSpec dynamoSpec,
     List<SchemaPath> columns, ParallelScanProperties scan, ClientProperties client) {
     super((String) null);
     this.plugin = plugin;
@@ -82,6 +89,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
 
   private void init() {
     try {
+
       this.desc = this.plugin.getModel().getTable(this.spec.getTable().getName()).waitForActive();
     } catch (InterruptedException e) {
       throw new DrillRuntimeException(e);
@@ -102,6 +110,18 @@ public class DynamoGroupScan extends AbstractGroupScan {
   @Override
   public void applyAssignments(List<CoordinationProtos.DrillbitEndpoint> endpoints)
     throws PhysicalOperatorSetupException {
+    // if we have a list of queries/gets, then that is the 'true' limit on the set of work
+    if (spec.getScan() != null) {
+      setScanWork(spec.getScan(), endpoints);
+    } else {
+      setQueryWork(spec.getGetOrQuery());
+    }
+
+    this.assignments = AssignmentCreator.getMappings(endpoints, work, plugin.getContext());
+  }
+
+  private void setScanWork(DynamoReadFilterSpec filter,
+    List<CoordinationProtos.DrillbitEndpoint> endpoints) {
     int max = getMaxParallelizationWidth();
     // determine how many segments we can add to each endpoint
     int totalPerEndpoint = scan.getSegmentsPerEndpoint() * endpoints.size();
@@ -126,23 +146,28 @@ public class DynamoGroupScan extends AbstractGroupScan {
     this.work = new ArrayList<>();
     long portion = this.desc.getTableSizeBytes() / units;
     for (int i = 0; i < units; i++) {
-      work.add(new DynamoWork(i, portion));
+      work.add(new DynamoScanWork((int) units, i, portion, filter));
     }
+  }
 
-    this.assignments = AssignmentCreator.getMappings(endpoints, work, plugin.getContext());
+  private void setQueryWork(List<DynamoReadFilterSpec> getOrQuery) {
+    int units = getOrQuery.size();
+    // guess at how much data is returned... 10x the total slice seems like a nice number
+    long portion = this.desc.getTableSizeBytes() / units / 10;
+    for (int i = 0; i < units; i++) {
+      DynamoReadFilterSpec sub = getOrQuery.get(i);
+      work.add(new DynamoGetOrQueryWork(i, sub, portion));
+    }
   }
 
   @Override
   public SubScan getSpecificScan(int minorFragmentId) throws ExecutionSetupException {
     List<DynamoWork> segments = assignments.get(minorFragmentId);
-    List<DynamoSubScan.DynamoSubScanSpec> subSpecs = new ArrayList<>(segments.size());
-    for (DynamoWork work : segments) {
-      subSpecs.add(
-        new DynamoSubScan.DynamoSubScanSpec(assignments.size(), work.getSegment(), getColumns()));
-
-    }
-    return new DynamoSubScan(plugin, plugin.getConfig(), subSpecs, this.columns, client, scan, 
-      spec);
+    List<DynamoSubReadSpec> subSpecs = segments.stream()
+                                               .map(work -> work.getWork(getColumns()))
+                                               .collect(Collectors.toList());
+    return new DynamoSubScan(plugin, plugin.getConfig(), subSpecs, this.columns, client, scan,
+      spec.getTable());
   }
 
   @Override
@@ -184,7 +209,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
   }
 
   @JsonProperty
-  public DynamoScanSpec getSpec() {
+  public DynamoGroupScanSpec getSpec() {
     return spec;
   }
 
@@ -219,11 +244,11 @@ public class DynamoGroupScan extends AbstractGroupScan {
     this.filterPushedDown = filterPushedDown;
   }
 
-  public void setScanSpec(DynamoScanSpec scanSpec) {
+  public void setScanSpec(DynamoGroupScanSpec scanSpec) {
     this.spec = scanSpec;
   }
 
-  private class DynamoWork implements CompleteWork {
+  private abstract class DynamoWork implements CompleteWork {
     private final long bytes;
     private EndpointByteMapImpl byteMap = new EndpointByteMapImpl();
     private int segment;
@@ -253,6 +278,44 @@ public class DynamoGroupScan extends AbstractGroupScan {
         return Integer.compare(this.segment, ((DynamoWork) o).getSegment());
       }
       return -1;
+    }
+
+    public abstract DynamoSubReadSpec getWork(List<SchemaPath> columns);
+  }
+
+  private class DynamoScanWork extends DynamoWork {
+
+    private final int total;
+    private final DynamoReadFilterSpec filter;
+
+    public DynamoScanWork(int totalSegments, int segment, long bytes,
+      DynamoReadFilterSpec filter) {
+      super(segment, bytes);
+      this.total = totalSegments;
+      this.filter = filter;
+    }
+
+    @Override
+    public DynamoSubReadSpec getWork(List<SchemaPath> columns) {
+      return new DynamoSubScanSpec(filter, total, getSegment(), columns);
+    }
+  }
+
+  private class DynamoGetOrQueryWork extends DynamoWork {
+    private final DynamoReadFilterSpec sub;
+
+    public DynamoGetOrQueryWork(int segment,
+      DynamoReadFilterSpec sub, long portion) {
+      super(segment, portion);
+      this.sub = sub;
+    }
+
+    @Override
+    public DynamoSubReadSpec getWork(List<SchemaPath> columns) {
+      if (sub instanceof DynamoGetFilterSpec) {
+        return new DynamoSubGetSpec(sub, columns);
+      }
+      return new DynamoSubQuerySpec(sub, columns);
     }
   }
 }

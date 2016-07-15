@@ -20,6 +20,7 @@ package io.fineo.drill.exec.store.dynamo.filter;
 
 import com.google.common.collect.ImmutableList;
 import io.fineo.drill.exec.store.dynamo.DynamoGroupScan;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptRuleOperand;
@@ -125,7 +126,7 @@ public final class DynamoPushFilterIntoScan {
       toDrill(new DrillParseContext(getPlannerSettings(call.getPlanner())), scan, condition);
     // try to build a new filter
     final DynamoFilterBuilder filterBuilder = new DynamoFilterBuilder(groupScan, conditionExp);
-    final DynamoScanSpec newScanSpec = filterBuilder.parseTree();
+    final DynamoGroupScanSpec newScanSpec = filterBuilder.parseTree();
     if (newScanSpec == null) {
       return; //no filter pushDown ==> No transformation.
     }

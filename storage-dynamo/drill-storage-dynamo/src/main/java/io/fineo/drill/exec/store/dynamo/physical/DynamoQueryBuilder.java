@@ -5,19 +5,21 @@ import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.ItemCollection;
 import com.amazonaws.services.dynamodbv2.document.Page;
-import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
+import com.amazonaws.services.dynamodbv2.document.PrimaryKey;
 import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
+import com.google.common.collect.AbstractIterator;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterLeaf;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterNodeInner;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoScanFilterSpec;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
+import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubReadSpec;
+import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubScanSpec;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,27 +27,24 @@ import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Lists.newLinkedList;
-import static io.fineo.drill.exec.store.dynamo.physical.DynamoRecordReader.COMMAS;
+import static io.fineo.drill.exec.store.dynamo.physical.DynamoScanRecordReader.COMMAS;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
 
 /**
- *
+ * Handle the conversion from specs to a dynamo query
  */
 public class DynamoQueryBuilder {
 
-  private DynamoSubScan.DynamoSubScanSpec slice;
-  private DynamoScanSpec scanSpec;
+  private DynamoSubReadSpec slice;
   private ParallelScanProperties scanProps;
   private boolean consistentRead;
   private boolean isStarQuery = true;
   private List<String> columns;
+  private DynamoTableDefinition tableDef;
 
-  public DynamoQueryBuilder withSlice(DynamoSubScan.DynamoSubScanSpec slice) {
+  public DynamoQueryBuilder withSlice(DynamoSubReadSpec slice) {
     this.slice = slice;
-    return this;
-  }
-
-  public DynamoQueryBuilder withScanSpec(DynamoScanSpec scanSpec) {
-    this.scanSpec = scanSpec;
     return this;
   }
 
@@ -65,64 +64,118 @@ public class DynamoQueryBuilder {
     return this;
   }
 
-  public Iterator<Page<Item, ?>> query(AmazonDynamoDBAsyncClient client) {
-    DynamoScanFilterSpec filters = scanSpec.getFilter();
-    DynamoTableDefinition tableDef = scanSpec.getTable();
-    Table table = new DynamoDB(client).getTable(tableDef.getName());
-    if (filters.getKeyFilter() != null) {
-      Iterator iter;
-      if (tableDef.getKeys().size() == 1 ) {
-        iter = buildGet(table);
-      } else {
-        iter = buildQuery(table);
+  public DynamoQuery build(AmazonDynamoDBAsyncClient client) {
+    return new DynamoQuery(new DynamoDB(client).getTable(tableDef.getName()), COMMAS.join(columns));
+  }
+
+  public class DynamoQuery {
+    private final Table table;
+    private final String projection;
+
+    public DynamoQuery(Table table, String projection) {
+      this.table = table;
+      this.projection = projection;
+    }
+
+
+    public Iterator<Page<Item, ?>> scan() {
+      ScanSpec scan = new ScanSpec();
+      scan.withConsistentRead(consistentRead);
+      // basic scan requirements
+      int limit = scanProps.getLimit();
+      if (limit > 0) {
+        scan.setMaxPageSize(limit);
       }
+      DynamoSubScanSpec scanSpec = (DynamoSubScanSpec) DynamoQueryBuilder.this.slice;
+      scan.withSegment(scanSpec.getSegmentId()).withTotalSegments(scanSpec.getTotalSegments());
+      if (!isStarQuery) {
+        scan.withProjectionExpression(projection);
+      }
+      ItemCollection<ScanOutcome> results = table.scan(scan);
+      Iterator iter = results.pages().iterator();
       return iter;
     }
-    Iterator iter = buildScan(table); ;
-    return iter;
-  }
 
-  private Iterator<Page<Item, ScanOutcome>> buildScan(Table table) {
-    ScanSpec scan = new ScanSpec();
-    scan.withConsistentRead(consistentRead);
-    // basic scan requirements
-    int limit = scanProps.getLimit();
-    if (limit > 0) {
-      scan.setMaxPageSize(limit);
-    }
-    scan.withSegment(slice.getSegmentId()).withTotalSegments(slice.getTotalSegments());
-    if (!isStarQuery) {
-      scan.withProjectionExpression(COMMAS.join(columns));
-    }
-    ItemCollection<ScanOutcome> results = table.scan(scan);
-    return results.pages().iterator();
-  }
+    public Iterator<Page<Item, ?>> query() {
+      QuerySpec query = new QuerySpec();
+      query.withConsistentRead(consistentRead);
+      query.withMaxPageSize(scanProps.getLimit());
+      if (!isStarQuery) {
+        query.withProjectionExpression(projection);
+      }
+      NameMapper mapper = new NameMapper();
+      DynamoReadFilterSpec filter = slice.getFilter();
 
-  private Iterator<Page<Item, QueryOutcome>> buildQuery(Table table) {
-    QuerySpec query = new QuerySpec();
-    query.withConsistentRead(consistentRead);
-    query.withMaxPageSize(scanProps.getLimit());
-    if (!isStarQuery) {
-      query.withProjectionExpression(COMMAS.join(columns));
-    }
-    NameMapper mapper = new NameMapper();
+      // key space
+      DynamoFilterSpec key = filter.getKeyFilter();
+      String keyFilter = asFilterExpression(mapper, key);
+      assert keyFilter != null : "Got a null key filter for query! Spec: " + slice;
+      query.withKeyConditionExpression(keyFilter);
 
-    DynamoScanFilterSpec filter = scanSpec.getFilter();
-    DynamoFilterSpec attribute = filter.getAttributeFilter();
-    String attrFilterExpr = asFilterExpression(mapper, attribute);
-    if (attrFilterExpr != null) {
-      query.withFilterExpression(attrFilterExpr);
+      // attributes, if we have them
+      DynamoFilterSpec attribute = filter.getAttributeFilter();
+      String attrFilterExpr = asFilterExpression(mapper, attribute);
+      if (attrFilterExpr != null) {
+        query.withFilterExpression(attrFilterExpr);
+      }
+
+      query.withNameMap(mapper.nameMap);
+      query.withValueMap(mapper.valueMap);
+
+      Iterator iter = table.query(query).pages().iterator();
+      return iter;
     }
 
-    query.withNameMap(mapper.nameMap);
-    query.withValueMap(mapper.valueMap);
+    public Iterator<Page<Item, ?>> get() {
+      GetItemSpec query = new GetItemSpec();
+      query.withConsistentRead(consistentRead);
+      if (!isStarQuery) {
+        query.withProjectionExpression(projection);
+      }
+      DynamoReadFilterSpec filter = slice.getFilter();
+      assert filter.getAttributeFilter() == null : "Gets cannot have an attribute filter!";
+      // key space
+      PrimaryKey pk = new PrimaryKey();
+      DynamoFilterSpec key = filter.getKeyFilter();
+      DynamoFilterSpec.FilterTree tree = key.getTree();
+      DynamoFilterSpec.FilterNode node = tree.getRoot();
 
-    return table.query(query).pages().iterator();
-  }
+      // just a primary key
+      if (node instanceof FilterLeaf) {
+        assert tableDef.getKeys().size() == 1 : "Have more than 1 key, but only 1 key condition!";
+        FilterLeaf hashLeaf = (FilterLeaf) node;
+        setPrimaryKey(hashLeaf, pk);
+      } else {
+        // sort and hash key
+        FilterNodeInner inner = (FilterNodeInner) node;
+        setPrimaryKey((FilterLeaf) inner.getLeft(), pk);
+        setPrimaryKey((FilterLeaf) inner.getRight(), pk);
+      }
+      query.withPrimaryKey(pk);
 
-  private Iterator<Page<Item, ?>> buildGet(Table table) {
-    GetItemSpec spec = new GetItemSpec();
-    return null;
+      return new AbstractIterator<Page<Item, ?>>() {
+        private boolean ran = false;
+
+        @Override
+        protected Page<Item, ?> computeNext() {
+          if (ran) {
+            endOfData();
+            return null;
+          }
+          try {
+            Item i = table.getItem(query);
+            return new GetItemPage(i);
+          } finally {
+            ran = true;
+          }
+        }
+      };
+    }
+
+    private void setPrimaryKey(FilterLeaf leaf, PrimaryKey pk) {
+      assert leaf.getOperand().equals("=") : "Gets must use '=' for attributes";
+      pk.addComponent(leaf.getKey(), leaf.getValue());
+    }
   }
 
   private String asFilterExpression(NameMapper mapper, DynamoFilterSpec spec) {
@@ -156,6 +209,11 @@ public class DynamoQueryBuilder {
     return tree.toString();
   }
 
+  public DynamoQueryBuilder withTable(DynamoTableDefinition tableDef) {
+    this.tableDef = tableDef;
+    return this;
+  }
+
   private class NameMapper {
     private int counter = 0;
     Map<String, String> nameMap = new HashMap<>();
@@ -174,6 +232,25 @@ public class DynamoQueryBuilder {
       map.put(out, in);
       return out;
     }
+  }
 
+  private class GetItemPage extends Page<Item, Void> {
+
+    /**
+     * @param item the item read
+     */
+    public GetItemPage(Item item) {
+      super(unmodifiableList(singletonList(item)), null);
+    }
+
+    @Override
+    public boolean hasNextPage() {
+      return false;
+    }
+
+    @Override
+    public Page<Item, Void> nextPage() {
+      return null;
+    }
   }
 }

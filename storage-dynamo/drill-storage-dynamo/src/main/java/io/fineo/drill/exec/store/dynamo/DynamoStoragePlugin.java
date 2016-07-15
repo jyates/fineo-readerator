@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.drill.exec.store.dynamo.filter.DynamoPushFilterIntoScan;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.schema.SchemaPlus;
@@ -58,8 +59,8 @@ public class DynamoStoragePlugin extends AbstractStoragePlugin {
   @Override
   public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection,
     List<SchemaPath> columns) throws IOException {
-    DynamoScanSpec scanSpec = selection.getListWith(new ObjectMapper(), new
-      TypeReference<DynamoScanSpec>() {
+    DynamoGroupScanSpec scanSpec = selection.getListWith(new ObjectMapper(), new
+      TypeReference<DynamoGroupScanSpec>() {
       });
     return new DynamoGroupScan(this, scanSpec, columns, config.getScan(), config.getClient());
   }

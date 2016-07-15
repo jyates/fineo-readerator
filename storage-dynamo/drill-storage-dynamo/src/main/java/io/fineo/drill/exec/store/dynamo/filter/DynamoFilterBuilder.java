@@ -20,7 +20,8 @@ package io.fineo.drill.exec.store.dynamo.filter;
 import com.google.common.collect.ImmutableList;
 import io.fineo.drill.exec.store.dynamo.DynamoGroupScan;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import org.apache.drill.common.expression.BooleanOperator;
 import org.apache.drill.common.expression.FunctionCall;
@@ -77,18 +78,28 @@ public class DynamoFilterBuilder {
     }
   }
 
-  public DynamoScanSpec parseTree() {
+  public DynamoGroupScanSpec parseTree() {
     DynamoQuerySpecBuilder builder = new DynamoQuerySpecBuilder();
     DynamoReadBuilder parsedSpec = le.accept(builder, null);
     if (parsedSpec != null) {
       // combine with the existing scan
-      parsedSpec = merge(this.groupScan.getSpec(), parsedSpec);
+      return merge(this.groupScan.getSpec(), parsedSpec);
     }
     return null;
   }
 
-  private DynamoReadBuilder merge(DynamoScanSpec spec, DynamoReadBuilder parsedSpec) {
-    return null;
+  private DynamoGroupScanSpec merge(DynamoGroupScanSpec spec, DynamoReadBuilder parsedSpec) {
+    // convert the spec into a read builder
+    if (spec.getScan() != null) {
+      DynamoReadFilterSpec scan = spec.getScan();
+      parsedSpec.andScanSpec(scan);
+    } else {
+      List<DynamoReadFilterSpec> getOrQuery = spec.getGetOrQuery();
+      if (getOrQuery.size() > 0) {
+        parsedSpec.andGetOrQuery(getOrQuery);
+      }
+    }
+    return parsedSpec.buildSpec(spec.getTable());
   }
 
   public boolean isAllExpressionsConverted() {
@@ -111,7 +122,8 @@ public class DynamoFilterBuilder {
     }
 
     @Override
-    public DynamoReadBuilder visitFunctionCall(FunctionCall call, Void value) throws RuntimeException {
+    public DynamoReadBuilder visitFunctionCall(FunctionCall call, Void value)
+      throws RuntimeException {
       String functionName = call.getName();
       ImmutableList<LogicalExpression> args = call.args;
 
