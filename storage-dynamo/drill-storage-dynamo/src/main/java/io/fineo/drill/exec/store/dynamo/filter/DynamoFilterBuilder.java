@@ -20,7 +20,6 @@ package io.fineo.drill.exec.store.dynamo.filter;
 import com.google.common.collect.ImmutableList;
 import io.fineo.drill.exec.store.dynamo.DynamoGroupScan;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoScanFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import org.apache.drill.common.expression.BooleanOperator;
@@ -28,9 +27,10 @@ import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.expression.visitors.AbstractExprVisitor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.function.BiFunction;
 
 /**
  * Filter builder heavily based on the Drill HBaseFilterBuilder. Depth-first exploration of the
@@ -45,15 +45,15 @@ import java.util.function.BiFunction;
  * the former, where it returns if the attribute <i><b>has been set to null</b></i>.
  * </p>
  */
-public class DynamoFilterBuilder
-  extends AbstractExprVisitor<DynamoScanSpec, Void, RuntimeException> {
+public class DynamoFilterBuilder {
 
+  private static final Logger LOG = LoggerFactory.getLogger(DynamoFilterBuilder.class);
   private static final String AND = "booleanAnd";
   private static final String OR = "booleanOr";
   final private DynamoGroupScan groupScan;
 
   final private LogicalExpression le;
-  private final DynamoTableDefinition.PrimaryKey range;
+  private final DynamoTableDefinition.PrimaryKey rangePrimaryKey;
   private DynamoTableDefinition.PrimaryKey hash;
 
   private boolean allExpressionsConverted = true;
@@ -67,162 +67,137 @@ public class DynamoFilterBuilder
     this.hash = pks.get(0);
     if (pks.size() > 1) {
       if (hash.isHashKey()) {
-        this.range = pks.get(1);
+        this.rangePrimaryKey = pks.get(1);
       } else {
-        this.range = hash;
+        this.rangePrimaryKey = hash;
         this.hash = pks.get(1);
       }
     } else {
-      this.range = null;
+      this.rangePrimaryKey = null;
     }
   }
 
   public DynamoScanSpec parseTree() {
-    DynamoScanSpec parsedSpec = le.accept(this, null);
+    DynamoQuerySpecBuilder builder = new DynamoQuerySpecBuilder();
+    DynamoReadBuilder parsedSpec = le.accept(builder, null);
     if (parsedSpec != null) {
-      parsedSpec = mergeScanSpecs("booleanAnd", this.groupScan.getSpec(), parsedSpec);
-
-      // figure out if this spec represents one or more Gets
-      DynamoScanFilterSpec filter = parsedSpec.getFilter();
-      if (filter.getHasHashKey() && filter.getHasRangeKey()) {
-
-      }
-
+      // combine with the existing scan
+      parsedSpec = merge(this.groupScan.getSpec(), parsedSpec);
     }
-    return parsedSpec;
+    return null;
+  }
+
+  private DynamoReadBuilder merge(DynamoScanSpec spec, DynamoReadBuilder parsedSpec) {
+    return null;
   }
 
   public boolean isAllExpressionsConverted() {
     return allExpressionsConverted;
   }
 
-  @Override
-  public DynamoScanSpec visitUnknown(LogicalExpression e, Void value) throws RuntimeException {
-    allExpressionsConverted = false;
-    return null;
-  }
+  private class DynamoQuerySpecBuilder
+    extends AbstractExprVisitor<DynamoReadBuilder, Void, RuntimeException> {
 
-  @Override
-  public DynamoScanSpec visitBooleanOperator(BooleanOperator op, Void value)
-    throws RuntimeException {
-    return visitFunctionCall(op, value);
-  }
-
-  @Override
-  public DynamoScanSpec visitFunctionCall(FunctionCall call, Void value) throws RuntimeException {
-    DynamoScanSpec nodeScanSpec = null;
-    String functionName = call.getName();
-    ImmutableList<LogicalExpression> args = call.args;
-
-    // its a simple function call, i.e. a = '1', so just build the scan spec for that
-    if (SingleFunctionProcessor.isCompareFunction(functionName)) {
-      SingleFunctionProcessor processor = SingleFunctionProcessor.process(call);
-      if (processor.isSuccess()) {
-        nodeScanSpec = createDynamoScanSpec(call, processor);
-      }
-    } else {
-      // its a more complicated function, of which we only handle the logical bifurcation, so
-      // build up the resulting filter as tiers of conjunction/disjunction
-      switch (functionName) {
-        case AND:
-        case OR:
-          DynamoScanSpec firstScanSpec = args.get(0).accept(this, null);
-          for (int i = 1; i < args.size(); ++i) {
-            DynamoScanSpec nextScanSpec = args.get(i).accept(this, null);
-            if (firstScanSpec != null && nextScanSpec != null) {
-              nodeScanSpec = mergeScanSpecs(functionName, firstScanSpec, nextScanSpec);
-            } else {
-              allExpressionsConverted = false;
-              if (AND.equals(functionName)) {
-                nodeScanSpec = firstScanSpec == null ? nextScanSpec : firstScanSpec;
-              }
-            }
-            firstScanSpec = nodeScanSpec;
-          }
-          break;
-      }
-    }
-
-    // we didn't find a matching function
-    if (nodeScanSpec == null) {
+    @Override
+    public DynamoReadBuilder visitUnknown(LogicalExpression e, Void value) throws RuntimeException {
       allExpressionsConverted = false;
-    }
-
-    return nodeScanSpec;
-  }
-
-  private DynamoScanSpec mergeScanSpecs(String functionName, DynamoScanSpec left,
-    DynamoScanSpec right) {
-    DynamoScanSpec spec = new DynamoScanSpec(left);
-
-    DynamoScanFilterSpec lf = left.getFilter();
-    DynamoScanFilterSpec rf = right.getFilter();
-
-    boolean hasHashKey;
-    BiFunction<DynamoFilterSpec, DynamoFilterSpec, DynamoFilterSpec> func;
-    // query/get requires that you have the hash key in the filter. AND conditions mean you can
-    // have it on either side, while an OR requires it on both sides, hence the 'flipped'
-    // conditional for the hash key below
-    if (functionName.equals(AND)) {
-      func = this::and;
-      hasHashKey = lf.getHasHashKey() || rf.getHasHashKey();
-    } else {
-      func = this::or;
-      hasHashKey = lf.getHasHashKey() && rf.getHasHashKey();
-    }
-
-    // range key just needs to be present in either side for this to have a range key, hence OR
-    boolean rangeKey = lf.getHasRangeKey() || rf.getHasRangeKey();
-
-    DynamoFilterSpec hKey = func.apply(lf.getKeyFilter(), rf.getKeyFilter());
-    DynamoFilterSpec attrib = func.apply(lf.getAttributeFilter(), rf.getAttributeFilter());
-    DynamoScanFilterSpec filter = new DynamoScanFilterSpec(hKey, hasHashKey, rangeKey, attrib);
-    spec.setFilter(filter);
-    return spec;
-  }
-
-  private DynamoFilterSpec and(DynamoFilterSpec left, DynamoFilterSpec right) {
-    return left == null ? left : left.and(right);
-  }
-
-  private DynamoFilterSpec or(DynamoFilterSpec left, DynamoFilterSpec right) {
-    return left == null ? left : left.or(right);
-  }
-
-  private DynamoScanSpec createDynamoScanSpec(FunctionCall call,
-    SingleFunctionProcessor processor) {
-    String functionName = processor.getFunctionName();
-    SchemaPath field = processor.getPath();
-    String fieldName = field.getAsUnescapedPath();
-    Object fieldValue = processor.getValue();
-    boolean isHashKey = this.hash.getName().equals(fieldName);
-    boolean isRangeKey = this.range != null && this.range.getName().equals(fieldName);
-    assert !(isHashKey && isRangeKey) : fieldName + " be both hash and range key";
-
-    // normalize function names, since drill can't do this already...apparently
-    switch (functionName) {
-      case "isnull":
-      case "isNull":
-      case "is null":
-        functionName = "isNull";
-        break;
-      case "isnotnull":
-      case "isNotNull":
-      case "is not null":
-        functionName = "isNotNull";
-        break;
-    }
-    DynamoFilterSpec filter = DynamoFilterSpec.create(functionName, fieldName, fieldValue);
-    // we don't know how to handle this function
-    if (filter == null) {
       return null;
     }
 
-    DynamoScanSpec spec = new DynamoScanSpec(groupScan.getSpec());
-    // override the filter, of which it can only be one of the three
-    spec.setFilter(new DynamoScanFilterSpec(
-      (isHashKey ? filter : null), isHashKey, isRangeKey,
-      (!(isHashKey || isRangeKey) ? filter : null)));
-    return spec;
+    @Override
+    public DynamoReadBuilder visitBooleanOperator(BooleanOperator op, Void value)
+      throws RuntimeException {
+      return visitFunctionCall(op, value);
+    }
+
+    @Override
+    public DynamoReadBuilder visitFunctionCall(FunctionCall call, Void value) throws RuntimeException {
+      String functionName = call.getName();
+      ImmutableList<LogicalExpression> args = call.args;
+
+      // its a simple function call, i.e. a = '1', so just build the scan spec for that
+      if (SingleFunctionProcessor.isCompareFunction(functionName)) {
+        DynamoReadBuilder builder = null;
+        SingleFunctionProcessor processor = SingleFunctionProcessor.process(call);
+        if (processor.isSuccess()) {
+          FilterFragment fragment = createDynamoFilter(processor);
+          if (fragment == null) {
+            allExpressionsConverted = false;
+          }
+          builder = new DynamoReadBuilder(rangePrimaryKey == null);
+          builder.and(fragment);
+        }
+        return builder;
+      }
+
+      // its a more complicated function, so try and break it down as a combination of and/or
+      switch (functionName) {
+        case AND:
+        case OR:
+          DynamoReadBuilder builder = new DynamoReadBuilder(rangePrimaryKey == null);
+          for (LogicalExpression expr : args) {
+            DynamoReadBuilder exprBuilder = expr.accept(this, null);
+            if (exprBuilder == null) {
+              allExpressionsConverted = false;
+              continue;
+            }
+            build:
+            switch (functionName) {
+              case AND:
+                builder.and(exprBuilder);
+                break build;
+              case OR:
+                builder.or(exprBuilder);
+                break build;
+            }
+          }
+          return builder;
+      }
+
+      return null;
+    }
+
+    private FilterFragment createDynamoFilter(SingleFunctionProcessor processor) {
+      String functionName = processor.getFunctionName();
+      SchemaPath field = processor.getPath();
+      String fieldName = field.getAsUnescapedPath();
+      Object fieldValue = processor.getValue();
+      boolean isHashKey = DynamoFilterBuilder.this.hash.getName().equals(fieldName);
+      boolean isRangeKey = DynamoFilterBuilder.this.rangePrimaryKey != null &&
+                           DynamoFilterBuilder.this.rangePrimaryKey.getName().equals(fieldName);
+      assert !(isHashKey && isRangeKey) : fieldName + " is both hash and rangePrimaryKey key";
+      boolean equals = false;
+      boolean equalityTest = false;
+
+      // normalize function names, since drill can't do this already...apparently
+      switch (functionName) {
+        case "isnull":
+        case "isNull":
+        case "is null":
+          functionName = "isNull";
+          break;
+        case "isnotnull":
+        case "isNotNull":
+        case "is not null":
+          functionName = "isNotNull";
+          break;
+        case "equal":
+          equals = true;
+        case "not_equal":
+        case "greater_than_or_equal_to":
+        case "greater_than":
+        case "less_than_or_equal_to":
+        case "less_than":
+          equalityTest = true;
+          break;
+      }
+      DynamoFilterSpec filter = DynamoFilterSpec.create(functionName, fieldName, fieldValue);
+      // we don't know how to handle this function
+      if (filter == null) {
+        return null;
+      }
+
+      return new FilterFragment(filter, equals, equalityTest, isHashKey, isRangeKey);
+    }
   }
 }
