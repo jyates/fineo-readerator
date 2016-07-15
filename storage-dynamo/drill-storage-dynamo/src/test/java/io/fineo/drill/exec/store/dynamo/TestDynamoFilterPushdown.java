@@ -31,6 +31,27 @@ public class TestDynamoFilterPushDown extends BaseDynamoTest {
   }
 
   @Test
+  public void testPrimaryAndSortKeySpecification() throws Exception {
+    String pk = "pk", sort = "sort";
+    Table table = createHashAndSortTable(pk, sort);
+    Item item = new Item();
+    item.with(pk, "p1");
+    item.with(sort, "s1");
+    item.with(COL1, "1");
+    table.putItem(item);
+
+    Item item2 = new Item();
+    item2.with(pk, "p1");
+    item2.with(sort, "s0");
+    item2.with(COL1, "2");
+    table.putItem(item2);
+    // should create a get
+//    verify(runAndReadResults(selectStarWithPK("p1", "t", table) + " AND sort = 's1'"), item);
+    // should create a query
+    verify(runAndReadResults(selectStarWithPK("p1", "t", table) + " AND sort >= 's1'"), item);
+  }
+
+  @Test
   public void testPrimaryKeyAndAttributeFilter() throws Exception {
     Item item = item();
     item.with(COL1, "1");

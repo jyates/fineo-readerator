@@ -81,6 +81,11 @@ public class DynamoFilterSpec {
     return tree;
   }
 
+  @Override
+  public String toString() {
+    return "DynamoFilterSpec{" + tree + '}';
+  }
+
   @JsonTypeName("dyamo-filter-tree")
   public static class FilterTree {
     private FilterNode root;

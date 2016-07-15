@@ -9,6 +9,7 @@ import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.KeyType;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
+import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
@@ -197,6 +198,22 @@ public class BaseDynamoTest extends BaseTestQuery {
       .withAttributeName(PK).withAttributeType("S"));
     ArrayList<KeySchemaElement> keySchema = new ArrayList<>();
     keySchema.add(new KeySchemaElement().withAttributeName(PK).withKeyType(KeyType.HASH));
+
+    CreateTableRequest request = new CreateTableRequest()
+      .withKeySchema(keySchema)
+      .withAttributeDefinitions(attributeDefinitions);
+    return createTable(request);
+  }
+
+  protected Table createHashAndSortTable(String pk, String sort) throws InterruptedException {
+    ArrayList<AttributeDefinition> attributeDefinitions = new ArrayList<>();
+    attributeDefinitions.add(new AttributeDefinition()
+      .withAttributeName(pk).withAttributeType("S"));
+    attributeDefinitions.add(new AttributeDefinition().withAttributeName(sort).withAttributeType(
+      ScalarAttributeType.S));
+    ArrayList<KeySchemaElement> keySchema = new ArrayList<>();
+    keySchema.add(new KeySchemaElement().withAttributeName(pk).withKeyType(KeyType.HASH));
+    keySchema.add(new KeySchemaElement().withAttributeName(sort).withKeyType(KeyType.RANGE));
 
     CreateTableRequest request = new CreateTableRequest()
       .withKeySchema(keySchema)

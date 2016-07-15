@@ -53,19 +53,8 @@ public class TestDynamoFieldReads extends BaseDynamoTest{
   @Test
   public void testCompoundKey() throws Exception {
     String pk = "id", sort = "sort_key";
-    ArrayList<AttributeDefinition> attributeDefinitions = new ArrayList<>();
-    attributeDefinitions.add(new AttributeDefinition()
-      .withAttributeName(pk).withAttributeType("S"));
-    attributeDefinitions.add(new AttributeDefinition().withAttributeName(sort).withAttributeType(
-      ScalarAttributeType.S));
-    ArrayList<KeySchemaElement> keySchema = new ArrayList<>();
-    keySchema.add(new KeySchemaElement().withAttributeName(pk).withKeyType(KeyType.HASH));
-    keySchema.add(new KeySchemaElement().withAttributeName(sort).withKeyType(KeyType.RANGE));
 
-    CreateTableRequest request = new CreateTableRequest()
-      .withKeySchema(keySchema)
-      .withAttributeDefinitions(attributeDefinitions);
-    Table table = createTable(request);
+    Table table = createHashAndSortTable(pk, sort);
 
     // write a single row to the test table
     Item write = new Item();

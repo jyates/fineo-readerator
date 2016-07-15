@@ -200,9 +200,10 @@ class DynamoReadBuilder {
   private void andRange(FilterFragment fragment) {
     assert fragment.isRange() : "Supposed to have handled non-range filter fragments at this "
                                 + "point! Fragment: " + fragment;
-    // there is a hash, so it must be a scan (hash || sort)
+    // there is a hash, so it must be a scan (hash && sort)
     if (nextHash != null) {
-      andScan(fragment.getFilter(), false);
+      setRange(fragment, this::and);
+      createGetOrQuery();
       return;
     }
 
@@ -422,7 +423,10 @@ class DynamoReadBuilder {
     }
   }
 
-  private void updateRange(FilterFragment
+  /**
+   * Update the current range expression or add it to the previous query.
+   */
+  private boolean updateRange(FilterFragment
     fragment, VoidBiFunction<DynamoFilterSpec, DynamoFilterSpec> func) {
     if (queries.size() > 0) {
       GetOrQuery gq = queries.get(queries.size() - 1);
@@ -430,9 +434,10 @@ class DynamoReadBuilder {
                     new Query(gq.get.getFilter(), gq.attribute()) :
                     gq.query;
       func.apply(query.getFilter(), fragment.getFilter());
-    } else {
-      setRange(fragment, func);
+      return true;
     }
+    setRange(fragment, func);
+    return false;
   }
 
   /**
@@ -448,7 +453,7 @@ class DynamoReadBuilder {
    */
   private boolean shouldScan(FilterFragment fragment) {
     return scan != null ||
-           (!fragment.isAttribute() && !fragment.isEquals()) ||
+           (!fragment.isAttribute() && !fragment.isEquality()) ||
            (fragment.isHash() && !fragment.isEquals());
   }
 
@@ -486,8 +491,12 @@ class DynamoReadBuilder {
     queries.clear();
 
     // add the edge attributes. They have to be AND or we would have generated a scan
-    scan.and(nextHash.getFilter(), true);
-    scan.and(nextRange.getFilter(), true);
+    if (nextHash != null) {
+      scan.and(nextHash.getFilter(), true);
+    }
+    if (nextRange != null) {
+      scan.and(nextRange.getFilter(), true);
+    }
     scan.and(nextAttribute, false);
     nextHash = null;
     nextRange = null;
@@ -509,6 +518,9 @@ class DynamoReadBuilder {
 
     private void set(DynamoFilterSpec spec, boolean isKey, BiFunction<DynamoFilterSpec,
       DynamoFilterSpec, DynamoFilterSpec> func) {
+      if (spec == null) {
+        return;
+      }
       if (isKey) {
         key = func.apply(key, spec);
       } else {
