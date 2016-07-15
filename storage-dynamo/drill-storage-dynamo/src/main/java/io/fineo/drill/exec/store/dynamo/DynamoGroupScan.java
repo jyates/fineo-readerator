@@ -114,8 +114,11 @@ public class DynamoGroupScan extends AbstractGroupScan {
     // if we have a list of queries/gets, then that is the 'true' limit on the set of work
     if (spec.getScan() != null) {
       setScanWork(spec.getScan(), endpoints);
-    } else {
+    } else if (spec.getGetOrQuery() != null) {
       setQueryWork(spec.getGetOrQuery());
+    } else {
+      // its actually a scan, but we have no filters
+      setScanWork(new DynamoReadFilterSpec(), endpoints);
     }
 
     this.assignments = AssignmentCreator.getMappings(endpoints, work, plugin.getContext());

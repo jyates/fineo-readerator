@@ -25,7 +25,7 @@ public class DynamoGroupScanSpec {
   }
 
   public DynamoGroupScanSpec() {
-    this.getOrQuery = new ArrayList<>(0);
+    this.getOrQuery = null;
     this.scan = null;
   }
 

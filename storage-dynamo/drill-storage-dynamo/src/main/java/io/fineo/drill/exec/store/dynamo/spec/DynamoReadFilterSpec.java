@@ -23,6 +23,7 @@ public class DynamoReadFilterSpec {
   }
 
   public DynamoReadFilterSpec() {
+    keyFilter = new DynamoFilterSpec();
   }
 
   public DynamoFilterSpec getKeyFilter() {

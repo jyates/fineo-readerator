@@ -59,6 +59,8 @@ public class DynamoFilterSpec {
     this.tree = tree;
   }
 
+  public DynamoFilterSpec(){}
+
   @JsonIgnore
   public DynamoFilterSpec and(DynamoFilterSpec rightKey) {
     if (rightKey == null) {
