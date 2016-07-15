@@ -136,7 +136,7 @@ public class DynamoFilterBuilder {
           if (fragment == null) {
             allExpressionsConverted = false;
           }
-          builder = new DynamoReadBuilder(rangePrimaryKey == null);
+          builder = new DynamoReadBuilder(rangePrimaryKey != null);
           builder.and(fragment);
         }
         return builder;
@@ -146,7 +146,7 @@ public class DynamoFilterBuilder {
       switch (functionName) {
         case AND:
         case OR:
-          DynamoReadBuilder builder = new DynamoReadBuilder(rangePrimaryKey == null);
+          DynamoReadBuilder builder = new DynamoReadBuilder(rangePrimaryKey != null);
           for (LogicalExpression expr : args) {
             DynamoReadBuilder exprBuilder = expr.accept(this, null);
             if (exprBuilder == null) {

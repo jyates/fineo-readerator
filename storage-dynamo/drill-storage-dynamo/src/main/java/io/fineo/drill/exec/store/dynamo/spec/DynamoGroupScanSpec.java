@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @JsonTypeName(DynamoGroupScanSpec.NAME)
@@ -20,6 +21,12 @@ public class DynamoGroupScanSpec {
     @JsonProperty("getOrQuery") List<DynamoReadFilterSpec> getOrQuery) {
     this.scan = scan;
     this.getOrQuery = getOrQuery;
+    this.table = table;
+  }
+
+  public DynamoGroupScanSpec() {
+    this.getOrQuery = new ArrayList<>(0);
+    this.scan = null;
   }
 
   @JsonProperty
@@ -35,5 +42,9 @@ public class DynamoGroupScanSpec {
   @JsonProperty
   public List<DynamoReadFilterSpec> getGetOrQuery() {
     return getOrQuery;
+  }
+
+  public void setTable(DynamoTableDefinition table) {
+    this.table = table;
   }
 }

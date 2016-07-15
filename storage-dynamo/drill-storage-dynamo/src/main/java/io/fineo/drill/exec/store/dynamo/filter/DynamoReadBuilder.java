@@ -238,7 +238,7 @@ class DynamoReadBuilder {
     } else {
       // check to see if we have any hanging fragments that would change anything.
       if (this.nextHash != null) {
-        add(new Query(this.nextHash.getFilter(), this.nextAttribute));
+        createGetOrQuery();
       } else if (this.nextRange != null || this.nextAttribute != null) {
         this.scan = buildScan();
         scan = new DynamoReadFilterSpec(this.scan.key, this.scan.attribute);
@@ -391,12 +391,15 @@ class DynamoReadBuilder {
    * and then filter on it above... I think.
    */
   private void createGetOrQuery() {
-    DynamoFilterSpec key = and(nextHash.getFilter(), nextRange.getFilter());
+    assert nextHash != null : "Must at least have a nextHash specified when building Get/Query";
+    DynamoFilterSpec range = nextRange == null ? null : nextRange.getFilter();
+    DynamoFilterSpec key = and(nextHash.getFilter(), range);
     boolean validRange = !rangeKeyExists || (nextRange != null && nextRange.isEquals());
-    if (nextHash.isEquals() && validRange && nextAttribute != null) {
+    if (nextHash.isEquals() && validRange && nextAttribute == null) {
       add(new Get(key));
+    }else {
+      add(new Query(key, nextAttribute));
     }
-    add(new Query(key, nextAttribute));
   }
 
   private void orAttribute(DynamoFilterSpec attr) {

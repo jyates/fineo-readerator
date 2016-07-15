@@ -65,7 +65,8 @@ public class DynamoQueryBuilder {
   }
 
   public DynamoQuery build(AmazonDynamoDBAsyncClient client) {
-    return new DynamoQuery(new DynamoDB(client).getTable(tableDef.getName()), COMMAS.join(columns));
+    return new DynamoQuery(new DynamoDB(client).getTable(tableDef.getName()),
+      columns == null || columns.size() == 0 ? "" : COMMAS.join(columns));
   }
 
   public class DynamoQuery {
@@ -76,7 +77,6 @@ public class DynamoQueryBuilder {
       this.table = table;
       this.projection = projection;
     }
-
 
     public Iterator<Page<Item, ?>> scan() {
       ScanSpec scan = new ScanSpec();
@@ -234,13 +234,13 @@ public class DynamoQueryBuilder {
     }
   }
 
-  private class GetItemPage extends Page<Item, Void> {
+  private class GetItemPage extends Page<Item, Item> {
 
     /**
      * @param item the item read
      */
     public GetItemPage(Item item) {
-      super(unmodifiableList(singletonList(item)), null);
+      super(unmodifiableList(singletonList(item)), item);
     }
 
     @Override
@@ -249,7 +249,7 @@ public class DynamoQueryBuilder {
     }
 
     @Override
-    public Page<Item, Void> nextPage() {
+    public Page<Item, Item> nextPage() {
       return null;
     }
   }

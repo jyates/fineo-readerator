@@ -110,6 +110,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
   @Override
   public void applyAssignments(List<CoordinationProtos.DrillbitEndpoint> endpoints)
     throws PhysicalOperatorSetupException {
+    this.work = new ArrayList<>();
     // if we have a list of queries/gets, then that is the 'true' limit on the set of work
     if (spec.getScan() != null) {
       setScanWork(spec.getScan(), endpoints);
@@ -143,7 +144,6 @@ public class DynamoGroupScan extends AbstractGroupScan {
     }
 
     // no affinity for any work unit
-    this.work = new ArrayList<>();
     long portion = this.desc.getTableSizeBytes() / units;
     for (int i = 0; i < units; i++) {
       work.add(new DynamoScanWork((int) units, i, portion, filter));
