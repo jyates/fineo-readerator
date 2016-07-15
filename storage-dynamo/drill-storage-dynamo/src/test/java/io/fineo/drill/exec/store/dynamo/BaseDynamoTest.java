@@ -117,7 +117,7 @@ public class BaseDynamoTest extends BaseTestQuery {
   }
 
   protected String from(Table table) {
-    return " FROM dynamo." + table.getTableName() +" ";
+    return " FROM dynamo." + table.getTableName() + " ";
   }
 
   protected List<Map<String, Object>> runAndReadResults(String sql) throws Exception {
@@ -221,7 +221,15 @@ public class BaseDynamoTest extends BaseTestQuery {
     return table;
   }
 
-  protected void equalsNumber(Item expected, String key, Map<String, Object> row){
+  protected void equalsNumber(Item expected, String key, Map<String, Object> row) {
     assertEquals(expected.get(key), new BigDecimal(row.get(key).toString()));
+  }
+
+  protected void equalsText(Item expected, String key, Map<String, Object> row) {
+    Object actual = row.get(key);
+    if (actual instanceof Text) {
+      actual = actual.toString();
+    }
+    assertEquals(expected.get(key), actual);
   }
 }

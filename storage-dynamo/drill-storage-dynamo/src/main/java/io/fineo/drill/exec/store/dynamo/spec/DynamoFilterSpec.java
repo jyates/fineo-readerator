@@ -8,6 +8,8 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.lang.String.format;
+
 /**
  * Tree structured filter specification for building a Dynamo filter
  */
@@ -18,29 +20,29 @@ public class DynamoFilterSpec {
   private static final String OR = "OR";
 
   // mapping of functions for checking individual columns
-  private static final Map<String, String> COLUMN_FUNCTION_MAP = new HashMap<>();
+  private static final Map<String, Op> COLUMN_FUNCTION_MAP = new HashMap<>();
 
   static {
-    COLUMN_FUNCTION_MAP.put("isNull", "attribute_not_exists");
-    COLUMN_FUNCTION_MAP.put("isNotNull", "attribute_exists");
-    COLUMN_FUNCTION_MAP.put("equal", "=");
-    COLUMN_FUNCTION_MAP.put("not_equal", "<>");
-    COLUMN_FUNCTION_MAP.put("greater_than_or_equal_to", ">=");
-    COLUMN_FUNCTION_MAP.put("greater_than", ">");
-    COLUMN_FUNCTION_MAP.put("less_than_or_equal_to", "<=");
-    COLUMN_FUNCTION_MAP.put("less_than", "<");
+    COLUMN_FUNCTION_MAP.put("isNull", new Func("attribute_not_exists"));
+    COLUMN_FUNCTION_MAP.put("isNotNull", new Func("attribute_exists"));
+    COLUMN_FUNCTION_MAP.put("equal", op("="));
+    COLUMN_FUNCTION_MAP.put("not_equal", op("<>"));
+    COLUMN_FUNCTION_MAP.put("greater_than_or_equal_to", op(">="));
+    COLUMN_FUNCTION_MAP.put("greater_than", op(">"));
+    COLUMN_FUNCTION_MAP.put("less_than_or_equal_to", op("<="));
+    COLUMN_FUNCTION_MAP.put("less_than", op("<"));
   }
 
   // functions for interrogating the contents of a document (list, map, set)
-  private static final Map<String, String> DOCUMENT_FUNCTION_MAP = new HashMap<>();
+  private static final Map<String, Op> DOCUMENT_FUNCTION_MAP = new HashMap<>();
 
   static {
-    DOCUMENT_FUNCTION_MAP.put("isNotNull", "contains");
+    DOCUMENT_FUNCTION_MAP.put("isNotNull", new Func2("contains"));
     // count? -> size
   }
 
   public static DynamoFilterSpec create(String functionName, String fieldName, Object fieldValue) {
-    String op;
+    Op op;
     // map or list
     if (fieldName.contains(".") || fieldName.contains("[")) {
       op = DOCUMENT_FUNCTION_MAP.get(functionName);
@@ -88,21 +90,21 @@ public class DynamoFilterSpec {
       this.root = root;
     }
 
-    public FilterTree(String key, String operand, Object value) {
+    public FilterTree(String key, Op operand, Object value) {
       this.root = new FilterLeaf(key, operand, value);
     }
 
     @JsonIgnore
-    public FilterTree and(String key, String operand, String value) {
+    public FilterTree and(String key, Op operand, String value) {
       return op(AND, key, operand, value);
     }
 
     @JsonIgnore
-    public FilterTree or(String key, String operand, String value) {
+    public FilterTree or(String key, Op operand, String value) {
       return op(OR, key, operand, value);
     }
 
-    private FilterTree op(String op, String key, String operand, String value) {
+    private FilterTree op(String op, String key, Op operand, String value) {
       FilterLeaf right = new FilterLeaf(key, operand, value);
       return op(op, right);
     }
@@ -129,9 +131,17 @@ public class DynamoFilterSpec {
     public FilterNode getRoot() {
       return root;
     }
+
+    public <T> T visit(FilterNodeVisitor<T> visitor) {
+      if (this.root == null) {
+        return null;
+      }
+      FilterNode node = getRoot();
+      return node.visit(visitor);
+    }
   }
 
-  public static class FilterNode {
+  public abstract static class FilterNode {
     private FilterNode parent;
 
     @JsonIgnore
@@ -143,6 +153,8 @@ public class DynamoFilterSpec {
     public FilterNode getParent() {
       return parent;
     }
+
+    public abstract <T> T visit(FilterNodeVisitor<T> visitor);
   }
 
   @JsonTypeName("dynamo-filter-tree-inner-node")
@@ -180,13 +192,6 @@ public class DynamoFilterSpec {
       return right;
     }
 
-    public void left(FilterLeaf leaf) {
-      this.left = leaf;
-    }
-
-    public void right(FilterLeaf leaf) {
-      this.right = leaf;
-    }
 
     public void update(FilterNode node, FilterLeaf leaf) {
       if (node == left) {
@@ -196,16 +201,21 @@ public class DynamoFilterSpec {
         this.right = leaf;
       }
     }
+
+    @Override
+    public <T> T visit(FilterNodeVisitor<T> visitor) {
+      return visitor.visitInnerNode(this);
+    }
   }
 
-  @JsonTypeName("dynamo-filter-tree-left-node")
+  @JsonTypeName("dynamo-filter-tree-leaf-node")
   public static class FilterLeaf extends FilterNode {
     private String key;
-    private String operand;
+    private Op operand;
     private Object value;
 
     @JsonCreator
-    public FilterLeaf(@JsonProperty("key") String key, @JsonProperty("operand") String operand,
+    public FilterLeaf(@JsonProperty("key") String key, @JsonProperty("operand") Op operand,
       @JsonProperty("value") Object value) {
       this.key = key;
       this.operand = operand;
@@ -214,7 +224,7 @@ public class DynamoFilterSpec {
 
     @Override
     public String toString() {
-      return key.toString() + " " + operand + " " + value;
+      return operand.compose(key, value.toString());
     }
 
     @JsonProperty
@@ -223,7 +233,7 @@ public class DynamoFilterSpec {
     }
 
     @JsonProperty
-    public String getOperand() {
+    public Op getOperand() {
       return operand;
     }
 
@@ -231,6 +241,91 @@ public class DynamoFilterSpec {
     public Object getValue() {
       return value;
     }
+
+    @JsonIgnore
+    public boolean registerKey() {
+      return operand.registerKey();
+    }
+
+    @JsonIgnore
+    public boolean registerValue() {
+      return operand.registerValue();
+    }
+
+    @Override
+    public <T> T visit(FilterNodeVisitor<T> visitor) {
+      return visitor.visitLeafNode(this);
+    }
   }
 
+  private static Op op(String name) {
+    return new Op(name);
+  }
+
+  @JsonTypeName("dynamo-filter-operand")
+  public static class Op {
+    private String name;
+
+    @JsonCreator
+    public Op(@JsonProperty("name") String name) {
+      this.name = name;
+    }
+
+    @JsonProperty
+    public String getName() {
+      return name;
+    }
+
+    @JsonIgnore
+    public String compose(String key, String value) {
+      return format("%s %s %s", key, name, value);
+    }
+
+    @JsonIgnore
+    public boolean registerKey() {
+      return true;
+    }
+
+    @JsonIgnore
+    public boolean registerValue() {
+      return true;
+    }
+  }
+
+  @JsonTypeName("dynamo-filter-operand_function")
+  public static class Func extends Op {
+
+    public Func(@JsonProperty("name") String name) {
+      super(name);
+    }
+
+    @Override
+    public String compose(String key, String value) {
+      return format("%s(%s)", getName(), key);
+    }
+
+    @Override
+    public boolean registerValue() {
+      return false;
+    }
+  }
+
+  @JsonTypeName("dynamo-filter-operand_function2")
+  public static class Func2 extends Op {
+
+    public Func2(@JsonProperty("name") String name) {
+      super(name);
+    }
+
+    @Override
+    public String compose(String key, String value) {
+      return format("%s(%s, %s)", getName(), key, value);
+    }
+  }
+
+  public interface FilterNodeVisitor<T> {
+    T visitInnerNode(FilterNodeInner inner);
+
+    T visitLeafNode(FilterLeaf leaf);
+  }
 }

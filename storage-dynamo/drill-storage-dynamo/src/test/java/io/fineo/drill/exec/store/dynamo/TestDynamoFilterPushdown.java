@@ -1,13 +1,9 @@
 package io.fineo.drill.exec.store.dynamo;
 
 import com.amazonaws.services.dynamodbv2.document.Item;
-import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
-import com.amazonaws.services.dynamodbv2.document.internal.IteratorSupport;
-import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import org.junit.Test;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -29,22 +25,8 @@ public class TestDynamoFilterPushDown extends BaseDynamoTest {
     i2.with(PK, "2");
     i2.with(COL1, "pk");
     Table table = createTableWithItems(item, i2);
-//    QuerySpec spec = new QuerySpec();
-//    spec.withKeyConditionExpression("pk = :v1");
-//    spec.withFilterExpression("col1 = :v2");
-//    Map<String, Object> valueMap = new HashMap<>();
-//    valueMap.put(":v1", "2");
-//    valueMap.put(":v2", "pk");
-//    spec.withValueMap(valueMap);
-//    IteratorSupport<Item, QueryOutcome> iter = table.query(spec).iterator();
-//    while (iter.hasNext()) {
-//      Item i = iter.next();
-//      System.out.println(i);
-//    }
 
-    verify(runAndReadResults("SELECT *" + from(table) +
-                             "t WHERE t." + PK + " = '2'"),
-//                             "t WHERE t." + PK + " = cast(null as varchar)"),
+    verify(runAndReadResults(selectStarWithPK("2", "t", table)),
       i2);
   }
 
@@ -53,8 +35,7 @@ public class TestDynamoFilterPushDown extends BaseDynamoTest {
     Item item = item();
     item.with(COL1, "1");
     Table t = createTableWithItems(item);
-    verify(runAndReadResults(
-      "SELECT *" + from(t) + "t WHERE t." + PK + " = 'pk' AND t." + COL1 + " = '1'"),
+    verify(runAndReadResults(selectStarWithPK("pk", "t", t) + " AND t." + COL1 + " = '1'"),
       item);
 
     // number column
@@ -63,9 +44,9 @@ public class TestDynamoFilterPushDown extends BaseDynamoTest {
     item.with(COL1, 1);
     t.putItem(item);
     Map<String, Object> row = justOneRow(runAndReadResults(
-      "SELECT *" + from(t) + "t WHERE t." + PK + " = 'pk2' AND t." + COL1 + " = 1"
+      selectStarWithPK("pk2", "t", t) + " AND t." + COL1 + " = 1"
     ));
-    assertEquals("pk2", row.get(PK).toString());
+    equalsText(item, PK, row);
     equalsNumber(item, COL1, row);
   }
 
@@ -74,9 +55,59 @@ public class TestDynamoFilterPushDown extends BaseDynamoTest {
     Item item = item();
     item.with(COL1, null);
     Table table = createTableWithItems(item);
-    verify(runAndReadResults("SELECT *" + from(table) +
-                             "t WHERE t." + PK + " = '2' AND " +
-                             "t WHERE t." + COL1 + " = cast(null as varchar)"),
+
+//    QuerySpec spec = new QuerySpec();
+//    spec.withKeyConditionExpression("#n0 = :v1");
+//    spec.withConsistentRead(true);
+//    spec.withFilterExpression("#n1 = :v2");
+//    Map<String, Object> valueMap = new HashMap<>();
+//    valueMap.put(":v1", "pk");
+//    valueMap.put(":v2", null);
+//    spec.withValueMap(valueMap);
+//    Map<String, String> nameMap = new HashMap<>();
+//    nameMap.put("#n0", PK);
+//    nameMap.put("#n1", COL1);
+//    spec.withNameMap(nameMap);
+//    IteratorSupport<Item, QueryOutcome> iter = table.query(spec).iterator();
+//    while (iter.hasNext()) {
+//      Item i = iter.next();
+//      System.out.println(i);
+//    }
+
+    verify(runAndReadResults(
+      selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as varchar)"),
       item);
+  }
+
+  /**
+   * Similar to above, but we check for the non-existance of a column
+   */
+  @Test
+  public void testWhereColumnIsNull() throws Exception {
+    Item item = item();
+    Table table = createTableWithItems(item);
+    assertEquals("Should not have found a row when checking for = null and column not set!",
+      0,
+      runAndReadResults(
+        selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as varchar)").size());
+    verify(runAndReadResults(selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " IS NULL"),
+      item);
+  }
+
+  @Test
+  public void testSimpleScan() throws Exception {
+    Item item = item();
+    item.with(COL1, 1);
+    Table table = createTableWithItems(item);
+    Map<String, Object> row = justOneRow(runAndReadResults("SELECt *" + from(table) + "t WHERE t"
+                                                           + "." + COL1 + " = 1"));
+    equalsText(item, PK, row);
+    equalsNumber(item, COL1, row);
+  }
+
+
+  private String selectStarWithPK(String pk, String tableName, Table table) {
+    return "SELECT *" + from(
+      table) + tableName + " WHERE " + tableName + "." + PK + " = '" + pk + "'";
   }
 }

@@ -185,28 +185,29 @@ public class DynamoQueryBuilder {
     DynamoFilterSpec.FilterTree tree = spec.getTree();
     // replace the leaf values in the tree with expressions
     List<DynamoFilterSpec.FilterNode> nodes = newLinkedList();
-    nodes.add(tree.getRoot());
-    DynamoFilterSpec.FilterNode node;
-    while (nodes.size() > 0) {
-      node = nodes.remove(0);
-      if (node instanceof FilterLeaf) {
-        FilterLeaf leaf = (FilterLeaf) node;
-        leaf = new FilterLeaf(mapper.name(leaf.getKey()), leaf.getOperand(),
-          mapper.value(leaf.getValue()));
-        // must be a depth 1 tree
-        if (node.getParent() == null) {
-          assert node == tree.getRoot() : "No has no parents, but is not the root node!";
-          tree = new DynamoFilterSpec.FilterTree(leaf);
-          break;
-        }
-        ((FilterNodeInner) node.getParent()).update(node, leaf);
-      } else {
-        FilterNodeInner inner = (FilterNodeInner) node.getParent();
-        nodes.add(inner.getLeft());
-        nodes.add(inner.getRight());
+    return tree.visit(new DynamoFilterSpec.FilterNodeVisitor<String>() {
+      @Override
+      public String visitInnerNode(FilterNodeInner inner) {
+        String left = inner.getLeft().visit(this);
+        String right = inner.getRight().visit(this);
+
+        return left + " " + inner.getCondition() + " " + right;
       }
-    }
-    return tree.toString();
+
+      @Override
+      public String visitLeafNode(FilterLeaf leaf) {
+        String name = leaf.getKey();
+        if (leaf.registerKey()) {
+          name = mapper.name(name);
+        }
+        Object value = leaf.getValue();
+        String valueName = null;
+        if (leaf.registerValue()) {
+          valueName = mapper.value(value);
+        }
+        return leaf.getOperand().compose(name, valueName);
+      }
+    });
   }
 
   public DynamoQueryBuilder withTable(DynamoTableDefinition tableDef) {
