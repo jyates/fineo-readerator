@@ -53,7 +53,7 @@ class DynamoReadBuilder {
       return;
     } else if (thatQueries) {
       // queries from them, but no queries from us
-      this.queries = that.queries;
+      this.queries.addAll(that.queries);
     }
 
     // try to add the attributes
@@ -141,6 +141,9 @@ class DynamoReadBuilder {
    * sort && sort -> query or scan
    */
   public void and(FilterFragment fragment) {
+    if (fragment == null) {
+      return;
+    }
     // we have a scan or the fragment is an attribute
     if (shouldScan(fragment)) {
       andScan(fragment.getFilter(), fragment.isAttribute());
@@ -292,6 +295,7 @@ class DynamoReadBuilder {
       }
       // we created a query last
       query.setAttribute(and(query.attribute(), spec));
+      add(query);
     } else {
       // nothing created yet, just combine attributes
       nextAttribute = and(nextAttribute, spec);
@@ -338,6 +342,9 @@ class DynamoReadBuilder {
    * sort || attr -> scan
    */
   private void or(FilterFragment fragment) {
+    if (fragment == null) {
+      return;
+    }
     // we have to read everything anyways, so just add this spec
     // OR checking a non-equality requires scan - either is an attribute or a non-equality key
     boolean isKey = fragment.isHash() || fragment.isRange();
@@ -397,7 +404,7 @@ class DynamoReadBuilder {
     boolean validRange = !rangeKeyExists || (nextRange != null && nextRange.isEquals());
     if (nextHash.isEquals() && validRange && nextAttribute == null) {
       add(new Get(key));
-    }else {
+    } else {
       add(new Query(key, nextAttribute));
     }
   }
@@ -488,18 +495,6 @@ class DynamoReadBuilder {
     return scan;
   }
 
-  private class LeafQuerySpec {
-    private final DynamoFilterSpec filter;
-
-    public LeafQuerySpec(DynamoFilterSpec filter) {
-      this.filter = filter;
-    }
-
-    public DynamoFilterSpec getFilter() {
-      return filter;
-    }
-  }
-
   private class Scan {
     private DynamoFilterSpec key;
     private DynamoFilterSpec attribute;
@@ -532,7 +527,19 @@ class DynamoReadBuilder {
     }
   }
 
-  private class Get extends LeafQuerySpec {
+  private static class LeafQuerySpec {
+    private final DynamoFilterSpec filter;
+
+    public LeafQuerySpec(DynamoFilterSpec filter) {
+      this.filter = filter;
+    }
+
+    public DynamoFilterSpec getFilter() {
+      return filter;
+    }
+  }
+
+  private static class Get extends LeafQuerySpec {
 
     protected DynamoFilterSpec attribute;
 
@@ -545,7 +552,7 @@ class DynamoReadBuilder {
     }
   }
 
-  private class Query extends LeafQuerySpec {
+  private static class Query extends LeafQuerySpec {
 
     protected DynamoFilterSpec attribute;
 
@@ -563,7 +570,7 @@ class DynamoReadBuilder {
     }
   }
 
-  private class GetOrQuery {
+  private static class GetOrQuery {
     private Get get;
     private Query query;
 

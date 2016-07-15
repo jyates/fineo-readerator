@@ -28,6 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -218,5 +219,9 @@ public class BaseDynamoTest extends BaseTestQuery {
     Table table = dynamoDB.createTable(request);
     table.waitForActive();
     return table;
+  }
+
+  protected void equalsNumber(Item expected, String key, Map<String, Object> row){
+    assertEquals(expected.get(key), new BigDecimal(row.get(key).toString()));
   }
 }

@@ -10,6 +10,8 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.junit.Assert.assertEquals;
+
 /**
  *
  */
@@ -44,5 +46,37 @@ public class TestDynamoFilterPushDown extends BaseDynamoTest {
                              "t WHERE t." + PK + " = '2'"),
 //                             "t WHERE t." + PK + " = cast(null as varchar)"),
       i2);
+  }
+
+  @Test
+  public void testPrimaryKeyAndAttributeFilter() throws Exception {
+    Item item = item();
+    item.with(COL1, "1");
+    Table t = createTableWithItems(item);
+    verify(runAndReadResults(
+      "SELECT *" + from(t) + "t WHERE t." + PK + " = 'pk' AND t." + COL1 + " = '1'"),
+      item);
+
+    // number column
+    item = new Item();
+    item.with(PK, "pk2");
+    item.with(COL1, 1);
+    t.putItem(item);
+    Map<String, Object> row = justOneRow(runAndReadResults(
+      "SELECT *" + from(t) + "t WHERE t." + PK + " = 'pk2' AND t." + COL1 + " = 1"
+    ));
+    assertEquals("pk2", row.get(PK).toString());
+    equalsNumber(item, COL1, row);
+  }
+
+  @Test
+  public void testWhereColumnEqualsNull() throws Exception {
+    Item item = item();
+    item.with(COL1, null);
+    Table table = createTableWithItems(item);
+    verify(runAndReadResults("SELECT *" + from(table) +
+                             "t WHERE t." + PK + " = '2' AND " +
+                             "t WHERE t." + COL1 + " = cast(null as varchar)"),
+      item);
   }
 }

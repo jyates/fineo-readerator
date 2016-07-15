@@ -220,11 +220,11 @@ public class DynamoQueryBuilder {
     Map<String, Object> valueMap = new HashMap<>();
 
     public String name(String name) {
-      return add(":n", name, nameMap);
+      return add("#n", name, nameMap);
     }
 
     public String value(Object value) {
-      return add("#s", value, valueMap);
+      return add(":v", value, valueMap);
     }
 
     private <IN extends Object> String add(String prefix, IN in, Map<String, IN> map) {

@@ -114,9 +114,7 @@ public class TestDynamoFieldReads extends BaseDynamoTest{
     item.with(c2, new BigDecimal(d2));
     table.putItem(item);
 
-    List<Map<String, Object>> values = selectStar(table, false, item);
-    assertEquals("Got more than 1 row! Values: " + values, 1, values.size());
-    Map<String, Object> row = values.get(0);
+    Map<String, Object> row = justOneRow(selectStar(table, false, item));
     assertEquals(item.get(c1), new BigDecimal(row.get(c1).toString()));
     assertEquals(item.get(c2), new BigDecimal(row.get(c2).toString()));
   }
