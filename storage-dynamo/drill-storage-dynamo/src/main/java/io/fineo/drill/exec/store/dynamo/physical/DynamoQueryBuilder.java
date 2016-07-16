@@ -16,6 +16,7 @@ import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterLeaf;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterNodeInner;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoQueryFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubReadSpec;
@@ -96,9 +97,7 @@ public class DynamoQueryBuilder {
       // and attributes with AND and make a single filter.
       NameMapper mapper = new NameMapper();
       DynamoReadFilterSpec filterSpec = slice.getFilter();
-      DynamoFilterSpec key = filterSpec.getKeyFilter();
-      DynamoFilterSpec attribute = filterSpec.getAttributeFilter();
-      DynamoFilterSpec filter = key == null ? attribute : key.and(attribute);
+      DynamoFilterSpec filter = filterSpec.getKeyFilter();
       String filterString = asFilterExpression(mapper, filter);
       if (filterString != null) {
         scan.withFilterExpression(filterString);
@@ -118,7 +117,7 @@ public class DynamoQueryBuilder {
         query.withProjectionExpression(projection);
       }
       NameMapper mapper = new NameMapper();
-      DynamoReadFilterSpec filter = slice.getFilter();
+      DynamoQueryFilterSpec filter = (DynamoQueryFilterSpec) slice.getFilter();
 
       // key space
       DynamoFilterSpec key = filter.getKeyFilter();
@@ -147,7 +146,6 @@ public class DynamoQueryBuilder {
         query.withProjectionExpression(projection);
       }
       DynamoReadFilterSpec filter = slice.getFilter();
-      assert filter.getAttributeFilter() == null : "Gets cannot have an attribute filter!";
       // key space
       PrimaryKey pk = new PrimaryKey();
       DynamoFilterSpec key = filter.getKeyFilter();

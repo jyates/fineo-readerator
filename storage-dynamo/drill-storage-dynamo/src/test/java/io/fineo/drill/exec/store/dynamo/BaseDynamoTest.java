@@ -140,7 +140,9 @@ public class BaseDynamoTest extends BaseTestQuery {
         if (o instanceof Text) {
           o = o.toString();
         }
-        if (o instanceof byte[]) {
+        if (item.get(name) instanceof Number) {
+          equalsNumber(item, name, row);
+        } else if (o instanceof byte[]) {
           assertArrayEquals("Array mismatch for: " + name, (byte[]) item.get(name), (byte[]) o);
         } else {
           assertEquals("Mismatch for: " + name, item.get(name), o);

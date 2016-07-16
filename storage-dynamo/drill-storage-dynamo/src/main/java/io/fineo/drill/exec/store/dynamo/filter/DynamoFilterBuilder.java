@@ -137,7 +137,7 @@ public class DynamoFilterBuilder {
             allExpressionsConverted = false;
           }
           builder = new DynamoReadBuilder(rangePrimaryKey != null);
-          builder.and(fragment);
+          builder.set(fragment);
         }
         return builder;
       }
@@ -146,26 +146,32 @@ public class DynamoFilterBuilder {
       switch (functionName) {
         case AND:
         case OR:
-          // this definitely only has two arguments, so don't try anything fancy
-          DynamoReadBuilder left = args.get(0).accept(this, null);
-          DynamoReadBuilder right = args.get(1).accept(this, null);
-          if (left == null || right == null) {
-            allExpressionsConverted = false;
-          }
-          if (left == null) {
-            if (right == null) {
-              return null;
+          boolean first = true;
+          DynamoReadBuilder left = null;
+          for (LogicalExpression expr : args) {
+            if (first || left == null) {
+              left = expr.accept(this, null);
+              first = false;
+              if (left == null) {
+                allExpressionsConverted = false;
+              }
+              continue;
             }
-            return right;
+            DynamoReadBuilder right = expr.accept(this, null);
+            if (right == null) {
+              allExpressionsConverted = false;
+              continue;
+            }
+            switch (functionName) {
+              case AND:
+                left.and(right);
+                break;
+              case OR:
+                left.or(right);
+                break;
+            }
           }
-          switch (functionName) {
-            case AND:
-              left.and(right);
-              break;
-            case OR:
-              left.or(right);
-              break;
-          }
+
           return left;
       }
 

@@ -13,24 +13,18 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 public class DynamoReadFilterSpec {
 
   private DynamoFilterSpec keyFilter;
-  private DynamoFilterSpec attributeFilter;
 
   @JsonCreator
-  public DynamoReadFilterSpec(@JsonProperty("key") DynamoFilterSpec keyFilter,
-    @JsonProperty("attr") DynamoFilterSpec attributeFilter) {
+  public DynamoReadFilterSpec(@JsonProperty("key") DynamoFilterSpec keyFilter) {
     this.keyFilter = keyFilter;
-    this.attributeFilter = attributeFilter;
   }
 
   public DynamoReadFilterSpec() {
     keyFilter = new DynamoFilterSpec();
   }
 
+  @JsonProperty("keyFilter")
   public DynamoFilterSpec getKeyFilter() {
     return keyFilter;
-  }
-
-  public DynamoFilterSpec getAttributeFilter() {
-    return attributeFilter;
   }
 }

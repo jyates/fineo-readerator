@@ -135,8 +135,69 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
                              "t." + PK + " = 'pk' OR " +
                              "t." + PK + " = 'pk2'" +
-                             "ORDER BY t." + PK +" ASC"),
+                             "ORDER BY t." + PK + " ASC"),
       item, i2);
+  }
+
+  @Test
+  public void testGetAndQuery() throws Exception {
+    Item item = item();
+    item.with(COL1, "1");
+    Item i2 = new Item();
+    i2.with(PK, "pk2");
+    i2.with(COL1, 2);
+    Table table = createTableWithItems(item, i2);
+    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
+                             "t." + PK + " = 'pk' OR " +
+                             "t." + PK + " = 'pk2' AND t." + COL1 + " >= 2" +
+                             "ORDER BY t." + PK + " ASC"),
+      item, i2);
+  }
+
+  @Test
+  public void testQueryOrQuery() throws Exception {
+    Item item = item();
+    item.with(COL1, 1);
+    Item i2 = new Item();
+    i2.with(PK, "pk2");
+    i2.with(COL1, 2);
+    Table table = createTableWithItems(item, i2);
+    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
+                             "t." + PK + " = 'pk' AND t." + COL1 + " = 1" +
+                             " OR " +
+                             "t." + PK + " = 'pk2' AND t." + COL1 + " >= 2" +
+                             "ORDER BY t." + PK + " ASC"),
+      item, i2);
+  }
+
+  @Test
+  public void testQueryAndQueryForcesScan() throws Exception {
+    Item item = item();
+    item.with(COL1, 1);
+    Item i2 = new Item();
+    i2.with(PK, "pk2");
+    i2.with(COL1, 2);
+    Table table = createTableWithItems(item, i2);
+    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
+                             "t." + PK + " = 'pk' AND t." + COL1 + " = 1" +
+                             " AND " +
+                             "t." + PK + " = 'pk2' AND t." + COL1 + " >= 2" +
+                             "ORDER BY t." + PK + " ASC"));
+  }
+
+  @Test
+  public void testQueryOrAttributeForcesScan() throws Exception {
+    Item item = item();
+    item.with(COL1, 1);
+    Item i2 = new Item();
+    i2.with(PK, "pk2");
+    i2.with(COL1, 2);
+    Table table = createTableWithItems(item, i2);
+    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
+                             "(t." + PK + " = 'pk' AND t." + COL1 + " = 1)" +
+                             " OR " +
+                             "t." + COL1 + " >= 2" +
+                             "ORDER BY t." + PK + " ASC"), item, i2);
   }
 
   private String selectStarWithPK(String pk, String tableName, Table table) {

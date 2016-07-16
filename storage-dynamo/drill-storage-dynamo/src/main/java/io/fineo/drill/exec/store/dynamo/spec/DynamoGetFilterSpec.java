@@ -9,6 +9,6 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 public class DynamoGetFilterSpec extends DynamoReadFilterSpec {
   @JsonCreator
   public DynamoGetFilterSpec(@JsonProperty("key") DynamoFilterSpec keyFilter) {
-    super(keyFilter, null);
+    super(keyFilter);
   }
 }

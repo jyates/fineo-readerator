@@ -15,17 +15,53 @@ import java.util.function.BiFunction;
 
 class DynamoReadBuilder {
   private static final Logger LOG = LoggerFactory.getLogger(DynamoReadBuilder.class);
+
+  private enum CASE {
+    AND,
+    OR;
+  }
+
   private List<GetOrQuery> queries = new ArrayList<>();
   private Scan scan;
 
   private FilterFragment nextHash;
   private FilterFragment nextRange;
   private DynamoFilterSpec nextAttribute;
+  private CASE AND_OR;
 
   private final boolean rangeKeyExists;
 
   DynamoReadBuilder(boolean rangeKeyExists) {
     this.rangeKeyExists = rangeKeyExists;
+  }
+
+  /**
+   * Non-typed setting of the fragment. This should only be used the first time
+   *
+   * @param fragment to set
+   */
+  public void set(FilterFragment fragment) {
+    assert AND_OR == null;
+    assert queries.size() == 0;
+    assert nextHash == null;
+    assert nextRange == null;
+    assert nextAttribute == null;
+    if (fragment.isHash()) {
+      nextHash = fragment;
+    } else if (fragment.isRange()) {
+      nextRange = fragment;
+    } else {
+      assert fragment.isAttribute();
+      nextAttribute = fragment.getFilter();
+    }
+  }
+
+  private void and() {
+    AND_OR = CASE.AND;
+  }
+
+  private void or() {
+    AND_OR = CASE.OR;
   }
 
   /**
@@ -41,6 +77,8 @@ class DynamoReadBuilder {
     if (that == null) {
       return;
     }
+    and();
+
     // if either are scans already, then just combine them
     if (this.scan != null || that.scan != null) {
       andScan(that);
@@ -92,33 +130,91 @@ class DynamoReadBuilder {
     if (that == null) {
       return;
     }
+    CASE prev = AND_OR;
+    or();
     // if either are scans already, then just combine them
     if (this.scan != null || that.scan != null) {
       orScan(that);
       return;
     }
 
+    boolean hadQueries = !this.queries.isEmpty();
     this.queries.addAll(that.queries);
-    // 'next' is always joined on ANDs but side is joined on OR, so we need to find the first
-    // applying one and then and from there
-    boolean and = false;
-    if (that.nextHash != null) {
-      or(that.nextHash);
-      and = true;
-    }
-    if (that.nextRange != null) {
-      if (and) {
-        and(that.nextRange);
-      } else {
-        or(that.nextRange);
-      }
-      and = true;
-    }
 
-    if (and) {
-      andAttribute(that.nextAttribute);
-    } else {
-      orAttribute(that.nextAttribute);
+    /*
+     * Handle the leftovers. They have to be anded together, to make this not already a scan.
+     *   hash && hash -> scan
+     *   hash || hash -> first => get/query; second => could be get/query
+     *
+     *   hash && sort -> turns in get/query
+     *   hash || sort -> scan
+     *
+     *   hash && attr -> could be query
+     *   hash || attr -> scan
+     *
+     *   sort && sort => sort -> could be query
+     *   sort || sort => sort -> could be query
+     *
+     *   sort && attr -> could be query
+     *   sort || attr -> scan
+     *
+     *   queries && hash -> scan
+     *   queries || hash -> could be query/get
+     *
+     *   queries && sort -> added to last query
+     *   queries || sort -> scan
+     *
+     *   queries && attr -> added to last query
+     *   queries || attr -> scan
+     * We essentially need to handle the cases that don't automatically turn into scan/get/query.
+     */
+    if (!(that.nextHash == null && that.nextRange == null && that.nextAttribute == null)) {
+      // has some queries, so only thing that could be left is "|| hash"
+      if (that.queries.size() > 0) {
+        assert that.AND_OR == CASE.OR : "Have previous queries but not a sort and CASE = AND";
+        assert that.nextRange == null : "NextRange should have been merged into queries";
+        assert that.nextAttribute == null : "NextAttr should have been merged into queries";
+        assert that.nextHash != null : "Should only have nextHash as the not null value!";
+
+        or(that.nextHash);
+      } else {
+        // there are no queries, so there could be more leftovers. What we do depends on the how
+        // they were added
+        if (that.AND_OR == null) {
+          // could be anything, so just OR the combination
+          or(that.nextHash);
+          or(that.nextRange);
+          orAttribute(that.nextAttribute);
+        } else {
+          // we have more than one thing set, so combine them appropriately
+          switch (that.AND_OR) {
+            case AND:
+              // could be:
+              //  1. hash && attr
+              //  2. sort && attr
+              if (that.nextHash != null) {
+                assert that.nextRange == null;
+                assert that.nextAttribute != null;
+                add(new Query(that.nextHash.getFilter(), that.nextAttribute));
+              } else {
+                // AND has priority in evaluation, so we have to create a scan to support the
+                // filter on the range and attribute
+                assert this.AND_OR != null : "No fragment set in attempted merge OR";
+                assert that.nextRange != null;
+                assert that.nextAttribute != null;
+                this.scan = buildScan();
+                this.scan.or(that.nextRange.getFilter().and(that.nextAttribute));
+              }
+            case OR:
+              // could be:
+              //  1. sort
+              //  2. hash
+              assert that.nextAttribute == null;
+              or(that.nextHash);
+              or(that.nextRange);
+          }
+        }
+      }
     }
 
     if (this.scan != null) {
@@ -150,6 +246,7 @@ class DynamoReadBuilder {
     if (fragment == null) {
       return;
     }
+    and();
     // we have a scan or the fragment is an attribute
     if (shouldScan(fragment)) {
       andScan(fragment.getFilter(), fragment.isAttribute());
@@ -236,22 +333,21 @@ class DynamoReadBuilder {
   }
 
   private void andScan(DynamoReadFilterSpec spec) {
-    and(scan.key, spec.getKeyFilter());
-    and(scan.attribute, spec.getAttributeFilter());
+    and(scan.spec, spec.getKeyFilter());
   }
 
   public DynamoGroupScanSpec buildSpec(DynamoTableDefinition def) {
     DynamoReadFilterSpec scan = null;
     List<DynamoReadFilterSpec> queries = null;
     if (this.scan != null) {
-      scan = new DynamoReadFilterSpec(this.scan.key, this.scan.attribute);
+      scan = new DynamoReadFilterSpec(this.scan.spec);
     } else {
       // check to see if we have any hanging fragments that would change anything.
       if (this.nextHash != null) {
         createGetOrQuery();
       } else if (this.nextRange != null || this.nextAttribute != null) {
         this.scan = buildScan();
-        scan = new DynamoReadFilterSpec(this.scan.key, this.scan.attribute);
+        scan = new DynamoReadFilterSpec(this.scan.spec);
         return new DynamoGroupScanSpec(def, scan, queries);
       }
 
@@ -289,7 +385,7 @@ class DynamoReadBuilder {
     if (scan == null) {
       scan = buildScan();
     }
-    scan.and(spec, !isAttribute);
+    scan.and(spec);
   }
 
   private void andAttribute(DynamoFilterSpec spec) {
@@ -352,6 +448,7 @@ class DynamoReadBuilder {
     if (fragment == null) {
       return;
     }
+    or();
     // we have to read everything anyways, so just add this spec
     // OR checking a non-equality requires scan - either is an attribute or a non-equality key
     boolean isKey = fragment.isHash() || fragment.isRange();
@@ -470,7 +567,7 @@ class DynamoReadBuilder {
     if (scan == null) {
       scan = buildScan();
     }
-    scan.or(spec, isKey);
+    scan.or(spec);
   }
 
   private DynamoFilterSpec or(DynamoFilterSpec nextAttribute, DynamoFilterSpec spec) {
@@ -492,21 +589,25 @@ class DynamoReadBuilder {
     }
     for (GetOrQuery gq : queries) {
       LeafQuerySpec query = gq.query == null ? gq.get : gq.query;
-      scan.or(query.getFilter(), true);
+      scan.or(query.getFilter());
       if (query instanceof Query) {
-        scan.or(((Query) query).attribute(), false);
+        scan.or(((Query) query).attribute());
       }
     }
     queries.clear();
 
-    // add the edge attributes. They have to be AND or we would have generated a scan
-    if (nextHash != null) {
-      scan.and(nextHash.getFilter(), true);
+    // add the edge attributes.
+    switch (AND_OR) {
+      case AND:
+        scan.and(nextHash);
+        scan.and(nextRange);
+        scan.and(nextAttribute);
+        break;
+      case OR:
+        scan.or(nextHash);
+        scan.or(nextRange);
+        scan.or(nextAttribute);
     }
-    if (nextRange != null) {
-      scan.and(nextRange.getFilter(), true);
-    }
-    scan.and(nextAttribute, false);
     nextHash = null;
     nextRange = null;
     nextAttribute = null;
@@ -514,37 +615,42 @@ class DynamoReadBuilder {
   }
 
   private class Scan {
-    private DynamoFilterSpec key;
-    private DynamoFilterSpec attribute;
+    private DynamoFilterSpec spec;
 
-    public void and(DynamoFilterSpec spec, boolean isKey) {
-      set(spec, isKey, DynamoReadBuilder.this::and);
+    public void and(DynamoFilterSpec spec) {
+      set(spec, DynamoReadBuilder.this::and);
     }
 
-    public void or(DynamoFilterSpec spec, boolean isKey) {
-      set(spec, isKey, DynamoReadBuilder.this::or);
+    public void or(DynamoFilterSpec spec) {
+      set(spec, DynamoReadBuilder.this::or);
     }
 
-    private void set(DynamoFilterSpec spec, boolean isKey, BiFunction<DynamoFilterSpec,
+    public void and(FilterFragment fragment) {
+      if (fragment != null) {
+        and(fragment.getFilter());
+      }
+    }
+
+    public void or(FilterFragment fragment) {
+      if (fragment != null) {
+        or(fragment.getFilter());
+      }
+    }
+
+    private void set(DynamoFilterSpec spec, BiFunction<DynamoFilterSpec,
       DynamoFilterSpec, DynamoFilterSpec> func) {
       if (spec == null) {
         return;
       }
-      if (isKey) {
-        key = func.apply(key, spec);
-      } else {
-        attribute = func.apply(attribute, spec);
-      }
+      this.spec = func.apply(this.spec, spec);
     }
 
     public void and(Scan scan) {
-      key = DynamoReadBuilder.this.and(key, scan.key);
-      attribute = DynamoReadBuilder.this.and(attribute, scan.attribute);
+      this.spec = DynamoReadBuilder.this.and(spec, scan.spec);
     }
 
     public void or(Scan thatScan) {
-      key = DynamoReadBuilder.this.or(key, thatScan.key);
-      attribute = DynamoReadBuilder.this.or(attribute, thatScan.attribute);
+      this.spec = DynamoReadBuilder.this.or(spec, scan.spec);
     }
   }
 
