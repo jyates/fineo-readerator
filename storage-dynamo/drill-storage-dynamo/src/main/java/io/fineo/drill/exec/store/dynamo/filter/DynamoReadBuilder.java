@@ -10,8 +10,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+
+import static io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterLeaf;
+import static io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterNode;
+import static io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterNodeInner;
+import static io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterNodeVisitor;
 
 class DynamoReadBuilder {
   private static final Logger LOG = LoggerFactory.getLogger(DynamoReadBuilder.class);
@@ -22,7 +29,11 @@ class DynamoReadBuilder {
     OR;
   }
 
-  private List<GetOrQuery> queries = new ArrayList<>();
+  private final DynamoTableDefinition.PrimaryKey hashKey;
+  private final DynamoTableDefinition.PrimaryKey rangeKey;
+  private final boolean rangeKeyExists;
+  private final List<GetOrQuery> queries = new ArrayList<>();
+
   private Scan scan;
 
   private FilterFragment nextHash;
@@ -30,10 +41,19 @@ class DynamoReadBuilder {
   private DynamoFilterSpec nextAttribute;
   private CASE AND_OR = CASE.UNSET;
 
-  private final boolean rangeKeyExists;
+  // assumed to handle the filter entirely. This doesn't occur when we have multiple range
+  // conditions, but a single hash condition to match, generating a series of point queries
+  // joined on AND conditions. For instance, (s > 5 && s < 7) && h = 1 will generate:
+  //  * q(h=1 && s > 5)
+  //  * q(h=1 && s < 7)
+  // We can't combine this into a single query with dynamo, so we have to rely on the drill
+  // filter to resolve this. However, for the above case, you should just use BETWEEN
+  private boolean handledFilter = true;
 
-  DynamoReadBuilder(boolean rangeKeyExists) {
-    this.rangeKeyExists = rangeKeyExists;
+  DynamoReadBuilder(DynamoTableDefinition.PrimaryKey hash, DynamoTableDefinition.PrimaryKey range) {
+    this.hashKey = hash;
+    this.rangeKey = range;
+    this.rangeKeyExists = range != null;
   }
 
   /**
@@ -361,7 +381,10 @@ class DynamoReadBuilder {
         if (gq.get != null) {
           queries.add(new DynamoGetFilterSpec(gq.get.getFilter()));
         } else {
-          queries.add(new DynamoQueryFilterSpec(gq.query.getFilter(), gq.attribute()));
+          DynamoFilterSpec attribute = gq.attribute();
+          for (Query query : gq.query) {
+            queries.add(new DynamoQueryFilterSpec(query.getFilter(), attribute));
+          }
         }
       }
     }
@@ -396,9 +419,9 @@ class DynamoReadBuilder {
     // last "thing" we created was a get
     if (queries.size() > 0) {
       GetOrQuery gq = queries.remove(queries.size() - 1);
-      Query query = gq.query;
+      QueryList query = gq.query;
       if (query == null) {
-        query = new Query(gq.get.getFilter(), null);
+        query = new QueryList(new Query(gq.get.getFilter(), null));
       }
       // we created a query last
       query.setAttribute(and(query.attribute(), spec));
@@ -409,6 +432,9 @@ class DynamoReadBuilder {
     }
   }
 
+  private void add(QueryList query) {
+    add(new GetOrQuery(query));
+  }
 
   private void add(Get get) {
     add(new GetOrQuery(get));
@@ -508,12 +534,42 @@ class DynamoReadBuilder {
   private void createGetOrQuery() {
     assert nextHash != null : "Must at least have a nextHash specified when building Get/Query";
     DynamoFilterSpec range = nextRange == null ? null : nextRange.getFilter();
-    DynamoFilterSpec key = and(nextHash.getFilter(), range);
     boolean validRange = !rangeKeyExists || (nextRange != null && nextRange.isEquals());
     if (nextHash.isEquals() && validRange && nextAttribute == null) {
+      DynamoFilterSpec key = and(nextHash.getFilter(), range);
       add(new Get(key));
     } else {
-      add(new Query(key, nextAttribute));
+      if (range == null) {
+        add(new Query(nextHash.getFilter(), nextAttribute));
+      } else {
+        QueryList list = new QueryList();
+        list.setAttribute(nextAttribute);
+        range.getTree().visit(new FilterNodeVisitor<Void>() {
+          @Override
+          public Void visitInnerNode(FilterNodeInner inner) {
+            inner.getLeft().visit(this);
+            inner.getRight().visit(this);
+            // any AND condition means both sides need to be true, which we can't handle with a
+            // single query, so we need to retain the parent filter
+            if (inner.and()) {
+              handledFilter = false;
+            }
+            return null;
+          }
+
+          @Override
+          public Void visitLeafNode(FilterLeaf leaf) {
+            DynamoFilterSpec copy = DynamoFilterSpec.copy(leaf);
+            FilterNode root = nextHash.getFilter().getTree().getRoot();
+            assert root instanceof FilterLeaf;
+            DynamoFilterSpec hashCopy = nextHash.getFilter().copy((FilterLeaf) root);
+            list.add(new Query(hashCopy.and(copy)));
+            return null;
+          }
+        });
+
+        add(list);
+      }
     }
   }
 
@@ -536,18 +592,57 @@ class DynamoReadBuilder {
   /**
    * Update the current range expression or add it to the previous query.
    */
-  private boolean updateRange(FilterFragment
+  private void updateRange(FilterFragment
     fragment, VoidBiFunction<DynamoFilterSpec, DynamoFilterSpec> func) {
-    if (queries.size() > 0) {
-      GetOrQuery gq = queries.get(queries.size() - 1);
-      Query query = gq.get != null ?
-                    new Query(gq.get.getFilter(), gq.attribute()) :
-                    gq.query;
-      func.apply(query.getFilter(), fragment.getFilter());
-      return true;
+    if (this.queries.size() > 0) {
+      GetOrQuery gq = queries.remove(queries.size() - 1);
+      switch (AND_OR) {
+        case UNSET:
+          throw new UnsupportedOperationException("Should not be update range with an UNSET state");
+        case AND:
+          // turn the get into a set of queries
+          if (gq.get != null) {
+            add(new Query(and(gq.get.getFilter(), fragment.getFilter())));
+          } else {
+            // h = 1 && s = 2 && s = 3
+            handledFilter = false;
+            QueryList list = gq.query;
+            Query query = list.list.get(0);
+            AtomicReference<DynamoFilterSpec> hashRef = new AtomicReference<>();
+            // find the hash key reference
+            query.getFilter().getTree().visit(new FilterNodeVisitor<Void>() {
+              @Override
+              public Void visitInnerNode(FilterNodeInner inner) {
+                inner.getLeft().visit(this);
+                inner.getRight().visit(this);
+                // any AND condition means both sides need to be true, which we can't handle with a
+                // single query, so we need to retain the parent filter
+                assert inner.and() : "Query should never have a not AND condition between hash and"
+                                     + " sort key";
+                return null;
+              }
+
+              @Override
+              public Void visitLeafNode(FilterLeaf leaf) {
+                if (leaf.getKey().equals(hashKey.getName())) {
+                  hashRef.set(DynamoFilterSpec.copy(leaf));
+                }
+                return null;
+              }
+            });
+
+            list.add(new Query(hashRef.get().and(fragment.getFilter())));
+            add(list);
+          }
+          return;
+        case OR:
+        default:
+          // fall through to build a scan
+          this.scan = buildScan();
+      }
     }
     setRange(fragment, func);
-    return false;
+
   }
 
   /**
@@ -592,12 +687,21 @@ class DynamoReadBuilder {
       scan = new Scan();
     }
     for (GetOrQuery gq : queries) {
-      LeafQuerySpec query = gq.query == null ? gq.get : gq.query;
-      DynamoFilterSpec spec = query.getFilter();
-      if (query instanceof Query) {
-        spec = and(spec, ((Query) query).attribute());
+      if (gq.get != null) {
+        scan.or(gq.get.getFilter());
+      } else {
+        QueryList queries = gq.query;
+        DynamoFilterSpec spec = queries.list.get(0).getFilter();
+        for (int i = 1; i < queries.list.size(); i++) {
+          Query query = queries.list.get(i);
+          DynamoFilterSpec attr = query.attribute();
+          if (attr == null) {
+            attr = queries.attribute();
+          }
+          DynamoFilterSpec filter = and(attr, query.getFilter());
+          spec = or(spec, filter);
+        }
       }
-      scan.or(spec);
     }
     queries.clear();
 
@@ -618,6 +722,10 @@ class DynamoReadBuilder {
     nextRange = null;
     nextAttribute = null;
     return scan;
+  }
+
+  public boolean handledFilter() {
+    return this.handledFilter;
   }
 
   private class Scan {
@@ -694,6 +802,10 @@ class DynamoReadBuilder {
       this.attribute = attr;
     }
 
+    public Query(DynamoFilterSpec filterSpec) {
+      super(filterSpec);
+    }
+
     public void setAttribute(DynamoFilterSpec attribute) {
       this.attribute = attribute;
     }
@@ -705,18 +817,56 @@ class DynamoReadBuilder {
 
   private static class GetOrQuery {
     private Get get;
-    private Query query;
+    private QueryList query;
 
     public GetOrQuery(Get get) {
       this.get = get;
     }
 
     public GetOrQuery(Query query) {
+      this(new QueryList(query));
+    }
+
+    public GetOrQuery(QueryList query) {
       this.query = query;
     }
 
     public DynamoFilterSpec attribute() {
       return get != null ? get.attribute() : query.attribute();
+    }
+  }
+
+  /**
+   * List of queries that are logically bound togther. For instance:
+   * (s1 || s2) && h -> q1(h & s1) || q1(h & s2)
+   * Thus when we get an attribute, we need to update the entire list
+   */
+  private static class QueryList implements Iterable<Query> {
+    private List<Query> list = new ArrayList<>();
+    private DynamoFilterSpec attribute;
+
+    public QueryList() {
+    }
+
+    public QueryList(Query query) {
+      this.list.add(query);
+    }
+
+    public void setAttribute(DynamoFilterSpec attribute) {
+      this.attribute = attribute;
+    }
+
+    public DynamoFilterSpec attribute() {
+      return attribute;
+    }
+
+    @Override
+    public Iterator<Query> iterator() {
+      return list.iterator();
+    }
+
+    public void add(Query query) {
+      this.list.add(query);
     }
   }
 }

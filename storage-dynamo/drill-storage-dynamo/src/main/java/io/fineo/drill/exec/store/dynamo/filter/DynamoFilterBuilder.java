@@ -54,8 +54,8 @@ public class DynamoFilterBuilder {
   final private DynamoGroupScan groupScan;
 
   final private LogicalExpression le;
-  private final DynamoTableDefinition.PrimaryKey rangePrimaryKey;
-  private DynamoTableDefinition.PrimaryKey hash;
+  private final DynamoTableDefinition.PrimaryKey rangeKey;
+  private DynamoTableDefinition.PrimaryKey hashKey;
 
   private boolean allExpressionsConverted = true;
 
@@ -65,16 +65,16 @@ public class DynamoFilterBuilder {
 
     // figure out the pks
     List<DynamoTableDefinition.PrimaryKey> pks = groupScan.getSpec().getTable().getKeys();
-    this.hash = pks.get(0);
+    this.hashKey = pks.get(0);
     if (pks.size() > 1) {
-      if (hash.isHashKey()) {
-        this.rangePrimaryKey = pks.get(1);
+      if (hashKey.isHashKey()) {
+        this.rangeKey = pks.get(1);
       } else {
-        this.rangePrimaryKey = hash;
-        this.hash = pks.get(1);
+        this.rangeKey = hashKey;
+        this.hashKey = pks.get(1);
       }
     } else {
-      this.rangePrimaryKey = null;
+      this.rangeKey = null;
     }
   }
 
@@ -136,7 +136,7 @@ public class DynamoFilterBuilder {
           if (fragment == null) {
             allExpressionsConverted = false;
           }
-          builder = new DynamoReadBuilder(rangePrimaryKey != null);
+          builder = new DynamoReadBuilder(hashKey, rangeKey);
           builder.set(fragment);
         }
         return builder;
@@ -162,6 +162,9 @@ public class DynamoFilterBuilder {
               allExpressionsConverted = false;
               continue;
             }
+            if(!right.handledFilter()){
+              allExpressionsConverted = false;
+            }
             switch (functionName) {
               case AND:
                 left.and(right);
@@ -183,10 +186,10 @@ public class DynamoFilterBuilder {
       SchemaPath field = processor.getPath();
       String fieldName = field.getAsUnescapedPath();
       Object fieldValue = processor.getValue();
-      boolean isHashKey = DynamoFilterBuilder.this.hash.getName().equals(fieldName);
-      boolean isRangeKey = DynamoFilterBuilder.this.rangePrimaryKey != null &&
-                           DynamoFilterBuilder.this.rangePrimaryKey.getName().equals(fieldName);
-      assert !(isHashKey && isRangeKey) : fieldName + " is both hash and rangePrimaryKey key";
+      boolean isHashKey = DynamoFilterBuilder.this.hashKey.getName().equals(fieldName);
+      boolean isRangeKey = DynamoFilterBuilder.this.rangeKey != null &&
+                           DynamoFilterBuilder.this.rangeKey.getName().equals(fieldName);
+      assert !(isHashKey && isRangeKey) : fieldName + " is both hashKey and rangeKey key";
       boolean equals = false;
       boolean equalityTest = false;
 

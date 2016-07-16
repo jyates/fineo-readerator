@@ -25,6 +25,8 @@ public class DynamoFilterSpec {
   static {
     COLUMN_FUNCTION_MAP.put("isNull", new Func("attribute_not_exists"));
     COLUMN_FUNCTION_MAP.put("isNotNull", new Func("attribute_exists"));
+    // TODO support between
+//    COLUMN_FUNCTION_MAP.put("between", new Func2("between"))
     COLUMN_FUNCTION_MAP.put("equal", op("="));
     COLUMN_FUNCTION_MAP.put("not_equal", op("<>"));
     COLUMN_FUNCTION_MAP.put("greater_than_or_equal_to", op(">="));
@@ -39,6 +41,10 @@ public class DynamoFilterSpec {
   static {
     DOCUMENT_FUNCTION_MAP.put("isNotNull", new Func2("contains"));
     // count? -> size
+  }
+
+  public static DynamoFilterSpec copy(FilterLeaf leaf){
+    return new DynamoFilterSpec(new FilterTree(leaf.getKey(), leaf.getOperand(), leaf.getValue()));
   }
 
   public static DynamoFilterSpec create(String functionName, String fieldName, Object fieldValue) {
@@ -59,7 +65,8 @@ public class DynamoFilterSpec {
     this.tree = tree;
   }
 
-  public DynamoFilterSpec(){}
+  public DynamoFilterSpec() {
+  }
 
   @JsonIgnore
   public DynamoFilterSpec and(DynamoFilterSpec rightKey) {
@@ -199,14 +206,9 @@ public class DynamoFilterSpec {
       return right;
     }
 
-
-    public void update(FilterNode node, FilterLeaf leaf) {
-      if (node == left) {
-        this.left = leaf;
-      } else {
-        assert this.right == node;
-        this.right = leaf;
-      }
+    @JsonIgnore
+    public boolean and() {
+      return this.condition.equals(AND);
     }
 
     @Override
