@@ -11,7 +11,7 @@ import static org.junit.Assert.assertEquals;
 /**
  *
  */
-public class TestDynamoFilterPushDown extends BaseDynamoTest {
+public class TestDynamoFilterPushdown extends BaseDynamoTest {
 
   /**
    * Table with just a hash key has the hash key fully specified, which should cause a single Get
