@@ -539,7 +539,7 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
     } else if (value instanceof List) {
       return MinorType.LIST;
     } else if (value == null) {
-      return MinorType.NULL;
+      return MinorType.VARCHAR;
     }
     throw new UnsupportedOperationException("Unexpected type for: " + value);
   }

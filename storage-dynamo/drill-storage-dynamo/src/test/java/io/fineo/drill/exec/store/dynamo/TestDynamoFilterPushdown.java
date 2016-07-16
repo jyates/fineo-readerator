@@ -77,26 +77,13 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     item.with(COL1, null);
     Table table = createTableWithItems(item);
 
-//    QuerySpec spec = new QuerySpec();
-//    spec.withKeyConditionExpression("#n0 = :v1");
-//    spec.withConsistentRead(true);
-//    spec.withFilterExpression("#n1 = :v2");
-//    Map<String, Object> valueMap = new HashMap<>();
-//    valueMap.put(":v1", "pk");
-//    valueMap.put(":v2", null);
-//    spec.withValueMap(valueMap);
-//    Map<String, String> nameMap = new HashMap<>();
-//    nameMap.put("#n0", PK);
-//    nameMap.put("#n1", COL1);
-//    spec.withNameMap(nameMap);
-//    IteratorSupport<Item, QueryOutcome> iter = table.query(spec).iterator();
-//    while (iter.hasNext()) {
-//      Item i = iter.next();
-//      System.out.println(i);
-//    }
-
     verify(runAndReadResults(
       selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as varchar)"),
+      item);
+    // we return nulls are varchar b/c we can cast anything from varchar. Make sure that a
+    // boolean null cast also works
+    verify(runAndReadResults(
+      selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as boolean)"),
       item);
   }
 
@@ -111,6 +98,11 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
       0,
       runAndReadResults(
         selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as varchar)").size());
+    // see above for why trying a different type
+    assertEquals("Should not have found a row when checking for = null and column not set!",
+      0,
+      runAndReadResults(
+        selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as BOOLEAN)").size());
     verify(runAndReadResults(selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " IS NULL"),
       item);
   }

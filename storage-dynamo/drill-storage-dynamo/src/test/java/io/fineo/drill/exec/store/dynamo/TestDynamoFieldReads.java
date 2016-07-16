@@ -292,4 +292,12 @@ public class TestDynamoFieldReads extends BaseDynamoTest{
                                                               + "c1" + from(table) + " t"));
     assertEquals(new Text(l1.get(1)), result.get("c1"));
   }
+
+  @Test
+  public void testReadNull() throws Exception {
+    Item item = item();
+    item.with(COL1, null);
+    Table t = createTableWithItems(item);
+    selectStar(t, item);
+  }
 }
