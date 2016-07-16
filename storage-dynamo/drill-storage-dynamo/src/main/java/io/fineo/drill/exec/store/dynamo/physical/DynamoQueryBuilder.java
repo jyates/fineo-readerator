@@ -150,19 +150,22 @@ public class DynamoQueryBuilder {
       PrimaryKey pk = new PrimaryKey();
       DynamoFilterSpec key = filter.getKeyFilter();
       DynamoFilterSpec.FilterTree tree = key.getTree();
-      DynamoFilterSpec.FilterNode node = tree.getRoot();
+      assert tree != null;
+      tree.visit(new DynamoFilterSpec.FilterNodeVisitor<Void>() {
+        @Override
+        public Void visitInnerNode(FilterNodeInner inner) {
+          assert inner.getCondition().equals("AND");
+          inner.getLeft().visit(this);
+          inner.getRight().visit(this);
+          return null;
+        }
 
-      // just a primary key
-      if (node instanceof FilterLeaf) {
-        assert tableDef.getKeys().size() == 1 : "Have more than 1 key, but only 1 key condition!";
-        FilterLeaf hashLeaf = (FilterLeaf) node;
-        setPrimaryKey(hashLeaf, pk);
-      } else {
-        // sort and hash key
-        FilterNodeInner inner = (FilterNodeInner) node;
-        setPrimaryKey((FilterLeaf) inner.getLeft(), pk);
-        setPrimaryKey((FilterLeaf) inner.getRight(), pk);
-      }
+        @Override
+        public Void visitLeafNode(FilterLeaf leaf) {
+          setPrimaryKey(leaf, pk);
+          return null;
+        }
+      });
       query.withPrimaryKey(pk);
 
       return new AbstractIterator<Page<Item, ?>>() {

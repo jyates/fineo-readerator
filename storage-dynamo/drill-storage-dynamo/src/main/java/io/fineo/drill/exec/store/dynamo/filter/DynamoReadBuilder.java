@@ -17,6 +17,7 @@ class DynamoReadBuilder {
   private static final Logger LOG = LoggerFactory.getLogger(DynamoReadBuilder.class);
 
   private enum CASE {
+    UNSET,
     AND,
     OR;
   }
@@ -27,7 +28,7 @@ class DynamoReadBuilder {
   private FilterFragment nextHash;
   private FilterFragment nextRange;
   private DynamoFilterSpec nextAttribute;
-  private CASE AND_OR;
+  private CASE AND_OR = CASE.UNSET;
 
   private final boolean rangeKeyExists;
 
@@ -41,13 +42,16 @@ class DynamoReadBuilder {
    * @param fragment to set
    */
   public void set(FilterFragment fragment) {
-    assert AND_OR == null;
+    assert AND_OR == CASE.UNSET;
     assert queries.size() == 0;
     assert nextHash == null;
     assert nextRange == null;
     assert nextAttribute == null;
     if (fragment.isHash()) {
       nextHash = fragment;
+      if (!this.rangeKeyExists) {
+        createGetOrQuery();
+      }
     } else if (fragment.isRange()) {
       nextRange = fragment;
     } else {
@@ -178,41 +182,41 @@ class DynamoReadBuilder {
 
         or(that.nextHash);
       } else {
-        // there are no queries, so there could be more leftovers. What we do depends on the how
-        // they were added
-        if (that.AND_OR == null) {
-          // could be anything, so just OR the combination
-          or(that.nextHash);
-          or(that.nextRange);
-          orAttribute(that.nextAttribute);
-        } else {
+        switch (that.AND_OR) {
+          // there are no queries, so there could be more leftovers. What we do depends on the how
+          // they were added
+          case UNSET:
+            // could be anything, so just OR the combination
+            or(that.nextHash);
+            or(that.nextRange);
+            orAttribute(that.nextAttribute);
+            break;
           // we have more than one thing set, so combine them appropriately
-          switch (that.AND_OR) {
-            case AND:
-              // could be:
-              //  1. hash && attr
-              //  2. sort && attr
-              if (that.nextHash != null) {
-                assert that.nextRange == null;
-                assert that.nextAttribute != null;
-                add(new Query(that.nextHash.getFilter(), that.nextAttribute));
-              } else {
-                // AND has priority in evaluation, so we have to create a scan to support the
-                // filter on the range and attribute
-                assert this.AND_OR != null : "No fragment set in attempted merge OR";
-                assert that.nextRange != null;
-                assert that.nextAttribute != null;
-                this.scan = buildScan();
-                this.scan.or(that.nextRange.getFilter().and(that.nextAttribute));
-              }
-            case OR:
-              // could be:
-              //  1. sort
-              //  2. hash
-              assert that.nextAttribute == null;
-              or(that.nextHash);
-              or(that.nextRange);
-          }
+          case AND:
+            // could be:
+            //  1. hash && attr
+            //  2. sort && attr
+            if (that.nextHash != null) {
+              assert that.nextRange == null;
+              assert that.nextAttribute != null;
+              add(new Query(that.nextHash.getFilter(), that.nextAttribute));
+            } else {
+              // AND has priority in evaluation, so we have to create a scan to support the
+              // filter on the range and attribute
+              assert this.AND_OR != CASE.UNSET : "No fragment operator in attempted merge OR";
+              assert that.nextRange != null;
+              assert that.nextAttribute != null;
+              this.scan = buildScan();
+              this.scan.or(that.nextRange.getFilter().and(that.nextAttribute));
+            }
+            break;
+          case OR:
+            // could be:
+            //  1. sort
+            //  2. hash
+            assert that.nextAttribute == null;
+            or(that.nextHash);
+            or(that.nextRange);
         }
       }
     }
@@ -249,7 +253,7 @@ class DynamoReadBuilder {
     and();
     // we have a scan or the fragment is an attribute
     if (shouldScan(fragment)) {
-      andScan(fragment.getFilter(), fragment.isAttribute());
+      andScan(fragment.getFilter());
       return;
     }
 
@@ -279,7 +283,7 @@ class DynamoReadBuilder {
                  + "something like 'h = 1 & h = 1', which is better served by a get, but we "
                  + "can't determine that without introspecting the query");
       }
-      andScan(fragment.getFilter(), fragment.isAttribute());
+      andScan(fragment.getFilter());
       return true;
     }
 
@@ -381,7 +385,7 @@ class DynamoReadBuilder {
     }
   }
 
-  private void andScan(DynamoFilterSpec spec, boolean isAttribute) {
+  private void andScan(DynamoFilterSpec spec) {
     if (scan == null) {
       scan = buildScan();
     }
@@ -576,7 +580,7 @@ class DynamoReadBuilder {
     } else if (spec == null) {
       return nextAttribute;
     }
-    return nextAttribute.and(spec);
+    return nextAttribute.or(spec);
   }
 
   // Take all the previous gets/queries and combine them into a scan
@@ -589,15 +593,17 @@ class DynamoReadBuilder {
     }
     for (GetOrQuery gq : queries) {
       LeafQuerySpec query = gq.query == null ? gq.get : gq.query;
-      scan.or(query.getFilter());
+      DynamoFilterSpec spec = query.getFilter();
       if (query instanceof Query) {
-        scan.or(((Query) query).attribute());
+        spec = and(spec, ((Query) query).attribute());
       }
+      scan.or(spec);
     }
     queries.clear();
 
     // add the edge attributes.
     switch (AND_OR) {
+      case UNSET:
       case AND:
         scan.and(nextHash);
         scan.and(nextRange);

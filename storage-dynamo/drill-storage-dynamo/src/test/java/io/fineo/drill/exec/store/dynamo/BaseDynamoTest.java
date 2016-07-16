@@ -34,7 +34,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
@@ -127,7 +129,8 @@ public class BaseDynamoTest extends BaseTestQuery {
   }
 
   protected void verify(List<Map<String, Object>> rows, Item... items) {
-    assertEquals("Wrong number of expected rows! Got rows: " + rows + "\nExpected: " + items,
+    assertEquals("Wrong number of expected rows!\nGot rows: " + rows + "\nExpected: " +
+                 toString(items),
       rows.size(), items.length);
     for (int i = 0; i < items.length; i++) {
       Map<String, Object> row = rows.get(i);
@@ -149,6 +152,11 @@ public class BaseDynamoTest extends BaseTestQuery {
         }
       }
     }
+  }
+
+  private String toString(Item... items) {
+    List<Item> list = newArrayList(items);
+    return list.stream().map(item -> item.asMap()).collect(Collectors.toList()).toString();
   }
 
   protected List<Map<String, Object>> readObjects(List<QueryDataBatch> results) throws

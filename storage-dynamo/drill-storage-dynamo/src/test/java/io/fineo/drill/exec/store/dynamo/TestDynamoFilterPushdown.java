@@ -200,6 +200,22 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                              "ORDER BY t." + PK + " ASC"), item, i2);
   }
 
+  @Test
+  public void testMultiRangeQuery() throws Exception {
+    Table table = createHashAndSortTable(PK, COL1);
+    Item item = item();
+    item.with(COL1, "1");
+    table.putItem(item);
+    Item i2 = item();
+    i2.with(COL1, "2");
+    table.putItem(i2);
+    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
+                             "t." + PK + " = 'pk'"+" AND ("+
+                             "t." + COL1 + " = '1'" +
+                             " AND " +
+                             "t." + COL1 + " >= '2')"), item, i2);
+  }
+
   private String selectStarWithPK(String pk, String tableName, Table table) {
     return "SELECT *" + from(
       table) + tableName + " WHERE " + tableName + "." + PK + " = '" + pk + "'";
