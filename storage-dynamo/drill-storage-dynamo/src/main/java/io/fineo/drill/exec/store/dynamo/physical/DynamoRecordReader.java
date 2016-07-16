@@ -512,6 +512,8 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
           default:
             failForMode(type);
         }
+      case NULL:
+        System.out.println();
       default:
         throw new IllegalArgumentException("Unsupported type: " + type);
     }
@@ -536,6 +538,8 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
       return MinorType.MAP;
     } else if (value instanceof List) {
       return MinorType.LIST;
+    } else if (value == null) {
+      return MinorType.NULL;
     }
     throw new UnsupportedOperationException("Unexpected type for: " + value);
   }

@@ -91,6 +91,20 @@ public class DynamoQueryBuilder {
       if (!isStarQuery) {
         scan.withProjectionExpression(projection);
       }
+
+      // scans only have a single filter since they read everything. Thus we can combine the key
+      // and attributes with AND and make a single filter.
+      NameMapper mapper = new NameMapper();
+      DynamoReadFilterSpec filterSpec = slice.getFilter();
+      DynamoFilterSpec key = filterSpec.getKeyFilter();
+      DynamoFilterSpec attribute = filterSpec.getAttributeFilter();
+      DynamoFilterSpec filter = key == null ? attribute : key.and(attribute);
+      String filterString = asFilterExpression(mapper, filter);
+      if (filterString != null) {
+        scan.withFilterExpression(filterString);
+        scan.withNameMap(mapper.nameMap);
+        scan.withValueMap(mapper.valueMap);
+      }
       ItemCollection<ScanOutcome> results = table.scan(scan);
       Iterator iter = results.pages().iterator();
       return iter;
@@ -179,7 +193,7 @@ public class DynamoQueryBuilder {
   }
 
   private String asFilterExpression(NameMapper mapper, DynamoFilterSpec spec) {
-    if (spec == null) {
+    if (spec == null || spec.getTree() == null) {
       return null;
     }
     DynamoFilterSpec.FilterTree tree = spec.getTree();

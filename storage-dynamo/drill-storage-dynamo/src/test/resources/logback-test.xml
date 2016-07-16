@@ -13,6 +13,9 @@
       <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5p %c{3}[%L] - %m%n</pattern>
     </encoder>
   </appender>
+  <logger name="com.amazon" level="INFO"/>
+  <logger name="com.amazonaws" level="INFO"/>
+  <logger name="org.apache.http" level="INFO"/>
   <root level="DEBUG">
     <appender-ref ref="CONSOLE"/>
   </root>

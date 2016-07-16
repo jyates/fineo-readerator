@@ -95,7 +95,7 @@ public class DynamoFilterBuilder {
       parsedSpec.andScanSpec(scan);
     } else {
       List<DynamoReadFilterSpec> getOrQuery = spec.getGetOrQuery();
-      if (getOrQuery.size() > 0) {
+      if (getOrQuery != null && getOrQuery.size() > 0) {
         parsedSpec.andGetOrQuery(getOrQuery);
       }
     }

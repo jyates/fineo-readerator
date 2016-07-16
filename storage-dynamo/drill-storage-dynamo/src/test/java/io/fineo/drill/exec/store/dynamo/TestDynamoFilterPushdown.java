@@ -120,10 +120,16 @@ public class TestDynamoFilterPushDown extends BaseDynamoTest {
     Item item = item();
     item.with(COL1, 1);
     Table table = createTableWithItems(item);
-    Map<String, Object> row = justOneRow(runAndReadResults("SELECt *" + from(table) + "t WHERE t"
-                                                           + "." + COL1 + " = 1"));
+    String select = "SELECT *" + from(table) + "t WHERE t." + COL1 + " = 1";
+    Map<String, Object> row = justOneRow(runAndReadResults(select));
     equalsText(item, PK, row);
     equalsNumber(item, COL1, row);
+
+    Item item2 = new Item();
+    item2.with(PK, "pk2");
+    item2.with(COL1, 2);
+    table.putItem(item2);
+    assertEquals(row, justOneRow(runAndReadResults(select)));
   }
 
 
