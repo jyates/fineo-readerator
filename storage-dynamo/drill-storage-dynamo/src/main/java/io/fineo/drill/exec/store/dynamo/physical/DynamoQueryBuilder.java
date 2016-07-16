@@ -187,7 +187,8 @@ public class DynamoQueryBuilder {
     }
 
     private void setPrimaryKey(FilterLeaf leaf, PrimaryKey pk) {
-      assert leaf.getOperand().equals("=") : "Gets must use '=' for attributes";
+      assert leaf.getOperand().getName().equals("=") :
+        "Gets must use '=' for keys. Got: " + leaf.getOperand();
       pk.addComponent(leaf.getKey(), leaf.getValue());
     }
   }

@@ -124,6 +124,20 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     assertEquals(row, justOneRow(runAndReadResults(select)));
   }
 
+  @Test
+  public void testTwoPointGets() throws Exception {
+    Item item = item();
+    item.with(COL1, "1");
+    Item i2 = new Item();
+    i2.with(PK, "pk2");
+    i2.with(COL1, "2");
+    Table table = createTableWithItems(item, i2);
+    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
+                             "t." + PK + " = 'pk' OR " +
+                             "t." + PK + " = 'pk2'" +
+                             "ORDER BY t." + PK +" ASC"),
+      item, i2);
+  }
 
   private String selectStarWithPK(String pk, String tableName, Table table) {
     return "SELECT *" + from(

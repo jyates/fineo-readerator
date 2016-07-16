@@ -146,24 +146,27 @@ public class DynamoFilterBuilder {
       switch (functionName) {
         case AND:
         case OR:
-          DynamoReadBuilder builder = new DynamoReadBuilder(rangePrimaryKey != null);
-          for (LogicalExpression expr : args) {
-            DynamoReadBuilder exprBuilder = expr.accept(this, null);
-            if (exprBuilder == null) {
-              allExpressionsConverted = false;
-              continue;
-            }
-            build:
-            switch (functionName) {
-              case AND:
-                builder.and(exprBuilder);
-                break build;
-              case OR:
-                builder.or(exprBuilder);
-                break build;
-            }
+          // this definitely only has two arguments, so don't try anything fancy
+          DynamoReadBuilder left = args.get(0).accept(this, null);
+          DynamoReadBuilder right = args.get(1).accept(this, null);
+          if (left == null || right == null) {
+            allExpressionsConverted = false;
           }
-          return builder;
+          if (left == null) {
+            if (right == null) {
+              return null;
+            }
+            return right;
+          }
+          switch (functionName) {
+            case AND:
+              left.and(right);
+              break;
+            case OR:
+              left.or(right);
+              break;
+          }
+          return left;
       }
 
       return null;

@@ -38,6 +38,9 @@ class DynamoReadBuilder {
    * (Get/Query ...) && attr -> update latest<br/>
    */
   public void and(DynamoReadBuilder that) {
+    if (that == null) {
+      return;
+    }
     // if either are scans already, then just combine them
     if (this.scan != null || that.scan != null) {
       andScan(that);
@@ -86,6 +89,9 @@ class DynamoReadBuilder {
    * (get/query...) || attr -> scan
    */
   public void or(DynamoReadBuilder that) {
+    if (that == null) {
+      return;
+    }
     // if either are scans already, then just combine them
     if (this.scan != null || that.scan != null) {
       orScan(that);
@@ -411,6 +417,9 @@ class DynamoReadBuilder {
   }
 
   private void orAttribute(DynamoFilterSpec attr) {
+    if (attr == null) {
+      return;
+    }
     if (queries.size() > 0 || nextHash != null || nextRange != null) {
       orScan(attr, false);
     } else {
