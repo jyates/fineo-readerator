@@ -129,9 +129,10 @@ public class BaseDynamoTest extends BaseTestQuery {
   }
 
   protected void verify(List<Map<String, Object>> rows, Item... items) {
-    assertEquals("Wrong number of expected rows!\nGot rows: " + rows + "\nExpected: " +
-                 toString(items),
-      rows.size(), items.length);
+    assertEquals("Wrong number of expected rows!" +
+                 "\nExpected: " + toString(items) +
+                 "\nGot rows: " + rows,
+      items.length, rows.size());
     for (int i = 0; i < items.length; i++) {
       Map<String, Object> row = rows.get(i);
       Item item = items[i];

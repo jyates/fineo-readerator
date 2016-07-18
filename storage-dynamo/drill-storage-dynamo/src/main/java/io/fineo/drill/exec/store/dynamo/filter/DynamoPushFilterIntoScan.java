@@ -21,7 +21,6 @@ package io.fineo.drill.exec.store.dynamo.filter;
 import com.google.common.collect.ImmutableList;
 import io.fineo.drill.exec.store.dynamo.DynamoGroupScan;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptRuleOperand;
 import org.apache.calcite.plan.RelOptUtil;

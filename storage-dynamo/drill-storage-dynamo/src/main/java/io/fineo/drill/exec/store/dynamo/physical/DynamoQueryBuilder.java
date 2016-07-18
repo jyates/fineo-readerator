@@ -26,8 +26,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-import static com.google.common.collect.Lists.newLinkedList;
 import static io.fineo.drill.exec.store.dynamo.physical.DynamoScanRecordReader.COMMAS;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
@@ -162,7 +162,9 @@ public class DynamoQueryBuilder {
 
         @Override
         public Void visitLeafNode(FilterLeaf leaf) {
-          setPrimaryKey(leaf, pk);
+          assert leaf.getOperand().equals("=") :
+            "Gets must use '=' for keys. Got: " + leaf.getOperand();
+          pk.addComponent(leaf.getKey(), leaf.getValues()[0]);
           return null;
         }
       });
@@ -188,9 +190,7 @@ public class DynamoQueryBuilder {
     }
 
     private void setPrimaryKey(FilterLeaf leaf, PrimaryKey pk) {
-      assert leaf.getOperand().getName().equals("=") :
-        "Gets must use '=' for keys. Got: " + leaf.getOperand();
-      pk.addComponent(leaf.getKey(), leaf.getValue());
+
     }
   }
 
@@ -200,7 +200,6 @@ public class DynamoQueryBuilder {
     }
     DynamoFilterSpec.FilterTree tree = spec.getTree();
     // replace the leaf values in the tree with expressions
-    List<DynamoFilterSpec.FilterNode> nodes = newLinkedList();
     return tree.visit(new DynamoFilterSpec.FilterNodeVisitor<String>() {
       @Override
       public String visitInnerNode(FilterNodeInner inner) {
@@ -212,16 +211,13 @@ public class DynamoQueryBuilder {
 
       @Override
       public String visitLeafNode(FilterLeaf leaf) {
-        String name = leaf.getKey();
-        if (leaf.registerKey()) {
-          name = mapper.name(name);
+        String name = mapper.name(leaf.getKey());
+        leaf.setKey(name);
+        for (int i = 0; i < leaf.getValues().length; i++) {
+          String value = mapper.value(leaf.getValues()[i]);
+          leaf.setValue(i, value);
         }
-        Object value = leaf.getValue();
-        String valueName = null;
-        if (leaf.registerValue()) {
-          valueName = mapper.value(value);
-        }
-        return leaf.getOperand().compose(name, valueName);
+        return leaf.toString();
       }
     });
   }
@@ -245,6 +241,13 @@ public class DynamoQueryBuilder {
     }
 
     private <IN extends Object> String add(String prefix, IN in, Map<String, IN> map) {
+      // look for the value in the map. Assumes that we have few names/values to remap and this
+      // search is trivial
+      for (Map.Entry<String, IN> ob : map.entrySet()) {
+        if (Objects.equals(ob.getValue(), in)) {
+          return ob.getKey();
+        }
+      }
       String out = prefix + (counter++);
       map.put(out, in);
       return out;

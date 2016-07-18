@@ -691,16 +691,19 @@ class DynamoReadBuilder {
         scan.or(gq.get.getFilter());
       } else {
         QueryList queries = gq.query;
-        DynamoFilterSpec spec = queries.list.get(0).getFilter();
+        Query query = queries.list.get(0);
+        DynamoFilterSpec spec = query.getFilter();
+        DynamoFilterSpec attr = query.attribute();
+        if (attr == null) {
+          attr = queries.attribute();
+        }
+        spec = and(spec, attr.deepClone());
         for (int i = 1; i < queries.list.size(); i++) {
-          Query query = queries.list.get(i);
-          DynamoFilterSpec attr = query.attribute();
-          if (attr == null) {
-            attr = queries.attribute();
-          }
-          DynamoFilterSpec filter = and(attr, query.getFilter());
+          query = queries.list.get(i);
+          DynamoFilterSpec filter = and(attr.deepClone(), query.getFilter());
           spec = or(spec, filter);
         }
+        scan.or(spec);
       }
     }
     queries.clear();
@@ -764,7 +767,7 @@ class DynamoReadBuilder {
     }
 
     public void or(Scan thatScan) {
-      this.spec = DynamoReadBuilder.this.or(spec, scan.spec);
+      this.spec = DynamoReadBuilder.this.or(spec, thatScan.spec);
     }
   }
 

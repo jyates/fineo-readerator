@@ -17,21 +17,30 @@
  */
 package io.fineo.drill.exec.store.dynamo.filter;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.DynamoGroupScan;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.drill.common.expression.BooleanOperator;
 import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.expression.visitors.AbstractExprVisitor;
+import org.reflections.util.FilterBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Filter builder heavily based on the Drill HBaseFilterBuilder. Depth-first exploration of the
@@ -51,6 +60,7 @@ public class DynamoFilterBuilder {
   private static final Logger LOG = LoggerFactory.getLogger(DynamoFilterBuilder.class);
   private static final String AND = "booleanAnd";
   private static final String OR = "booleanOr";
+
   final private DynamoGroupScan groupScan;
 
   final private LogicalExpression le;
@@ -118,7 +128,69 @@ public class DynamoFilterBuilder {
     @Override
     public DynamoReadBuilder visitBooleanOperator(BooleanOperator op, Void value)
       throws RuntimeException {
-      return visitFunctionCall(op, value);
+      // between gets compiled down into <= AND >=. Try to 'unconvert' it so we can use the
+      // dynamo between function
+      if (op.getName().equals(AND)) {
+        if (op.args.size() >= 2) {
+          // find the map of arg -> processed function
+          Multimap<String, Pair<FunctionCall, SingleFunctionProcessor>> columnFunctions =
+            ArrayListMultimap.create();
+          for (LogicalExpression le : op.args) {
+            if (le instanceof FunctionCall) {
+              FunctionCall func = (FunctionCall) le;
+              SingleFunctionProcessor processor = SingleFunctionProcessor.process(func);
+              if (processor != null) {
+                columnFunctions.put(processor.getPath().getAsUnescapedPath(), new ImmutablePair<>
+                  (func, processor));
+              }
+            }
+          }
+
+          // find any columns that have lte && gte and are not the primary key
+          for (String column : columnFunctions.keySet()) {
+            if (column.equals(hashKey.getName())) {
+              continue;
+            }
+
+            Collection<Pair<FunctionCall, SingleFunctionProcessor>> calls = columnFunctions.get
+              (column);
+            if (calls.size() <= 1) {
+              continue;
+            }
+            List<FunctionCall> handled = new ArrayList<>();
+            BetweenBuilder between =
+              new BetweenBuilder(rangeKey != null && rangeKey.getName().equals(column));
+            calls.stream().forEach(pair -> {
+              if (between.addFunction(pair.getValue())) {
+                handled.add(pair.getKey());
+              }
+            });
+            FilterFragment fragment = between.build();
+            // no enough information to replace a function
+            if (fragment == null) {
+              continue;
+            }
+            DynamoReadBuilder builder = new DynamoReadBuilder(hashKey, rangeKey);
+            builder.set(fragment);
+            // done with this op
+            if (op.args.size() == 2) {
+              return builder;
+            }
+            // create the operation, but without the handled columns
+            List<LogicalExpression> pending = op.args.stream().filter(expr -> !(
+              handled.contains
+                (expr))).collect(Collectors
+              .toList());
+            op = new BooleanOperator(op.getName(), pending, op.getPosition());
+            DynamoReadBuilder subset = visitFunctionCall(op, null);
+            if (subset != null) {
+              builder.and(subset);
+            }
+            return builder;
+          }
+        }
+      }
+      return visitFunctionCall(op, null);
     }
 
     @Override
@@ -162,7 +234,7 @@ public class DynamoFilterBuilder {
               allExpressionsConverted = false;
               continue;
             }
-            if(!right.handledFilter()){
+            if (!right.handledFilter()) {
               allExpressionsConverted = false;
             }
             switch (functionName) {

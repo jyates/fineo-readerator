@@ -1,9 +1,15 @@
 package io.fineo.drill.exec.store.dynamo;
 
 import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
+import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.internal.IteratorSupport;
+import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
+import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -46,7 +52,7 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     item2.with(COL1, "2");
     table.putItem(item2);
     // should create a get
-//    verify(runAndReadResults(selectStarWithPK("p1", "t", table) + " AND sort = 's1'"), item);
+    verify(runAndReadResults(selectStarWithPK("p1", "t", table) + " AND sort = 's1'"), item);
     // should create a query
     verify(runAndReadResults(selectStarWithPK("p1", "t", table) + " AND sort >= 's1'"), item);
   }
@@ -210,10 +216,34 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     i2.with(COL1, "2");
     table.putItem(i2);
     verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
-                             "t." + PK + " = 'pk'"+" AND ("+
+                             "t." + PK + " = 'pk'" + " AND (" +
                              "t." + COL1 + " = '1'" +
                              " AND " +
-                             "t." + COL1 + " >= '2')"), item, i2);
+                             "t." + COL1 + " >= '2')"));
+//    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
+//                             "t." + PK + " = 'pk'" + " AND (" +
+//                             "t." + COL1 + " = '1'" +
+//                             " OR " +
+//                             "t." + COL1 + " >= '2')"), item, i2);
+  }
+
+  @Test
+  public void testBetween() throws Exception {
+    Item item = item();
+    item.with(COL1, "1");
+    Table table = createTableWithItems(item);
+    ScanSpec scan = new ScanSpec();
+//    scan.withFilterExpression("col1 >= :a AND col1 <= :b");
+    scan.withFilterExpression("col1 BETWEEN :a AND :b");
+    Map<String, Object> valueMap =new HashMap<>();
+//    valueMap.put(":pk", "pk");
+    valueMap.put(":a", "1");
+    valueMap.put(":b", "2");
+    scan.withValueMap(valueMap);
+    IteratorSupport<Item, ScanOutcome> iter = table.scan(scan).iterator();
+    item = iter.next();
+    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
+                             "t." + COL1 + " BETWEEN '1' AND '2'"), item);
   }
 
   private String selectStarWithPK(String pk, String tableName, Table table) {
