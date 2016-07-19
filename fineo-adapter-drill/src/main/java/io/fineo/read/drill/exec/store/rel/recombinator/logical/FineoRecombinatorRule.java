@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.ImmutableList.of;
-import static com.google.common.collect.Lists.newArrayList;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
@@ -41,8 +40,6 @@ import static org.apache.drill.exec.planner.logical.DrillRel.DRILL_LOGICAL;
  * {@link FineoRecombinatorMarkerRel}
  */
 public class FineoRecombinatorRule extends RelOptRule {
-
-  private static final List<String> REQUIRED_FIELDS = newArrayList(ORG_ID_KEY, ORG_METRIC_TYPE_KEY);
 
   public static final FineoRecombinatorRule INSTANCE = new FineoRecombinatorRule();
 

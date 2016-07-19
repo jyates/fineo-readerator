@@ -26,7 +26,8 @@ public class DynamoFilterSpec {
     COLUMN_FUNCTION_MAP.put("isNull", func0("attribute_not_exists"));
     COLUMN_FUNCTION_MAP.put("isNotNull", func0("attribute_exists"));
     COLUMN_FUNCTION_MAP.put("between",
-      info -> new FilterTree.FilterLeaf(info.key, "BETWEEN", "%1$s %2$s %3$s AND %4$s", info.values));
+      info -> new FilterTree.FilterLeaf(info.key, "BETWEEN", "%1$s %2$s %3$s AND %4$s",
+        info.values));
     COLUMN_FUNCTION_MAP.put("equal", op("="));
     COLUMN_FUNCTION_MAP.put("not_equal", op("<>"));
     COLUMN_FUNCTION_MAP.put("greater_than_or_equal_to", op(">="));

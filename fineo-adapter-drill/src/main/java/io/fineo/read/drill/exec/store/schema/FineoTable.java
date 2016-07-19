@@ -78,7 +78,7 @@ public class FineoTable extends DrillTable implements TranslatableTable {
     }
   }
 
-  private enum BaseField {
+  public enum BaseField {
     TIMESTAMP("timestamp", tf -> tf.createSqlType(BIGINT)),
     RADIO("_fm", tf -> tf.createMapType(tf.createSqlType(VARCHAR), tf.createSqlType(ANY)));
     private final String name;
@@ -92,6 +92,10 @@ public class FineoTable extends DrillTable implements TranslatableTable {
     public RelDataTypeFactory.FieldInfoBuilder add(RelDataTypeFactory.FieldInfoBuilder builder,
       RelDataTypeFactory factory) {
       return builder.add(name, func.apply(factory));
+    }
+
+    public String getName() {
+      return name;
     }
   }
 }

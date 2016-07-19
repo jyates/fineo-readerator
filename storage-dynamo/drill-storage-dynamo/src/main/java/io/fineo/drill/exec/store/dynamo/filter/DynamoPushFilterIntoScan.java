@@ -72,7 +72,7 @@ public final class DynamoPushFilterIntoScan {
       final ScanPrel scan = call.rel(2);
 
       // convert the filter to one that references the child of the project
-      final RexNode condition = RelOptUtil.pushFilterPastProject(filter.getCondition(), project);
+      final RexNode condition = RelOptUtil.pushPastProject(filter.getCondition(), project);
       doPushFilterToScan(call, filter, project, scan, (DynamoGroupScan) scan.getGroupScan(),
         condition);
     }
