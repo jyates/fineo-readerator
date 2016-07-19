@@ -13,6 +13,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -22,6 +23,7 @@ import static io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec.crea
 import static org.apache.commons.lang3.tuple.ImmutablePair.of;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  *
@@ -29,7 +31,6 @@ import static org.junit.Assert.assertNull;
 public class TestDynamoFilterPushdown extends BaseDynamoTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  ;
 
   /**
    * Table with just a hash key has the hash key fully specified, which should cause a single Get
@@ -177,7 +178,7 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    "t." + PK + " = 'pk2'" +
                    "ORDER BY t." + PK + " ASC";
     verify(runAndReadResults(query), item, i2);
-    validatePlanWithGets(query, pkEquals("pk"), pkEquals("pk2"));
+    validatePlanWithGets(query, pkEquals("pk2"), pkEquals("pk"));
   }
 
   @Test
@@ -208,8 +209,9 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    "t." + PK + " = 'pk2' AND t." + COL1 + " >= 2" +
                    "ORDER BY t." + PK + " ASC";
     verify(runAndReadResults(query), item, i2);
-    validatePlan(query, null, null, newArrayList(new DynamoGetFilterSpec(pkEquals("pk")),
-      new DynamoQueryFilterSpec(pkEquals("pk2"), gte(COL1, 2))));
+    validatePlan(query, null, null,
+      newArrayList(new DynamoQueryFilterSpec(pkEquals("pk2"), gte(COL1, 2)),
+        new DynamoGetFilterSpec(pkEquals("pk"))));
   }
 
   @Test
@@ -227,8 +229,8 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    "ORDER BY t." + PK + " ASC";
     verify(runAndReadResults(query), item, i2);
     validatePlanWithQueries(query,
-      of(pkEquals("pk"), equals(COL1, 1)),
-      of(pkEquals("pk2"), gte(COL1, 2)));
+      of(pkEquals("pk2"), gte(COL1, 2)),
+      of(pkEquals("pk"), equals(COL1, 1)));
   }
 
   @Test
@@ -281,8 +283,8 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    " AND " +
                    "t." + COL1 + " >= '2')";
     verify(runAndReadResults(query));
-    validatePlanWithQueries(query, of(pkEquals("pk"), equals(COL1, "1")), of(pkEquals("pk"), gte
-      (COL1, "2")));
+    validatePlanWithQueries(query, of(pkEquals("pk").and(equals(COL1, "1")), null),
+      of(pkEquals("pk").and(gte(COL1, "2")), null));
 //    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
 //                             "t." + PK + " = 'pk'" + " AND (" +
 //                             "t." + COL1 + " = '1'" +
@@ -359,12 +361,15 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     Map<String, Object> dynamo = graph.get(0);
     assertEquals(DynamoGroupScan.NAME, dynamo.get("pop"));
     assertEquals(columns, dynamo.get("columns"));
+    assertTrue((Boolean) dynamo.get("filterPushedDown"));
     Map<String, Object> spec = (Map<String, Object>) dynamo.get("spec");
     String specString = MAPPER.writeValueAsString(spec);
     DynamoGroupScanSpec gSpec = MAPPER.readValue(specString, DynamoGroupScanSpec.class);
     if (scan == null) {
       assertNull(gSpec.getScan());
-      assertEquals(getOrQuery, gSpec.getGetOrQuery());
+      List<DynamoReadFilterSpec> actual = gSpec.getGetOrQuery();
+      Collections.sort(actual, (spec1, spec2) -> spec1.toString().compareTo(spec2.toString()));
+      assertEquals(getOrQuery, actual);
     } else {
       assertNull(gSpec.getGetOrQuery());
       assertEquals(scan, gSpec.getScan());

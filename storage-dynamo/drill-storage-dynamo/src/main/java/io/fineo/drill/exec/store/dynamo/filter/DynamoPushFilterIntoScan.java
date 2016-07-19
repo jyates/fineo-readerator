@@ -106,7 +106,7 @@ public final class DynamoPushFilterIntoScan {
         /*
          * The rule can get triggered again due to the transformed "scan => filter" sequence
          * created by the earlier execution of this rule when we could not do a complete
-         * conversion of Optiq Filter's condition to HBase Filter. In such cases, we rely upon
+         * conversion of Optiq Filter's condition to Dynamo Filter. In such cases, we rely upon
          * this flag to not do a re-processing of the rule on the already transformed call.
          */
         return;

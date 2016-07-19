@@ -11,11 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
 import java.util.function.BiFunction;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterLeaf;
 import static io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterNode;
 import static io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterNodeInner;
@@ -389,7 +391,7 @@ class DynamoReadBuilder {
     }
 
     // no more hanging attributes
-    List<DynamoReadFilterSpec> queries = new ArrayList<>();
+    Set<DynamoReadFilterSpec> queries = new HashSet<>();
     for (GetOrQuery gq : this.queries) {
       if (gq.get != null) {
         queries.add(new DynamoGetFilterSpec(gq.get.getFilter()));
@@ -401,7 +403,7 @@ class DynamoReadBuilder {
       }
     }
 
-    return new DynamoGroupScanSpec(def, null, queries);
+    return new DynamoGroupScanSpec(def, null, newArrayList(queries));
   }
 
   private DynamoGroupScanSpec outputScan(DynamoTableDefinition def) {
@@ -632,39 +634,24 @@ class DynamoReadBuilder {
           throw new UnsupportedOperationException("Should not be update range with an UNSET state");
         case AND:
           // turn the get into a set of queries
+          QueryList list;
           if (gq.get != null) {
-            add(new Query(and(gq.get.getFilter(), fragment.getFilter())));
+            list = new QueryList(new Query(gq.get.getFilter()));
+            // create a new query with the pk condition
+            list.add(new Query(and(cloneHashKeyFilter(gq.get), fragment.getFilter())));
+            add(list);
           } else {
             // h = 1 && s = 2 && s = 3
-            handledFilter = false;
-            QueryList list = gq.query;
+            list = gq.query;
             Query query = list.list.get(0);
-            AtomicReference<DynamoFilterSpec> hashRef = new AtomicReference<>();
-            // find the hash key reference
-            query.getFilter().getTree().visit(new FilterTree.FilterNodeVisitor<Void>() {
-              @Override
-              public Void visitInnerNode(FilterNodeInner inner) {
-                inner.getLeft().visit(this);
-                inner.getRight().visit(this);
-                // any AND condition means both sides need to be true, which we can't handle with a
-                // single query, so we need to retain the parent filter
-                assert inner.and() : "Query should never have a not AND condition between hash and"
-                                     + " sort key";
-                return null;
-              }
-
-              @Override
-              public Void visitLeafNode(FilterLeaf leaf) {
-                if (leaf.getKey().equals(hashKey.getName())) {
-                  hashRef.set(DynamoFilterSpec.copy(leaf));
-                }
-                return null;
-              }
-            });
-
-            list.add(new Query(hashRef.get().and(fragment.getFilter())));
-            add(list);
+            DynamoFilterSpec hash = cloneHashKeyFilter(query);
+            list.add(new Query(hash.and(fragment.getFilter())));
           }
+          // AND means that we need to use the Drill filter handling to mange the case like
+          //  h =1 && s < 5 AND h 1= && s < 2
+          // where we cannot completely handle the filter
+          add(list);
+          handledFilter = false;
           return;
         case OR:
         default:
@@ -673,7 +660,32 @@ class DynamoReadBuilder {
       }
     }
     setRange(fragment, func);
+  }
 
+  private DynamoFilterSpec cloneHashKeyFilter(LeafQuerySpec leaf) {
+    // find the hash key reference
+    return leaf.getFilter().getTree().visit(new FilterTree.FilterNodeVisitor<DynamoFilterSpec>() {
+      @Override
+      public DynamoFilterSpec visitInnerNode(FilterNodeInner inner) {
+        // any AND condition means both sides need to be true, which we can't handle with a
+        // single query, so we need to retain the parent filter
+        assert inner.and() : "Query should never have a not AND condition between hash and"
+                             + " sort key";
+        DynamoFilterSpec spec = inner.getLeft().visit(this);
+        if (spec == null) {
+          spec = inner.getRight().visit(this);
+        }
+
+        return spec;
+      }
+
+      @Override
+      public DynamoFilterSpec visitLeafNode(FilterLeaf leaf) {
+        return leaf.getKey().equals(hashKey.getName()) ?
+               DynamoFilterSpec.copy(leaf) :
+               null;
+      }
+    });
   }
 
   /**

@@ -82,7 +82,9 @@ public class DynamoStoragePlugin extends AbstractStoragePlugin {
 
   @Override
   public void close() throws Exception {
-    this.model.shutdown();
+    if(this.model != null) {
+      this.model.shutdown();
+    }
     this.client.shutdown();
   }
 

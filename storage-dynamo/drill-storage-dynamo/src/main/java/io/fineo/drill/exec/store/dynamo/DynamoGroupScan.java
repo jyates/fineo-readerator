@@ -89,7 +89,6 @@ public class DynamoGroupScan extends AbstractGroupScan {
 
   private void init() {
     try {
-
       this.desc = this.plugin.getModel().getTable(this.spec.getTable().getName()).waitForActive();
     } catch (InterruptedException e) {
       throw new DrillRuntimeException(e);
@@ -105,6 +104,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
     this.desc = other.desc;
     this.scan = other.scan;
     this.client = other.client;
+    this.filterPushedDown = other.filterPushedDown;
   }
 
   @Override
