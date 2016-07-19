@@ -22,6 +22,34 @@ import static io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterLeaf
 import static io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterNode;
 import static io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterNodeInner;
 
+/**
+ * Build the various forms of 'reads' from Dynamo. Currently makes the following preferences:
+ * <ol>
+ * <li>Get + Attribute -> Query</li>
+ * </ol>
+ * Generally, this is how Dynamo defines build each of the different read types and we try to
+ * stay as faithful as possible to this:
+ * <ol>
+ * <li>Get: requires hash key and sort key (if the table has a sort key)
+ * <ul>
+ * <li>Only supports equals on the hash and semi-optional sort key</li>
+ * <li>Cannot handle attribute filters</li>
+ * </ul>
+ * </li>
+ * <li>Query: requires hash key, optional sort key (regardless of table setup)
+ * <ul>
+ * <li>Hash key must be '='</li>
+ * <li>Sort key can be any form of equality check or a BETWEEN statement</li>
+ * <li>Up to (and no more than) 1 sort key allowed per Query</li>
+ * </ul></li>
+ * <li>Scan: reads the entire table and should be avoided at all costs
+ * <ul>
+ * <li>No key filtering, all filters are handled together</li>
+ * <li>All data is read then filtered, so its really rough on read throughput limits</li>
+ * </ul>
+ * </li>
+ * </ol>
+ */
 class DynamoReadBuilder {
   private static final Logger LOG = LoggerFactory.getLogger(DynamoReadBuilder.class);
 
