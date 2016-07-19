@@ -10,7 +10,7 @@
     <version>1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>storage-drill</artifactId>
+  <artifactId>storage-dynamo</artifactId>
   <packaging>pom</packaging>
 
   <modules>
