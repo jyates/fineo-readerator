@@ -1,23 +1,39 @@
 package io.fineo.drill.exec.store.dynamo;
 
 import com.amazonaws.services.dynamodbv2.document.Item;
-import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
 import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.internal.IteratorSupport;
-import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoGetFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec.create;
+import static org.apache.commons.lang3.tuple.ImmutablePair.of;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 /**
  *
  */
 public class TestDynamoFilterPushdown extends BaseDynamoTest {
+
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+  ;
 
   /**
    * Table with just a hash key has the hash key fully specified, which should cause a single Get
@@ -31,9 +47,9 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     i2.with(PK, "2");
     i2.with(COL1, "pk");
     Table table = createTableWithItems(item, i2);
-
-    verify(runAndReadResults(selectStarWithPK("2", "t", table)),
-      i2);
+    String select = selectStarWithPK("2", "t", table);
+    verify(runAndReadResults(select), i2);
+    validatePlanWithGets(select, create("equal", PK, "2"));
   }
 
   @Test
@@ -52,9 +68,25 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     item2.with(COL1, "2");
     table.putItem(item2);
     // should create a get
-    verify(runAndReadResults(selectStarWithPK("p1", "t", table) + " AND sort = 's1'"), item);
+    String query = selectStarWithPK("p1", "t", table) + " AND sort = 's1'";
+    verify(runAndReadResults(query), item);
+    validatePlanWithGets(query, pkEquals("p1").and(create("equal", "sort", "s1")));
     // should create a query
-    verify(runAndReadResults(selectStarWithPK("p1", "t", table) + " AND sort >= 's1'"), item);
+    query = selectStarWithPK("p1", "t", table) + " AND sort >= 's1'";
+    verify(runAndReadResults(query), item);
+    validatePlanWithQueries(query, of(pkEquals("p1").and(gte("sort", "s1")), null));
+  }
+
+  private DynamoFilterSpec gte(String key, Object val) {
+    return create("greater_than_or_equal_to", key, val);
+  }
+
+  private DynamoFilterSpec pkEquals(Object eq) {
+    return equals(PK, eq);
+  }
+
+  private DynamoFilterSpec equals(String key, Object value) {
+    return create("equal", key, value);
   }
 
   @Test
@@ -62,19 +94,18 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     Item item = item();
     item.with(COL1, "1");
     Table t = createTableWithItems(item);
-    verify(runAndReadResults(selectStarWithPK("pk", "t", t) + " AND t." + COL1 + " = '1'"),
-      item);
+    String query = selectStarWithPK("pk", "t", t) + " AND t." + COL1 + " = '1'";
+    verify(runAndReadResults(query), item);
+    validatePlanWithQueries(query, of(pkEquals("pk"), equals(COL1, "1")));
 
     // number column
     item = new Item();
     item.with(PK, "pk2");
     item.with(COL1, 1);
     t.putItem(item);
-    Map<String, Object> row = justOneRow(runAndReadResults(
-      selectStarWithPK("pk2", "t", t) + " AND t." + COL1 + " = 1"
-    ));
-    equalsText(item, PK, row);
-    equalsNumber(item, COL1, row);
+    query = selectStarWithPK("pk2", "t", t) + " AND t." + COL1 + " = 1";
+    verify(runAndReadResults(query), item);
+    validatePlanWithQueries(query, of(pkEquals("pk2"), equals(COL1, 1)));
   }
 
   @Test
@@ -83,34 +114,39 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     item.with(COL1, null);
     Table table = createTableWithItems(item);
 
-    verify(runAndReadResults(
-      selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as varchar)"),
-      item);
+    String query =
+      selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as varchar)";
+    verify(runAndReadResults(query), item);
+    ImmutablePair<DynamoFilterSpec, DynamoFilterSpec> spec = of(pkEquals("pk"), equals(COL1, null));
+    validatePlanWithQueries(query, spec);
     // we return nulls are varchar b/c we can cast anything from varchar. Make sure that a
     // boolean null cast also works
-    verify(runAndReadResults(
-      selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as boolean)"),
-      item);
+    query = selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as boolean)";
+    verify(runAndReadResults(query), item);
+    validatePlanWithQueries(query, spec);
   }
 
   /**
    * Similar to above, but we check for the non-existance of a column
    */
   @Test
-  public void testWhereColumnIsNull() throws Exception {
+  public void testWhereNoColumnValueIsNull() throws Exception {
     Item item = item();
     Table table = createTableWithItems(item);
+    String query =
+      selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as varchar)";
     assertEquals("Should not have found a row when checking for = null and column not set!",
-      0,
-      runAndReadResults(
-        selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as varchar)").size());
+      0, runAndReadResults(query).size());
+    ImmutablePair<DynamoFilterSpec, DynamoFilterSpec> spec = of(pkEquals("pk"), equals(COL1, null));
+    validatePlanWithQueries(query, spec);
     // see above for why trying a different type
+    query = selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as BOOLEAN)";
     assertEquals("Should not have found a row when checking for = null and column not set!",
-      0,
-      runAndReadResults(
-        selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as BOOLEAN)").size());
-    verify(runAndReadResults(selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " IS NULL"),
-      item);
+      0, runAndReadResults(query).size());
+    validatePlanWithQueries(query, spec);
+    query = selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " IS NULL";
+    verify(runAndReadResults(query), item);
+    validatePlanWithQueries(query, of(spec.getLeft(), create("isNull", COL1)));
   }
 
   @Test
@@ -119,15 +155,17 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     item.with(COL1, 1);
     Table table = createTableWithItems(item);
     String select = "SELECT *" + from(table) + "t WHERE t." + COL1 + " = 1";
-    Map<String, Object> row = justOneRow(runAndReadResults(select));
-    equalsText(item, PK, row);
-    equalsNumber(item, COL1, row);
+    verify(runAndReadResults(select), item);
+    DynamoFilterSpec spec = equals(COL1, 1);
+    validatePlanWithScan(select, spec);
 
     Item item2 = new Item();
     item2.with(PK, "pk2");
     item2.with(COL1, 2);
     table.putItem(item2);
-    assertEquals(row, justOneRow(runAndReadResults(select)));
+    verify(runAndReadResults(select), item);
+    // plan doesn't change as the table gets larger
+    validatePlanWithScan(select, spec);
   }
 
   @Test
@@ -138,11 +176,27 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     i2.with(PK, "pk2");
     i2.with(COL1, "2");
     Table table = createTableWithItems(item, i2);
-    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
-                             "t." + PK + " = 'pk' OR " +
-                             "t." + PK + " = 'pk2'" +
-                             "ORDER BY t." + PK + " ASC"),
-      item, i2);
+    String query = "SELECT *" + from(table) + "t WHERE " +
+                   "t." + PK + " = 'pk' OR " +
+                   "t." + PK + " = 'pk2'" +
+                   "ORDER BY t." + PK + " ASC";
+    verify(runAndReadResults(query), item, i2);
+    validatePlanWithGets(query, pkEquals("pk"), pkEquals("pk2"));
+  }
+
+  @Test
+  public void testPointGetWithRetainedFilterCausesQuery() throws Exception {
+    Item item = item();
+    item.with(COL1, "1");
+    Item i2 = new Item();
+    i2.with(PK, "pk2");
+    i2.with(COL1, "2");
+    Table table = createTableWithItems(item, i2);
+    String query = "SELECT *" + from(table) + "t WHERE " +
+                   "t." + PK + " = 'pk2' AND " +
+                   "t." + COL1 + " = '2'";
+    verify(runAndReadResults(query), i2);
+    validatePlanWithQueries(query, of(pkEquals("pk2"), equals(COL1, "2")));
   }
 
   @Test
@@ -153,11 +207,13 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     i2.with(PK, "pk2");
     i2.with(COL1, 2);
     Table table = createTableWithItems(item, i2);
-    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
-                             "t." + PK + " = 'pk' OR " +
-                             "t." + PK + " = 'pk2' AND t." + COL1 + " >= 2" +
-                             "ORDER BY t." + PK + " ASC"),
-      item, i2);
+    String query = "SELECT *" + from(table) + "t WHERE " +
+                   "t." + PK + " = 'pk' OR " +
+                   "t." + PK + " = 'pk2' AND t." + COL1 + " >= 2" +
+                   "ORDER BY t." + PK + " ASC";
+    verify(runAndReadResults(query), item, i2);
+    validatePlan(query, null, null, newArrayList(new DynamoGetFilterSpec(pkEquals("pk")),
+      new DynamoQueryFilterSpec(pkEquals("pk2"), gte(COL1, 2))));
   }
 
   @Test
@@ -168,12 +224,15 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     i2.with(PK, "pk2");
     i2.with(COL1, 2);
     Table table = createTableWithItems(item, i2);
-    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
-                             "t." + PK + " = 'pk' AND t." + COL1 + " = 1" +
-                             " OR " +
-                             "t." + PK + " = 'pk2' AND t." + COL1 + " >= 2" +
-                             "ORDER BY t." + PK + " ASC"),
-      item, i2);
+    String query = "SELECT *" + from(table) + "t WHERE " +
+                   "t." + PK + " = 'pk' AND t." + COL1 + " = 1" +
+                   " OR " +
+                   "t." + PK + " = 'pk2' AND t." + COL1 + " >= 2" +
+                   "ORDER BY t." + PK + " ASC";
+    verify(runAndReadResults(query), item, i2);
+    validatePlanWithQueries(query,
+      of(pkEquals("pk"), equals(COL1, 1)),
+      of(pkEquals("pk2"), gte(COL1, 2)));
   }
 
   @Test
@@ -184,11 +243,14 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     i2.with(PK, "pk2");
     i2.with(COL1, 2);
     Table table = createTableWithItems(item, i2);
-    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
-                             "t." + PK + " = 'pk' AND t." + COL1 + " = 1" +
-                             " AND " +
-                             "t." + PK + " = 'pk2' AND t." + COL1 + " >= 2" +
-                             "ORDER BY t." + PK + " ASC"));
+    String query = "SELECT *" + from(table) + "t WHERE " +
+                   "t." + PK + " = 'pk' AND t." + COL1 + " = 1" +
+                   " AND " +
+                   "t." + PK + " = 'pk2' AND t." + COL1 + " >= 2" +
+                   "ORDER BY t." + PK + " ASC";
+    verify(runAndReadResults(query));
+    validatePlanWithScan(query,
+      pkEquals("pk").and(equals(COL1, 1)).and(pkEquals("pk2")).and(gte(COL1, 2)));
   }
 
   @Test
@@ -199,11 +261,13 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     i2.with(PK, "pk2");
     i2.with(COL1, 2);
     Table table = createTableWithItems(item, i2);
-    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
-                             "(t." + PK + " = 'pk' AND t." + COL1 + " = 1)" +
-                             " OR " +
-                             "t." + COL1 + " >= 2" +
-                             "ORDER BY t." + PK + " ASC"), item, i2);
+    String query = "SELECT *" + from(table) + "t WHERE " +
+                   "(t." + PK + " = 'pk' AND t." + COL1 + " = 1)" +
+                   " OR " +
+                   "t." + COL1 + " >= 2" +
+                   "ORDER BY t." + PK + " ASC";
+    verify(runAndReadResults(query), item, i2);
+    validatePlanWithScan(query, pkEquals("pk").and(equals(COL1, 1)).or(gte(COL1, 2)));
   }
 
   @Test
@@ -215,11 +279,14 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     Item i2 = item();
     i2.with(COL1, "2");
     table.putItem(i2);
-    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
-                             "t." + PK + " = 'pk'" + " AND (" +
-                             "t." + COL1 + " = '1'" +
-                             " AND " +
-                             "t." + COL1 + " >= '2')"));
+    String query = "SELECT *" + from(table) + "t WHERE " +
+                   "t." + PK + " = 'pk'" + " AND (" +
+                   "t." + COL1 + " = '1'" +
+                   " AND " +
+                   "t." + COL1 + " >= '2')";
+    verify(runAndReadResults(query));
+    validatePlanWithQueries(query, of(pkEquals("pk"), equals(COL1, "1")), of(pkEquals("pk"), gte
+      (COL1, "2")));
 //    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
 //                             "t." + PK + " = 'pk'" + " AND (" +
 //                             "t." + COL1 + " = '1'" +
@@ -232,22 +299,77 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     Item item = item();
     item.with(COL1, "1");
     Table table = createTableWithItems(item);
-    ScanSpec scan = new ScanSpec();
-//    scan.withFilterExpression("col1 >= :a AND col1 <= :b");
-    scan.withFilterExpression("col1 BETWEEN :a AND :b");
-    Map<String, Object> valueMap =new HashMap<>();
-//    valueMap.put(":pk", "pk");
-    valueMap.put(":a", "1");
-    valueMap.put(":b", "2");
-    scan.withValueMap(valueMap);
-    IteratorSupport<Item, ScanOutcome> iter = table.scan(scan).iterator();
-    item = iter.next();
-    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
-                             "t." + COL1 + " BETWEEN '1' AND '2'"), item);
+    String query = "SELECT *" + from(table) + "t WHERE " +
+                   "t." + COL1 + " BETWEEN '1' AND '2'";
+    verify(runAndReadResults(query), item);
+    validatePlanWithScan(query, create("between", COL1, "1", "2"));
+    query = selectStarWithPK("pk", "t", table) + " AND " +
+            "t." + COL1 + " BETWEEN '1' AND '2'";
+    verify(runAndReadResults(query), item);
+    validatePlanWithQueries(query, of(pkEquals("pk"), create("between", COL1, "1", "2")));
+  }
+
+  @Test
+  public void testBetweenUpdateRange() throws Exception {
+    Item item = item();
+    item.with(COL1, 5);
+    Table table = createTableWithItems(item);
+    String query = "SELECT *" + from(table) + "t WHERE " +
+                   "t." + COL1 + " BETWEEN 1 AND 10 AND " +
+                   "t." + COL1 + " >= 4 AND " +
+                   "t." + COL1 + " <= 7";
+    verify(runAndReadResults(query), item);
+    validatePlanWithScan(query, create("between", COL1, 4, 7));
   }
 
   private String selectStarWithPK(String pk, String tableName, Table table) {
     return "SELECT *" + from(
       table) + tableName + " WHERE " + tableName + "." + PK + " = '" + pk + "'";
   }
+
+  private void validatePlanWithScan(String query, DynamoFilterSpec scan) throws Exception {
+    validatePlan(query, null, new DynamoReadFilterSpec(scan), null);
+  }
+
+  private void validatePlanWithGets(String query, DynamoFilterSpec... gets) throws Exception {
+    validatePlan(query, null, null,
+      Arrays.asList(gets).stream().map(DynamoGetFilterSpec::new).collect(
+        Collectors.toList()));
+  }
+
+  private void validatePlanWithQueries(String query, Pair<DynamoFilterSpec, DynamoFilterSpec>...
+    queries) throws
+    Exception {
+    validatePlan(query, null, null,
+      Arrays.asList(queries).stream().map(p -> new DynamoQueryFilterSpec(p.getKey(), p.getValue()))
+            .collect(Collectors.toList()));
+  }
+
+  private void validatePlan(String query, List<String> columns, DynamoReadFilterSpec scan,
+    List<DynamoReadFilterSpec> getOrQuery) throws Exception {
+    if (columns == null) {
+      columns = newArrayList("`*`");
+    }
+    Map<String, Object> plan = justOneRow(runAndReadResults(explain(query)));
+    Map<String, Object> json = MAPPER.readValue(plan.get("json").toString(), Map.class);
+    List<Map<String, Object>> graph = (List<Map<String, Object>>) json.get("graph");
+    Map<String, Object> dynamo = graph.get(0);
+    assertEquals(DynamoGroupScan.NAME, dynamo.get("pop"));
+    assertEquals(columns, dynamo.get("columns"));
+    Map<String, Object> spec = (Map<String, Object>) dynamo.get("spec");
+    String specString = MAPPER.writeValueAsString(spec);
+    DynamoGroupScanSpec gSpec = MAPPER.readValue(specString, DynamoGroupScanSpec.class);
+    if (scan == null) {
+      assertNull(gSpec.getScan());
+      assertEquals(getOrQuery, gSpec.getGetOrQuery());
+    } else {
+      assertNull(gSpec.getGetOrQuery());
+      assertEquals(scan, gSpec.getScan());
+    }
+  }
+
+  private String explain(String sql) {
+    return "EXPLAIN PLAN INCLUDING ALL ATTRIBUTES WITH IMPLEMENTATION FOR " + sql;
+  }
+
 }

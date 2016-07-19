@@ -1,9 +1,9 @@
 package io.fineo.drill.exec.store.dynamo;
 
-import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import org.junit.Test;
 
-import static io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.create;
+import static io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec.create;
 import static org.junit.Assert.assertEquals;
 
 public class TestDynamoFilterSpec {

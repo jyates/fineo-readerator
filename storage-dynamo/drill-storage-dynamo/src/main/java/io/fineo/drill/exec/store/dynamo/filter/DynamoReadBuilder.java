@@ -1,11 +1,12 @@
 package io.fineo.drill.exec.store.dynamo.filter;
 
-import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoGetFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoGetFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoQueryFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
+import io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,10 +16,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
-import static io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterLeaf;
-import static io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterNode;
-import static io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterNodeInner;
-import static io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterNodeVisitor;
+import static io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterLeaf;
+import static io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterNode;
+import static io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterNodeInner;
 
 class DynamoReadBuilder {
   private static final Logger LOG = LoggerFactory.getLogger(DynamoReadBuilder.class);
@@ -100,6 +100,9 @@ class DynamoReadBuilder {
   public void and(DynamoReadBuilder that) {
     if (that == null) {
       return;
+    }
+    if (!that.handledFilter()) {
+      this.handledFilter = false;
     }
     and();
 
@@ -357,7 +360,7 @@ class DynamoReadBuilder {
   }
 
   private void andScan(DynamoReadFilterSpec spec) {
-    and(scan.spec, spec.getKeyFilter());
+    and(scan.spec, spec.getKey());
   }
 
   public DynamoGroupScanSpec buildSpec(DynamoTableDefinition def) {
@@ -544,7 +547,7 @@ class DynamoReadBuilder {
       } else {
         QueryList list = new QueryList();
         list.setAttribute(nextAttribute);
-        range.getTree().visit(new FilterNodeVisitor<Void>() {
+        range.getTree().visit(new FilterTree.FilterNodeVisitor<Void>() {
           @Override
           public Void visitInnerNode(FilterNodeInner inner) {
             inner.getLeft().visit(this);
@@ -610,7 +613,7 @@ class DynamoReadBuilder {
             Query query = list.list.get(0);
             AtomicReference<DynamoFilterSpec> hashRef = new AtomicReference<>();
             // find the hash key reference
-            query.getFilter().getTree().visit(new FilterNodeVisitor<Void>() {
+            query.getFilter().getTree().visit(new FilterTree.FilterNodeVisitor<Void>() {
               @Override
               public Void visitInnerNode(FilterNodeInner inner) {
                 inner.getLeft().visit(this);
@@ -693,14 +696,17 @@ class DynamoReadBuilder {
         QueryList queries = gq.query;
         Query query = queries.list.get(0);
         DynamoFilterSpec spec = query.getFilter();
-        DynamoFilterSpec attr = query.attribute();
-        if (attr == null) {
-          attr = queries.attribute();
+        DynamoFilterSpec attr = query.attribute() != null ?
+                                query.attribute :
+                                queries.attribute();
+        if (attr != null) {
+          spec = and(spec, attr.deepClone());
         }
-        spec = and(spec, attr.deepClone());
         for (int i = 1; i < queries.list.size(); i++) {
           query = queries.list.get(i);
-          DynamoFilterSpec filter = and(attr.deepClone(), query.getFilter());
+          DynamoFilterSpec filter = attr == null ?
+                                    query.getFilter() :
+                                    and(attr.deepClone(), query.getFilter());
           spec = or(spec, filter);
         }
         scan.or(spec);

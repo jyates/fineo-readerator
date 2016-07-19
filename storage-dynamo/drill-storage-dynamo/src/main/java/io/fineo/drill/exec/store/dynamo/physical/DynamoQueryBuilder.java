@@ -13,12 +13,13 @@ import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.google.common.collect.AbstractIterator;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterLeaf;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec.FilterNodeInner;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoQueryFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterLeaf;
+import io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree.FilterNodeInner;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
+import io.fineo.drill.exec.store.dynamo.spec.filter.FilterTree;
 import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubReadSpec;
 import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubScanSpec;
 
@@ -97,7 +98,7 @@ public class DynamoQueryBuilder {
       // and attributes with AND and make a single filter.
       NameMapper mapper = new NameMapper();
       DynamoReadFilterSpec filterSpec = slice.getFilter();
-      DynamoFilterSpec filter = filterSpec.getKeyFilter();
+      DynamoFilterSpec filter = filterSpec.getKey();
       String filterString = asFilterExpression(mapper, filter);
       if (filterString != null) {
         scan.withFilterExpression(filterString);
@@ -120,7 +121,7 @@ public class DynamoQueryBuilder {
       DynamoQueryFilterSpec filter = (DynamoQueryFilterSpec) slice.getFilter();
 
       // key space
-      DynamoFilterSpec key = filter.getKeyFilter();
+      DynamoFilterSpec key = filter.getKey();
       String keyFilter = asFilterExpression(mapper, key);
       assert keyFilter != null : "Got a null key filter for query! Spec: " + slice;
       query.withKeyConditionExpression(keyFilter);
@@ -148,10 +149,10 @@ public class DynamoQueryBuilder {
       DynamoReadFilterSpec filter = slice.getFilter();
       // key space
       PrimaryKey pk = new PrimaryKey();
-      DynamoFilterSpec key = filter.getKeyFilter();
-      DynamoFilterSpec.FilterTree tree = key.getTree();
+      DynamoFilterSpec key = filter.getKey();
+      FilterTree tree = key.getTree();
       assert tree != null;
-      tree.visit(new DynamoFilterSpec.FilterNodeVisitor<Void>() {
+      tree.visit(new FilterTree.FilterNodeVisitor<Void>() {
         @Override
         public Void visitInnerNode(FilterNodeInner inner) {
           assert inner.getCondition().equals("AND");
@@ -198,9 +199,9 @@ public class DynamoQueryBuilder {
     if (spec == null || spec.getTree() == null) {
       return null;
     }
-    DynamoFilterSpec.FilterTree tree = spec.getTree();
+    FilterTree tree = spec.getTree();
     // replace the leaf values in the tree with expressions
-    return tree.visit(new DynamoFilterSpec.FilterNodeVisitor<String>() {
+    return tree.visit(new FilterTree.FilterNodeVisitor<String>() {
       @Override
       public String visitInnerNode(FilterNodeInner inner) {
         String left = inner.getLeft().visit(this);

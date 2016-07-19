@@ -3,28 +3,56 @@ package io.fineo.drill.exec.store.dynamo.spec;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 
 /**
  * Track the key and attribute filters for a scan
  */
-@JsonTypeName("dynamo-read-filter-spec")
 @JsonAutoDetect
+@JsonTypeName("dynamo-read-filter-spec")
+@JsonTypeInfo(use=JsonTypeInfo.Id.CLASS, include= JsonTypeInfo.As.PROPERTY, property="@class")
 public class DynamoReadFilterSpec {
 
-  private DynamoFilterSpec keyFilter;
+  protected DynamoFilterSpec key;
 
   @JsonCreator
-  public DynamoReadFilterSpec(@JsonProperty("key") DynamoFilterSpec keyFilter) {
-    this.keyFilter = keyFilter;
+  public DynamoReadFilterSpec(@JsonProperty("key") DynamoFilterSpec key) {
+    this.key = key;
   }
 
   public DynamoReadFilterSpec() {
-    keyFilter = new DynamoFilterSpec();
+    key = new DynamoFilterSpec();
   }
 
-  @JsonProperty("keyFilter")
-  public DynamoFilterSpec getKeyFilter() {
-    return keyFilter;
+  @JsonProperty("key")
+  public DynamoFilterSpec getKey() {
+    return key;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (!(o instanceof DynamoReadFilterSpec))
+      return false;
+
+    DynamoReadFilterSpec that = (DynamoReadFilterSpec) o;
+
+    return getKey() != null ? getKey().equals(that.getKey()) : that.getKey() == null;
+
+  }
+
+  @Override
+  public int hashCode() {
+    return getKey() != null ? getKey().hashCode() : 0;
+  }
+
+  @Override
+  public String toString() {
+    return "DynamoReadFilterSpec{" +
+           "key=" + key +
+           '}';
   }
 }

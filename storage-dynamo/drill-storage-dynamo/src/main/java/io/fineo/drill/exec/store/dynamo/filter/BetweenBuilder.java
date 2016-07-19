@@ -1,6 +1,6 @@
 package io.fineo.drill.exec.store.dynamo.filter;
 
-import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 
 /**
  * Builder to construct a "between" clause for a column

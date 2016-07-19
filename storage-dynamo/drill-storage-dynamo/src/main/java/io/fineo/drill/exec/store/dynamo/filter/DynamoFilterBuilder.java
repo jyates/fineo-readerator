@@ -21,7 +21,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.DynamoGroupScan;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
@@ -32,14 +32,12 @@ import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.expression.visitors.AbstractExprVisitor;
-import org.reflections.util.FilterBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -77,7 +75,7 @@ public class DynamoFilterBuilder {
     List<DynamoTableDefinition.PrimaryKey> pks = groupScan.getSpec().getTable().getKeys();
     this.hashKey = pks.get(0);
     if (pks.size() > 1) {
-      if (hashKey.isHashKey()) {
+      if (hashKey.getIsHashKey()) {
         this.rangeKey = pks.get(1);
       } else {
         this.rangeKey = hashKey;
@@ -92,6 +90,9 @@ public class DynamoFilterBuilder {
     DynamoQuerySpecBuilder builder = new DynamoQuerySpecBuilder();
     DynamoReadBuilder parsedSpec = le.accept(builder, null);
     if (parsedSpec != null) {
+      if (!parsedSpec.handledFilter()) {
+        this.allExpressionsConverted = false;
+      }
       // combine with the existing scan
       return merge(this.groupScan.getSpec(), parsedSpec);
     }
@@ -172,6 +173,9 @@ public class DynamoFilterBuilder {
             }
             DynamoReadBuilder builder = new DynamoReadBuilder(hashKey, rangeKey);
             builder.set(fragment);
+            if (!builder.handledFilter()) {
+              allExpressionsConverted = false;
+            }
             // done with this op
             if (op.args.size() == 2) {
               return builder;
@@ -182,7 +186,7 @@ public class DynamoFilterBuilder {
                 (expr))).collect(Collectors
               .toList());
             op = new BooleanOperator(op.getName(), pending, op.getPosition());
-            DynamoReadBuilder subset = visitFunctionCall(op, null);
+            DynamoReadBuilder subset = this.visitFunctionCall(op, null);
             if (subset != null) {
               builder.and(subset);
             }
@@ -190,7 +194,7 @@ public class DynamoFilterBuilder {
           }
         }
       }
-      return visitFunctionCall(op, null);
+      return this.visitFunctionCall(op, null);
     }
 
     @Override
@@ -207,6 +211,7 @@ public class DynamoFilterBuilder {
           FilterFragment fragment = createDynamoFilter(processor);
           if (fragment == null) {
             allExpressionsConverted = false;
+            return null;
           }
           builder = new DynamoReadBuilder(hashKey, rangeKey);
           builder.set(fragment);

@@ -11,7 +11,7 @@ import com.google.common.collect.ListMultimap;
 import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.drill.exec.store.dynamo.config.ParallelScanProperties;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoGetFilterSpec;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoGetFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubGetSpec;
@@ -188,12 +188,30 @@ public class DynamoGroupScan extends AbstractGroupScan {
   public ScanStats getScanStats() {
     // for simple scans, we have to look at all the rows
     long recordCount = desc.getItemCount();
-    // based on how much information we push down (e.g. filter turns scan in query/get) we can
-    // recalculate the number of rows read
-
-    long cpuCost = 0;
-    long diskCost = 0;
-    return new ScanStats(ScanStats.GroupScanProperty.NO_EXACT_ROW_COUNT, recordCount,
+    // prefer to use Dynamo filtering whenever possible
+    float cpuCost = 0;
+    // guess the disk costs.
+    //  1. scan  - reads everything
+    //  2. query - reads hash/sort + filter
+    //  3. get - reads hash/sort, but no filter
+    float diskCost = 100f;
+    if (this.getSpec().getGetOrQuery() != null) {
+      int getCount = this.getSpec().getGetOrQuery().stream()
+                         .mapToInt(spec -> spec instanceof DynamoGetFilterSpec ? 1 : 0)
+                         .sum();
+      // its all queries
+      if (getCount == 0) {
+        // queries return a fraction of the data, lets guess 10x reduction
+        recordCount = recordCount / 10;
+        diskCost = diskCost / 10;
+      } else {
+        // count the gets as the cost
+        recordCount = getCount;
+        diskCost = getCount / recordCount;
+      }
+    }
+    return new ScanStats(ScanStats.GroupScanProperty.NO_EXACT_ROW_COUNT,
+      recordCount == 0 ? 1 : recordCount,
       cpuCost, diskCost);
   }
 

@@ -52,7 +52,7 @@ public class DynamoTableDefinition {
       return type;
     }
 
-    public boolean isHashKey() {
+    public boolean getIsHashKey() {
       return isHashKey;
     }
 
