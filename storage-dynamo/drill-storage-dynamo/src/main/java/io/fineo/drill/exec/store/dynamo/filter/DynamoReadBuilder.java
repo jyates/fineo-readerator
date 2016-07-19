@@ -364,35 +364,50 @@ class DynamoReadBuilder {
   }
 
   public DynamoGroupScanSpec buildSpec(DynamoTableDefinition def) {
-    DynamoReadFilterSpec scan = null;
-    List<DynamoReadFilterSpec> queries = null;
     if (this.scan != null) {
-      scan = new DynamoReadFilterSpec(this.scan.spec);
-    } else {
-      // check to see if we have any hanging fragments that would change anything.
-      if (this.nextHash != null) {
-        createGetOrQuery();
-      } else if (this.nextRange != null || this.nextAttribute != null) {
-        this.scan = buildScan();
-        scan = new DynamoReadFilterSpec(this.scan.spec);
-        return new DynamoGroupScanSpec(def, scan, queries);
-      }
-
-      // no more hanging attributes
-      queries = new ArrayList<>();
-      for (GetOrQuery gq : this.queries) {
-        if (gq.get != null) {
-          queries.add(new DynamoGetFilterSpec(gq.get.getFilter()));
-        } else {
-          DynamoFilterSpec attribute = gq.attribute();
-          for (Query query : gq.query) {
-            queries.add(new DynamoQueryFilterSpec(query.getFilter(), attribute));
+      return outputScan(def);
+    }
+    // check to see if we have any hanging fragments that would change anything.
+    if (this.nextHash != null) {
+      createGetOrQuery();
+    } else if (this.nextAttribute != null) {
+      switch (AND_OR) {
+        case UNSET:
+          return outputScan(def);
+        case AND:
+          QueryList createOrUpdated = updateQueryWithAttribute(this.nextAttribute);
+          if (createOrUpdated != null) {
+            add(createOrUpdated);
+            break;
           }
+          // fall through to build a scan
+        case OR:
+          return outputScan(def);
+      }
+    } else if (this.nextRange != null) {
+      return outputScan(def);
+    }
+
+    // no more hanging attributes
+    List<DynamoReadFilterSpec> queries = new ArrayList<>();
+    for (GetOrQuery gq : this.queries) {
+      if (gq.get != null) {
+        queries.add(new DynamoGetFilterSpec(gq.get.getFilter()));
+      } else {
+        DynamoFilterSpec attribute = gq.attribute();
+        for (Query query : gq.query) {
+          queries.add(new DynamoQueryFilterSpec(query.getFilter(), attribute));
         }
       }
     }
 
-    return new DynamoGroupScanSpec(def, scan, queries);
+    return new DynamoGroupScanSpec(def, null, queries);
+  }
+
+  private DynamoGroupScanSpec outputScan(DynamoTableDefinition def) {
+    this.scan = buildScan();
+    DynamoReadFilterSpec scan = new DynamoReadFilterSpec(this.scan.spec);
+    return new DynamoGroupScanSpec(def, scan, null);
   }
 
   @FunctionalInterface
@@ -419,20 +434,33 @@ class DynamoReadBuilder {
   }
 
   private void andAttribute(DynamoFilterSpec spec) {
-    // last "thing" we created was a get
+    if (spec == null) {
+      return;
+    }
+
+    // see if we can combine this with the last query/get
     if (queries.size() > 0) {
-      GetOrQuery gq = queries.remove(queries.size() - 1);
-      QueryList query = gq.query;
-      if (query == null) {
-        query = new QueryList(new Query(gq.get.getFilter(), null));
-      }
-      // we created a query last
-      query.setAttribute(and(query.attribute(), spec));
+      QueryList query = updateQueryWithAttribute(spec);
       add(query);
     } else {
       // nothing created yet, just combine attributes
       nextAttribute = and(nextAttribute, spec);
     }
+  }
+
+  private QueryList updateQueryWithAttribute(DynamoFilterSpec attribute) {
+    if (queries.size() == 0) {
+      return null;
+    }
+    GetOrQuery gq = queries.remove(queries.size() - 1);
+    QueryList query = gq.query;
+    // oops, actually created a get, to make a new query
+    if (query == null) {
+      query = new QueryList(new Query(gq.get.getFilter(), null));
+    }
+
+    query.setAttribute(and(query.attribute(), attribute));
+    return query;
   }
 
   private void add(QueryList query) {

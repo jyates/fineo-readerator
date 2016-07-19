@@ -50,7 +50,7 @@ public class DynamoQueryFilterSpec extends DynamoReadFilterSpec {
   public String toString() {
     return "DynamoQueryFilterSpec{" +
            "keyFilter=" + key +
-           "attributeFilter=" + attributeFilter +
+           ", attributeFilter=" + attributeFilter +
            '}';
   }
 }

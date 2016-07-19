@@ -1,10 +1,7 @@
 package io.fineo.drill.exec.store.dynamo;
 
 import com.amazonaws.services.dynamodbv2.document.Item;
-import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
-import com.amazonaws.services.dynamodbv2.document.internal.IteratorSupport;
-import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
@@ -16,7 +13,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -295,7 +291,7 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
   }
 
   @Test
-  public void testBetween() throws Exception {
+  public void testBetweenScan() throws Exception {
     Item item = item();
     item.with(COL1, "1");
     Table table = createTableWithItems(item);
@@ -303,10 +299,17 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    "t." + COL1 + " BETWEEN '1' AND '2'";
     verify(runAndReadResults(query), item);
     validatePlanWithScan(query, create("between", COL1, "1", "2"));
-    query = selectStarWithPK("pk", "t", table) + " AND " +
-            "t." + COL1 + " BETWEEN '1' AND '2'";
+  }
+
+  @Test
+  public void testBetweenQuery() throws Exception {
+    Item item = item();
+    item.with(COL1, 1);
+    Table table = createTableWithItems(item);
+    String query = selectStarWithPK("pk", "t", table) + " AND " +
+                   "t." + COL1 + " BETWEEN 1 AND 2";
     verify(runAndReadResults(query), item);
-    validatePlanWithQueries(query, of(pkEquals("pk"), create("between", COL1, "1", "2")));
+    validatePlanWithQueries(query, of(pkEquals("pk"), create("between", COL1, 1, 2)));
   }
 
   @Test
