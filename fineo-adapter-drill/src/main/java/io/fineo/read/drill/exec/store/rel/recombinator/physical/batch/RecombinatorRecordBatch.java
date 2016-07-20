@@ -125,14 +125,17 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         // ensures that we only handle the post-CAST types, not the ANY typed fields
         boolean dynamic = name.startsWith(prefix);
         String outputName = stripDynamicProjectPrefix(name);
+        // this is a dynamic field with an alias that we know about
+        if (aliasMap.shouldSkip(outputName, dynamic)) {
+          LOG.debug("Skipping field {} => {}", name, outputName);
+          continue;
+        }
         if (dynamic) {
-          // this is a dynamic field with an alias that we know about
-          if (aliasMap.shouldSkip(outputName)) {
-            LOG.debug("Skipping field {} => {}", name, outputName);
-            continue;
-          }
+          // get or create a writer for the _fm field since its an unknown field that we don't
+          // know about
           currentWriter = currentWriter.map(FineoCommon.MAP_FIELD);
         } else {
+          // its a 'known' field without a dynamic (T0¦¦ prefix), so just copy that over
           outputName = aliasMap.getOutputName(outputName);
         }
         write(outputName, wrapper, currentWriter);
@@ -140,7 +143,9 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     }
 
     // transfer the values as we can
-    if (mutator.isNewSchema()) {
+    if (mutator.isNewSchema())
+
+    {
       container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
       return IterOutcome.OK_NEW_SCHEMA;
     }

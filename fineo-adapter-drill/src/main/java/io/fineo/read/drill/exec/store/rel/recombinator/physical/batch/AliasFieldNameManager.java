@@ -3,7 +3,9 @@ package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.schema.store.StoreClerk;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -14,6 +16,7 @@ import java.util.regex.Pattern;
 public class AliasFieldNameManager {
 
   private final Map<String, String> map;
+  private final List<String> directories = new ArrayList<>();
   private final Pattern partitionPattern;
   private boolean seenField = false;
 
@@ -45,17 +48,33 @@ public class AliasFieldNameManager {
     return this.map.get(upstreamFieldName);
   }
 
-  public boolean shouldSkip(String outputName) {
-    // counts on directories showing up before actual fields in the * lookup
-    if (!seenField && partitionPattern.matcher(outputName).matches()) {
-      return true;
+  public boolean shouldSkip(String outputName, boolean dynamic) {
+    // dynamic fields should come first
+    if (dynamic) {
+      // counts on directories showing up before actual fields in the * lookup
+      if (!seenField && partitionPattern.matcher(outputName).matches()) {
+        // there is an unknown dynamic field named dir_N_
+        if (directories.contains(outputName)) {
+          seenField = true;
+          return false;
+        }
+        directories.add(outputName);
+        return true;
+      }
+      seenField = true;
+      return !outputName.equals(FineoCommon.MAP_FIELD) && getOutputName(outputName) != null;
     }
+
     seenField = true;
-    return !outputName.equals(FineoCommon.MAP_FIELD)
-           && getOutputName(outputName) != null;
+    return isDirectory(outputName);
   }
 
   public void reset() {
     seenField = false;
+    directories.clear();
+  }
+
+  public boolean isDirectory(String outputName) {
+    return directories.remove(outputName);
   }
 }
