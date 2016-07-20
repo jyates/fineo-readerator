@@ -4,6 +4,8 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.read.drill.exec.store.rel.fixed.physical.FixedSchemaPrule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition
+  .PushTimerangePastRecombinatorRule;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.FineoRecombinatorPrule;
 import io.fineo.read.drill.exec.store.schema.FineoSchemaFactory;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
@@ -66,6 +68,9 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
         call.transformTo(ets);
       }
     });
+
+    // Filter out tables/directories that are not included in requested time range
+    rules.put(PlannerPhase.LOGICAL, PushTimerangePastRecombinatorRule.INSTANCE);
 
     // transform FRMR -> FRR
     rules.put(PlannerPhase.LOGICAL, FineoRecombinatorRule.INSTANCE);

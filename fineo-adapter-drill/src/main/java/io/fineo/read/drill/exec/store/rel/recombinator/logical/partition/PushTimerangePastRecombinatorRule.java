@@ -93,7 +93,6 @@ public class PushTimerangePastRecombinatorRule extends RelOptRule {
           call.transformTo(new DrillLimitRel(filter.getCluster(), filter.getTraitSet(), fmr,
             zero, zero));
         }
-
     }
   }
 
