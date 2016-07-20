@@ -3,6 +3,7 @@ package io.fineo.read.drill;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.fasterxml.jackson.jr.ob.JSON;
+import com.google.common.base.Joiner;
 import io.fineo.drill.rule.DrillClusterRule;
 import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
@@ -27,6 +28,7 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -62,6 +64,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   public TestOutput folder = new TestOutput(false);
 
   protected final String org = "orgid1", metrictype = "metricid1", fieldname = "field1";
+  private static final Joiner AND = Joiner.on(" AND ");
 
   @FunctionalInterface
   protected interface Verify<T> {
@@ -70,6 +73,26 @@ public class BaseFineoTest extends BaseDynamoTableTest {
 
   protected String equals(String left, String right) {
     return format("%s = '%s'", left, right);
+  }
+
+  protected String verifySelectStar(Verify<ResultSet> verify) throws Exception {
+    return verifySelectStar(null, verify);
+  }
+
+  protected String verifySelectStar(List<String> wheres, Verify<ResultSet> verify) throws
+    Exception {
+    String from = format(" FROM fineo.%s.%s", org, metrictype);
+    String where = wheres == null ? "" : " WHERE " + AND.join(wheres);
+    String stmt = "SELECT *" + from + where + " ORDER BY `timestamp` ASC";
+//    String stmt = "SELECT *, field1, *" + from + where;
+    verify(stmt, verify);
+    return stmt;
+  }
+
+  protected void verify(String stmt, Verify<ResultSet> verify) throws Exception {
+    LOG.info("Attempting query: " + stmt);
+    Connection conn = drill.getConnection();
+    verify.verify(conn.createStatement().executeQuery(stmt));
   }
 
   protected void bootstrap(SourceFsTable... files) throws IOException {

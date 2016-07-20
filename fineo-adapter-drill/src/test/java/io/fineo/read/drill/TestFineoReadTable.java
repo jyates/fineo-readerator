@@ -114,9 +114,9 @@ public class TestFineoReadTable extends BaseFineoTest {
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, false);
     Map<String, Object> values2 = newHashMap(values);
-    values.put(fieldname, true);
+    values2.put(fieldname, true);
     Map<String, Object> values3 = newHashMap(values);
-    values.put(fieldname, false);
+    values3.put(fieldname, false);
 
     writeAndReadToIndependentFiles(values, values2, values3);
   }
@@ -418,25 +418,5 @@ public class TestFineoReadTable extends BaseFineoTest {
         assertNext(j++, result, content);
       }
     });
-  }
-
-  private static final Joiner AND = Joiner.on(" AND ");
-
-  private void verifySelectStar(Verify<ResultSet> verify) throws Exception {
-    verifySelectStar(null, verify);
-  }
-
-  private void verifySelectStar(List<String> wheres, Verify<ResultSet> verify) throws Exception {
-    String from = format(" FROM fineo.%s.%s", org, metrictype);
-    String where = wheres == null ? "" : " WHERE " + AND.join(wheres);
-    String stmt = "SELECT *" + from + where + " ORDER BY `timestamp` ASC";
-//    String stmt = "SELECT *, field1, *" + from + where;
-    verify(stmt, verify);
-  }
-
-  private void verify(String stmt, Verify<ResultSet> verify) throws Exception {
-    LOG.info("Attempting query: " + stmt);
-    Connection conn = drill.getConnection();
-    verify.verify(conn.createStatement().executeQuery(stmt));
   }
 }

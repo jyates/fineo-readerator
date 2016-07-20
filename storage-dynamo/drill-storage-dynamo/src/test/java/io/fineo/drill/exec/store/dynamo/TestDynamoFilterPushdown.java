@@ -379,5 +379,4 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
   private String explain(String sql) {
     return "EXPLAIN PLAN INCLUDING ALL ATTRIBUTES WITH IMPLEMENTATION FOR " + sql;
   }
-
 }
