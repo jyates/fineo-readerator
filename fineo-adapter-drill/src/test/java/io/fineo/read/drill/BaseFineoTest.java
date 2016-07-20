@@ -132,9 +132,14 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       this.store = store;
     }
 
-    SourceFsTable write(File dir, long ts, Map<String, Object> values)
+    SourceFsTable write(File dir, long ts, Map<String, Object>... values)
       throws IOException {
-      return write(dir, org, metrictype, ts, newArrayList(values));
+      return write(dir, org, metrictype, ts, values);
+    }
+
+    public SourceFsTable write(File dir, String org, String metricType, long ts,
+      Map<String, Object>... values) throws IOException {
+      return write(dir, org, metricType, ts, newArrayList(values));
     }
 
     public SourceFsTable write(File dir, String org, String metricType, long ts,
@@ -144,17 +149,28 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   }
 
   protected static SourceFsTable writeJson(SchemaStore store, File dir, String org,
-    String metricType,
-    long
-      ts,
-    List<Map<String, Object>> values) throws IOException {
+    String metricType, long ts, List<Map<String, Object>> values) throws IOException {
     StoreClerk clerk = new StoreClerk(store, org);
 
     // get the actual metric type
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
-    String metricId = metric.getMetricId();
 
     SourceFsTable table = new SourceFsTable("json", dir.getPath(), org);
+    File outputDir = createOutputDir(table, metric, ts);
+
+    for (Map<String, Object> json : values) {
+      setValues(json, org, metric, ts);
+    }
+
+    // actually write the events
+    File out = new File(outputDir, format("test-%s-%s.json", ts, UUID.randomUUID()));
+    writeJsonFile(out, values);
+    return table;
+  }
+
+  protected static File createOutputDir(SourceFsTable table, StoreClerk.Metric metric, long ts){
+    String metricId = metric.getMetricId();
+    File dir = new File(table.getBasedir());
     File version = new File(dir, FineoStoragePlugin.VERSION);
     File format = new File(version, table.getFormat());
     File orgDir = new File(format, table.getOrg());
@@ -164,30 +180,32 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     if (!dateDir.exists()) {
       assertTrue("Couldn't make output directory! Dir: " + dateDir, dateDir.mkdirs());
     }
+    return dateDir;
+  }
 
-    for (Map<String, Object> json : values) {
-      json.put(ORG_ID_KEY, org);
-      json.put(ORG_METRIC_TYPE_KEY, metricId);
-      json.put(TIMESTAMP_KEY, ts);
-    }
-
-    // actually write the events
-    File out = new File(dateDir, format("test-%s-%s.json", ts, UUID.randomUUID()));
+  protected static void writeJsonFile(File out, Object toWrite) throws IOException {
     try (FileOutputStream fos = new FileOutputStream(out);
          BufferedOutputStream bos = new BufferedOutputStream(fos)) {
       LOG.info("Using input file: " + out);
       JSON j = JSON.std;
-      j.write(values, bos);
+      j.write(toWrite, bos);
     }
+  }
 
-    return table;
+  protected static void setValues(Map<String, Object> row, String org, StoreClerk.Metric metric,
+    long ts) {
+    String metricId = metric.getMetricId();
+    row.put(ORG_ID_KEY, org);
+    row.put(ORG_METRIC_TYPE_KEY, metricId);
+    row.put(TIMESTAMP_KEY, ts);
   }
 
   protected void assertNext(ResultSet result, Map<String, Object> values) throws SQLException {
     assertNext(0, result, values);
   }
 
-  protected void assertNext(int j, ResultSet result, Map<String, Object> values) throws SQLException {
+  protected void assertNext(int j, ResultSet result, Map<String, Object> values)
+    throws SQLException {
     assertTrue("Could not get next result for values: " + values, result.next());
     if (j >= 0) {
       String row = toStringRow(result);
