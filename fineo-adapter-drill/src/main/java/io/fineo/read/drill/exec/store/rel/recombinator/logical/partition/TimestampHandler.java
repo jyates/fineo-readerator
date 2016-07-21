@@ -8,5 +8,5 @@ interface TimestampHandler {
 
   TimestampExpressionBuilder.ConditionBuilder getBuilder(TableScan scan);
 
-  RelNode handleTimestampGeneratedRex(RexNode node);
+  RelNode translateScanFromGeneratedRex(TableScan scan, RexNode timestamps);
 }

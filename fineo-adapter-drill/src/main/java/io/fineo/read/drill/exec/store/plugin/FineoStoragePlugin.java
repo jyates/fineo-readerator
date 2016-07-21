@@ -70,7 +70,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
     });
 
     // Filter out tables/directories that are not included in requested time range
-//    rules.put(PlannerPhase.LOGICAL, PushTimerangePastRecombinatorRule.INSTANCE);
+    rules.put(PlannerPhase.DIRECTORY_PRUNING, PushTimerangePastRecombinatorRule.INSTANCE);
 
     // transform FRMR -> FRR
     rules.put(PlannerPhase.LOGICAL, FineoRecombinatorRule.INSTANCE);

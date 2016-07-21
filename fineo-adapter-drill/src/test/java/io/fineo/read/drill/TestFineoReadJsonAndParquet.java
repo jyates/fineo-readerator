@@ -59,40 +59,4 @@ public class TestFineoReadJsonAndParquet extends BaseFineoTest {
       assertNext(result, values2);
     });
   }
-
-  private SourceFsTable writeParquet(TestState state, File dir, String orgid, String metricType,
-    long ts, Map<String, Object>... rows) throws Exception {
-    // set the values in the row
-    StoreClerk clerk = new StoreClerk(state.store, org);
-    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
-    for (Map<String, Object> row : rows) {
-      setValues(row, orgid, metric, ts);
-    }
-
-    // write to a tmp json file
-    File tmp = new File(dir, "tmp-json");
-    if (!tmp.exists()) {
-      assertTrue("Couldn't make the tmp directory: " + tmp, tmp.mkdirs());
-    }
-    File out = new File(tmp, format("%s-tmp-to-parquet.json", UUID.randomUUID()));
-    writeJsonFile(out, rows);
-
-    // create a parquet table
-    String path = "dfs.`" + out + "`";
-    String table = "tmp_parquet";
-    String request = format("CREATE TABLE %s AS SELECT * from %s", table, path);
-    String alter = "alter session set `store.format`='parquet'";
-    String use = "use dfs.tmp";
-    Connection conn = drill.getConnection();
-    conn.createStatement().execute(alter);
-    conn.createStatement().execute(use);
-    conn.createStatement().execute(request);
-
-    //copy the contents to the actual output file that we want to use for ingest
-    SourceFsTable source = new SourceFsTable("parquet", dir.getPath(), org);
-    File outputDir = createOutputDir(source, metric, ts);
-    File from = new File("/tmp", table);
-    Files.move(from, outputDir);
-    return source;
-  }
 }

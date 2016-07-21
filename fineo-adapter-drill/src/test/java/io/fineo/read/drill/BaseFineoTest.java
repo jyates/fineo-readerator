@@ -4,6 +4,7 @@ import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.fasterxml.jackson.jr.ob.JSON;
 import com.google.common.base.Joiner;
+import com.google.common.io.Files;
 import io.fineo.drill.rule.DrillClusterRule;
 import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
@@ -14,10 +15,13 @@ import io.fineo.read.drill.exec.store.plugin.SourceFsTable;
 import io.fineo.schema.OldSchemaException;
 import io.fineo.schema.avro.SchemaTestUtils;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
+import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.test.rule.TestOutput;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.schemarepo.ValidatorFactory;
@@ -150,6 +154,11 @@ public class BaseFineoTest extends BaseDynamoTableTest {
 
   protected static SourceFsTable writeJson(SchemaStore store, File dir, String org,
     String metricType, long ts, List<Map<String, Object>> values) throws IOException {
+    return writeJsonAndGetOutputFile(store, dir, org, metricType, ts, values).getKey();
+  }
+  protected static Pair<SourceFsTable, File> writeJsonAndGetOutputFile(SchemaStore store, File
+    dir, String org, String metricType, long ts, List<Map<String, Object>> values)
+    throws IOException {
     StoreClerk clerk = new StoreClerk(store, org);
 
     // get the actual metric type
@@ -165,7 +174,43 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     // actually write the events
     File out = new File(outputDir, format("test-%s-%s.json", ts, UUID.randomUUID()));
     writeJsonFile(out, values);
-    return table;
+    return new ImmutablePair<>(table, out);
+  }
+
+  protected SourceFsTable writeParquet(TestState state, File dir, String orgid, String metricType,
+    long ts, Map<String, Object>... rows) throws Exception {
+    // set the values in the row
+    StoreClerk clerk = new StoreClerk(state.store, org);
+    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
+    for (Map<String, Object> row : rows) {
+      setValues(row, orgid, metric, ts);
+    }
+
+    // write to a tmp json file
+    File tmp = new File(dir, "tmp-json");
+    if (!tmp.exists()) {
+      assertTrue("Couldn't make the tmp directory: " + tmp, tmp.mkdirs());
+    }
+    File out = new File(tmp, format("%s-tmp-to-parquet.json", UUID.randomUUID()));
+    writeJsonFile(out, rows);
+
+    // create a parquet table
+    String path = "dfs.`" + out + "`";
+    String table = "tmp_parquet";
+    String request = format("CREATE TABLE %s AS SELECT * from %s", table, path);
+    String alter = "alter session set `store.format`='parquet'";
+    String use = "use dfs.tmp";
+    Connection conn = drill.getConnection();
+    conn.createStatement().execute(alter);
+    conn.createStatement().execute(use);
+    conn.createStatement().execute(request);
+
+    //copy the contents to the actual output file that we want to use for ingest
+    SourceFsTable source = new SourceFsTable("parquet", dir.getPath(), org);
+    File outputDir = createOutputDir(source, metric, ts);
+    File from = new File("/tmp", table);
+    Files.move(from, outputDir);
+    return source;
   }
 
   protected static File createOutputDir(SourceFsTable table, StoreClerk.Metric metric, long ts){

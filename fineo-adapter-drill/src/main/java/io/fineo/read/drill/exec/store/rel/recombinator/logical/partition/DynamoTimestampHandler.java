@@ -2,7 +2,6 @@ package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
 
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
 import io.fineo.lambda.dynamo.DynamoTableNameParts;
-import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.TableScan;
@@ -23,14 +22,9 @@ import static org.apache.calcite.sql.type.SqlTypeName.INTEGER;
 public class DynamoTimestampHandler implements TimestampHandler {
 
   private final RexBuilder rexer;
-  private final FineoRecombinatorMarkerRel fmr;
-  private final Filter filter;
 
-  public DynamoTimestampHandler(RexBuilder rexer, FineoRecombinatorMarkerRel fmr,
-    Filter filter) {
+  public DynamoTimestampHandler(RexBuilder rexer) {
     this.rexer = rexer;
-    this.fmr = fmr;
-    this.filter = filter;
   }
 
   @Override
@@ -39,13 +33,12 @@ public class DynamoTimestampHandler implements TimestampHandler {
   }
 
   @Override
-  public RelNode handleTimestampGeneratedRex(RexNode timestamps) {
+  public RelNode translateScanFromGeneratedRex(TableScan scan, RexNode timestamps) {
     // decide if we even need this scan by evaluating the tree of true/false expressions
     if (!evaluate(timestamps)) {
       // table is 'removed' from query to limiting the output to 0
       RexNode zero = rexer.makeZeroLiteral(rexer.getTypeFactory().createSqlType(INTEGER));
-      return new DrillLimitRel(filter.getCluster(), filter.getTraitSet(), fmr,
-        zero, zero);
+      return new DrillLimitRel(scan.getCluster(), scan.getTraitSet(), scan, zero, zero);
     }
     return null;
   }

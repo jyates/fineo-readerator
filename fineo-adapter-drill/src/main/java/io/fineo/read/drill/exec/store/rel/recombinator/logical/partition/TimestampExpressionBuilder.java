@@ -91,7 +91,7 @@ public class TimestampExpressionBuilder {
             return null;
           }
           SingleFunctionProcessor processor = SingleFunctionProcessor.process(call);
-          assert processor.isSuccess();
+          assert processor.isSuccess() : "Processor could not evaluate: " + call;
           String key = processor.getPath().getAsUnescapedPath();
           if (!key.equals(ts)) {
             return null;

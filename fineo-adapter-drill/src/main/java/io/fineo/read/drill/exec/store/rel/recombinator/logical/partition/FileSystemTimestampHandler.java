@@ -1,9 +1,7 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
 
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
-import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -11,6 +9,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
+import org.apache.drill.exec.planner.sql.DrillSqlOperator;
 
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.EQUALS;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.GREATER_THAN;
@@ -18,19 +17,13 @@ import static org.apache.calcite.sql.fun.SqlStdOperatorTable.GREATER_THAN_OR_EQU
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN_OR_EQUAL;
 import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;
-import static org.apache.calcite.util.ImmutableNullableList.of;
 
 public class FileSystemTimestampHandler implements TimestampHandler {
 
   private final RexBuilder rexer;
-  private final FineoRecombinatorMarkerRel fmr;
-  private final Filter filter;
 
-  public FileSystemTimestampHandler(RexBuilder rexer,
-    FineoRecombinatorMarkerRel fmr, Filter filter) {
+  public FileSystemTimestampHandler(RexBuilder rexer) {
     this.rexer = rexer;
-    this.fmr = fmr;
-    this.filter = filter;
   }
 
   @Override
@@ -39,11 +32,9 @@ public class FileSystemTimestampHandler implements TimestampHandler {
   }
 
   @Override
-  public RelNode handleTimestampGeneratedRex(RexNode timestamps) {
-    // create a new logical expression, insert it after the recombinator
-    LogicalFilter tsFilter = LogicalFilter.create(fmr.getInput(0), timestamps);
-    RelNode fineo = fmr.copy(fmr.getTraitSet(), of(tsFilter));
-    return filter.copy(filter.getTraitSet(), fineo, filter.getCondition());
+  public RelNode translateScanFromGeneratedRex(TableScan scan, RexNode timestamps) {
+    // create a new logical expression on top of the scan
+    return LogicalFilter.create(scan, timestamps);
   }
 
   private class HierarchicalFsConditionBuilder
@@ -85,14 +76,15 @@ public class FileSystemTimestampHandler implements TimestampHandler {
 
     private RexNode makeCall(SingleFunctionProcessor processor, SqlOperator op) {
       RexInputRef ref = builder.makeInputRef(scan, to.getIndex());
-      RexNode value = asLiteral(processor, builder);
+      RexNode value = asValueNode(processor, builder);
       return builder.makeCall(op, ref, value);
     }
   }
 
-  static RexNode asLiteral(SingleFunctionProcessor processor, RexBuilder builder) {
-    long epoch = PushTimerangePastRecombinatorRule.asEpoch(processor);
-    return builder.makeLiteral(epoch, builder.getTypeFactory().createSqlType(BIGINT),
-      true);
+  static RexNode asValueNode(SingleFunctionProcessor processor, RexBuilder builder) {
+    RexNode literal = builder
+      .makeLiteral(processor.getValue(), builder.getTypeFactory().createSqlType(BIGINT), true);
+    DrillSqlOperator date = new DrillSqlOperator("TO_DATE", 1, true);
+    return builder.makeCall(date, literal);
   }
 }

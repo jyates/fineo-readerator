@@ -57,7 +57,6 @@ public class SingleFunctionProcessor {
     functionName = functionName.toLowerCase().replace(" ", "");
 
     LogicalExpression nameArg = call.args.get(0);
-    // this will change when we support BETWEEN
     LogicalExpression valueArg = call.args.size() >= 2 ? call.args.get(1) : null;
     SingleFunctionProcessor evaluator = new SingleFunctionProcessor(functionName);
 

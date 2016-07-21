@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
 
+import com.google.common.base.Predicates;
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import io.fineo.read.drill.exec.store.schema.FineoTable;
@@ -8,15 +9,17 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.apache.calcite.util.ImmutableNullableList.of;
 
 /**
  * Rule that pushes a timerange filter (WHERE) past the recombinator and into the actual scan
@@ -29,7 +32,7 @@ public class PushTimerangePastRecombinatorRule extends RelOptRule {
 
   private PushTimerangePastRecombinatorRule() {
     super(operand(LogicalFilter.class, operand(FineoRecombinatorMarkerRel.class,
-      operand(TableScan.class, RelOptRule.any()))),
+      unordered(operand(TableScan.class, null, Predicates.alwaysTrue(), none())))),
       "FineoPushTimerangePastRecombinatorRule");
   }
 
@@ -37,30 +40,41 @@ public class PushTimerangePastRecombinatorRule extends RelOptRule {
   public void onMatch(RelOptRuleCall call) {
     LogicalFilter filter = call.rel(0);
     FineoRecombinatorMarkerRel fmr = call.rel(1);
-    List<RelNode> scans = fmr.getInputs();
-    // TODO support multiple scans
-    TableScan scan = (TableScan) scans.get(0);
+    List<RelNode> scans = call.getChildRels(fmr);
+    List<RelNode> translatedScans = new ArrayList<>();
     String ts = FineoTable.BaseField.TIMESTAMP.getName();
-
-    // figure out if the filter applies here
     RexBuilder rexer = filter.getCluster().getRexBuilder();
     Map<String, TimestampHandler> handlers = new HashMap<>();
-    handlers.put("dfs", new FileSystemTimestampHandler(rexer, fmr, filter));
-    handlers.put("dynamo", new DynamoTimestampHandler(rexer, fmr, filter));
+    handlers.put("dfs", new FileSystemTimestampHandler(rexer));
+    handlers.put("dynamo", new DynamoTimestampHandler(rexer));
+    for (RelNode s : scans) {
+      TableScan scan = (TableScan) s;
+      List<String> name = scan.getTable().getQualifiedName();
+      TimestampHandler handler = handlers.get(name.get(0));
+      TimestampExpressionBuilder builder =
+        new TimestampExpressionBuilder(call, ts, handler.getBuilder(scan));
+      RexNode timestamps = builder.lift(filter.getCondition(), fmr, rexer);
+      // we have to scan everything
+      RelNode translated = scan;
+      if (!builder.isScanAll() && timestamps != null) {
+        translated = handler.translateScanFromGeneratedRex(scan, timestamps);
+        // oops, it wasn't translated, so back to the original scan
+        if (translated == null) {
+          translated = scan;
+        }
+      }
+      translatedScans.add(translated);
+    }
 
-    List<String> name = scan.getTable().getQualifiedName();
-    TimestampHandler handler = handlers.get(name.get(0));
-    TimestampExpressionBuilder builder =
-      new TimestampExpressionBuilder(call, ts, handler.getBuilder(scan));
-    RexNode timestamps = builder.lift(filter.getCondition(), fmr, rexer);
-    // we have to scan everything
-    if (builder.isScanAll() || timestamps == null) {
+    // all the scans stay the same
+    if (translatedScans.equals(scans)) {
       return;
     }
-    RelNode transform = handler.handleTimestampGeneratedRex(timestamps);
-    if (transform != null) {
-      call.transformTo(transform);
-    }
+
+    // we need to update the scans!
+    RelNode fineo = fmr.copy(fmr.getTraitSet(), translatedScans);
+    RelNode transform = filter.copy(filter.getTraitSet(), fineo, filter.getCondition());
+    call.transformTo(transform);
   }
 
   static long asEpoch(SingleFunctionProcessor processor) {
