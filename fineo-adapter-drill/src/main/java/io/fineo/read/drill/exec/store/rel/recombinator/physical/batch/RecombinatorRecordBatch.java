@@ -21,7 +21,6 @@ import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.util.CallBack;
 import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.ValueVector;
-import org.apache.drill.exec.vector.complex.MapVector;
 import org.apache.drill.exec.vector.complex.impl.VectorContainerWriter;
 import org.apache.drill.exec.vector.complex.reader.FieldReader;
 import org.apache.drill.exec.vector.complex.writer.BaseWriter;
@@ -143,9 +142,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     }
 
     // transfer the values as we can
-    if (mutator.isNewSchema())
-
-    {
+    if (mutator.isNewSchema()) {
       container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
       return IterOutcome.OK_NEW_SCHEMA;
     }
@@ -238,17 +235,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     public <T extends ValueVector> T addField(MaterializedField field,
       Class<T> clazz) throws SchemaChangeException {
       String name = field.getName();
-      boolean dynamic = name.startsWith(prefix);
-      if (dynamic) {
-        String stripped = stripDynamicProjectPrefix(name);
-        assert aliasMap.getOutputName(stripped) == null :
-          "Got an output field: " + aliasMap.getOutputName(stripped) +
-          " for input: " + name + " => " + stripped + ", but this field should have been ignored!";
-        // get the mapvector for the radio
-        MapVector map = container.addOrGet(field, callBack);
-        return null;
-      }
-
       String outputName = aliasMap.getOutputName(name);
       Preconditions.checkNotNull(outputName,
         "Didn't find an output name for: %s, it should be handled as a dynamic _fm field!", name);
