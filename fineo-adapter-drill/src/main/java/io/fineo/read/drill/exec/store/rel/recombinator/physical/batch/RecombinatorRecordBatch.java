@@ -8,7 +8,6 @@ import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.ops.FragmentContext;
-import org.apache.drill.exec.physical.impl.OutputMutator;
 import org.apache.drill.exec.planner.StarColumnHelper;
 import org.apache.drill.exec.record.AbstractSingleRecordBatch;
 import org.apache.drill.exec.record.BatchSchema;
@@ -47,14 +46,18 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     final RecordBatch incoming) throws
     OutOfMemoryException {
     super(popConfig, context, incoming);
-    // parse out the things we actually care about
+    // figure out how we should map the fields
     Metric metric = popConfig.getMetricObj();
     StoreClerk.Metric clerk = new StoreClerk.Metric(null, metric, null);
     String partitionDesignator =
       context.getOptions().getOption(ExecConstants.FILESYSTEM_PARTITION_COLUMN_LABEL).string_val;
     this.aliasMap = new AliasFieldNameManager(clerk, partitionDesignator);
-    mutator = new Mutator(aliasMap, oContext, callBack, container);
+
+    // handle doing the vector allocation
+    this.mutator = new Mutator(aliasMap, oContext, callBack, container);
+    // do the writing for fields that we need to copy piecemeal
     this.writer = new VectorContainerWriter(mutator, false);
+    // manage which vector we should use for each field
     this.vectors = new VectorManager(mutator);
   }
 
@@ -73,8 +76,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       createSchema();
       this.builtSchema = true;
     }
-
-//    this.transferMapper.prepareTransfers(incoming);
 
     return hadSchema ^ builtSchema;
   }
@@ -147,6 +148,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       }
 
       if (out != null) {
+        LOG.debug("Adding transfer pair for {}", name);
         transfers.add(wrapper.getValueVector().makeTransferPair(out));
         continue;
       }
@@ -157,6 +159,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         continue;
       }
 
+      LOG.debug("Manually copying fields for {}", name);
       for (int i = 0; i < incomingRecordCount; i++) {
         writer.setPosition(i);
         // only write non-null values

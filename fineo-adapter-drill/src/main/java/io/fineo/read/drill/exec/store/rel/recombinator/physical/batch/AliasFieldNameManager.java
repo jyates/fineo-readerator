@@ -58,9 +58,6 @@ public class AliasFieldNameManager {
     return isDirectory(outputName);
   }
 
-  public void reset() {
-  }
-
   public boolean isDirectory(String outputName) {
     return partitionPattern.matcher(outputName).matches();
   }
