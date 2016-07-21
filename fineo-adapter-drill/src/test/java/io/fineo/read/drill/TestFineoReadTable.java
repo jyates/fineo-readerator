@@ -139,7 +139,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     verifySelectStar(result -> {
       assertTrue(result.next());
       Map radio = (Map) result.getObject(FineoCommon.MAP_FIELD);
-      assertEquals(values.get(uk), radio.get(uk));
+      assertEquals("Mismatch for radio field: "+uk, values.get(uk), radio.get(uk));
       assertEquals(values.get(uk2), radio.get(uk2).toString());
     });
   }
@@ -163,7 +163,8 @@ public class TestFineoReadTable extends BaseFineoTest {
     verifySelectStar(result -> {
       assertTrue(result.next());
       Map radio = (Map) result.getObject(FineoCommon.MAP_FIELD);
-      assertEquals(values.get(FineoCommon.MAP_FIELD), radio.get(FineoCommon.MAP_FIELD));
+      assertEquals("Radio doesn't match!", values.get(FineoCommon.MAP_FIELD),
+        radio.get(FineoCommon.MAP_FIELD));
     });
   }
 

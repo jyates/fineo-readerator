@@ -2,14 +2,11 @@ package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 
 import com.google.common.base.Preconditions;
 import io.fineo.internal.customer.Metric;
-import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.Recombinator;
 import io.fineo.schema.store.StoreClerk;
-import io.netty.buffer.DrillBuf;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.exception.SchemaChangeException;
-import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.impl.OutputMutator;
 import org.apache.drill.exec.planner.StarColumnHelper;
@@ -17,9 +14,8 @@ import org.apache.drill.exec.record.AbstractSingleRecordBatch;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.VectorWrapper;
-import org.apache.drill.exec.util.CallBack;
-import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.impl.VectorContainerWriter;
 import org.apache.drill.exec.vector.complex.reader.FieldReader;
@@ -27,8 +23,8 @@ import org.apache.drill.exec.vector.complex.writer.BaseWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Do the actual work of transforming input records to the expected customer type
@@ -41,9 +37,10 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
   private final VectorContainerWriter writer;
 
   private final AliasFieldNameManager aliasMap;
+  private final VectorManager vectors;
   private boolean builtSchema;
-  private Map<String, ValueVector> fieldVectorMap = new HashMap<>();
-  private final Mutator mutator = new Mutator();
+
+  private final Mutator mutator;
   private String prefix;
 
   protected RecombinatorRecordBatch(final Recombinator popConfig, final FragmentContext context,
@@ -56,7 +53,9 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     String partitionDesignator =
       context.getOptions().getOption(ExecConstants.FILESYSTEM_PARTITION_COLUMN_LABEL).string_val;
     this.aliasMap = new AliasFieldNameManager(clerk, partitionDesignator);
+    mutator = new Mutator(aliasMap, oContext, callBack, container);
     this.writer = new VectorContainerWriter(mutator, false);
+    this.vectors = new VectorManager(mutator);
   }
 
   /**
@@ -106,47 +105,70 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     // have explicit fields positions matching what we told it originally in the physical plan. From
     // there it builds the actual mapping in the execution, so we don't need to keep the same order
     this.prefix = prefix;
+
+    for (MaterializedField field : inschema) {
+      String name = field.getName();
+      boolean dynamic = name.startsWith(prefix);
+      String outputName = stripDynamicProjectPrefix(name);
+      // this is a dynamic field with an alias that we know about
+      if (aliasMap.shouldSkip(outputName, dynamic)) {
+        LOG.debug("Skipping field {} => {}", name, outputName);
+        continue;
+      }
+
+      // its an unknown field - we aren't skipping it and its a dynamic field
+      if (dynamic) {
+        vectors.addUnknownField(field, outputName);
+      } else {
+        outputName = aliasMap.getOutputName(outputName);
+        vectors.addKnownField(field, outputName);
+      }
+    }
+
+    if (mutator.isNewSchema()) {
+      container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
+    }
   }
 
   @Override
   protected IterOutcome doWork() {
     int incomingRecordCount = incoming.getRecordCount();
-    writer.allocate();
+    mutator.allocate(incomingRecordCount);
     writer.reset();
 
-    for (int i = 0; i < incomingRecordCount; i++) {
-      writer.setPosition(i);
-      aliasMap.reset();
-      for (VectorWrapper wrapper : this.incoming) {
-        BaseWriter.MapWriter currentWriter = this.writer.rootAsMap();
-        String name = wrapper.getField().getName();
-        // dynamic fields, i.e. T0¦¦ are only added if they do not have a known alias name. This
-        // ensures that we only handle the post-CAST types, not the ANY typed fields
-        boolean dynamic = name.startsWith(prefix);
-        String outputName = stripDynamicProjectPrefix(name);
-        // this is a dynamic field with an alias that we know about
-        if (aliasMap.shouldSkip(outputName, dynamic)) {
-          LOG.debug("Skipping field {} => {}", name, outputName);
-          continue;
-        }
-        if (dynamic) {
-          // get or create a writer for the _fm field since its an unknown field that we don't
-          // know about
-          currentWriter = currentWriter.map(FineoCommon.MAP_FIELD);
-        } else {
-          // its a 'known' field without a dynamic (T0¦¦ prefix), so just copy that over
-          outputName = aliasMap.getOutputName(outputName);
-        }
-        write(outputName, wrapper, currentWriter);
+    List<TransferPair> transfers = new ArrayList<>();
+    // create the transfer pairs for the ones we know about
+    for (VectorWrapper wrapper : this.incoming) {
+      MaterializedField field = wrapper.getField();
+      String name = field.getName();
+      ValueVector out = vectors.getRequiredVector(name);
+      if (out == null) {
+        out = vectors.getUnknownFieldVector(name);
+      }
+
+      if (out != null) {
+        transfers.add(wrapper.getValueVector().makeTransferPair(out));
+        continue;
+      }
+
+      out = vectors.getKnownField(name);
+      if (out == null) {
+        LOG.debug("No output vector found - skipping field {} ", name);
+        continue;
+      }
+
+      for (int i = 0; i < incomingRecordCount; i++) {
+        writer.setPosition(i);
+        write(name, wrapper, this.writer.rootAsMap());
       }
     }
 
-    // transfer the values as we can
-    if (mutator.isNewSchema()) {
-      container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
-      return IterOutcome.OK_NEW_SCHEMA;
+    for (TransferPair tp : transfers) {
+      tp.transfer();
     }
+    mutator.setRecordCount(incomingRecordCount);
 
+    // parent manages returning the schema change if there was a schema change from the child
     return IterOutcome.OK;
   }
 
@@ -221,85 +243,5 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       name = name.substring(prefix.length());
     }
     return name;
-  }
-
-  private class Mutator implements OutputMutator {
-    /**
-     * Whether schema has changed since last inquiry (via #isNewSchema}).  Is
-     * true before first inquiry.
-     */
-    private boolean schemaChanged = true;
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public <T extends ValueVector> T addField(MaterializedField field,
-      Class<T> clazz) throws SchemaChangeException {
-      String name = field.getName();
-      String outputName = aliasMap.getOutputName(name);
-      Preconditions.checkNotNull(outputName,
-        "Didn't find an output name for: %s, it should be handled as a dynamic _fm field!", name);
-      // Check if the field exists.
-      ValueVector v = fieldVectorMap.get(field.getName());
-      if (v == null || v.getClass() != clazz) {
-        // Field does not exist--add it to the map and the output container.
-        v = TypeHelper.getNewVector(field, oContext.getAllocator(), callBack);
-        if (!clazz.isAssignableFrom(v.getClass())) {
-          throw new SchemaChangeException(
-            String.format(
-              "The class that was provided, %s, does not correspond to the "
-              + "expected vector type of %s.",
-              clazz.getSimpleName(), v.getClass().getSimpleName()));
-        }
-
-        final ValueVector old = fieldVectorMap.put(field.getPath(), v);
-        if (old != null) {
-          old.clear();
-          container.remove(old);
-        }
-
-        container.add(v);
-        // Added new vectors to the container--mark that the schema has changed.
-        schemaChanged = true;
-      }
-
-      return clazz.cast(v);
-    }
-
-    @Override
-    public void allocate(int recordCount) {
-      for (final ValueVector v : fieldVectorMap.values()) {
-        AllocationHelper.allocate(v, recordCount, 1, 0);
-      }
-    }
-
-    /**
-     * Reports whether schema has changed (field was added or re-added) since
-     * last call to {@link #isNewSchema}.  Returns true at first call.
-     */
-    @Override
-    public boolean isNewSchema() {
-      // Check if top-level schema or any of the deeper map schemas has changed.
-
-      // Note:  Callback's getSchemaChangedAndReset() must get called in order
-      // to reset it and avoid false reports of schema changes in future.  (Be
-      // careful with short-circuit OR (||) operator.)
-
-      final boolean deeperSchemaChanged = callBack.getSchemaChangedAndReset();
-      if (schemaChanged || deeperSchemaChanged) {
-        schemaChanged = false;
-        return true;
-      }
-      return false;
-    }
-
-    @Override
-    public DrillBuf getManagedBuffer() {
-      return oContext.getManagedBuffer();
-    }
-
-    @Override
-    public CallBack getCallBack() {
-      return callBack;
-    }
   }
 }
