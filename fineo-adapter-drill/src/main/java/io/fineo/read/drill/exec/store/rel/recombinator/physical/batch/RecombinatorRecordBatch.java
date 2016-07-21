@@ -159,7 +159,10 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
       for (int i = 0; i < incomingRecordCount; i++) {
         writer.setPosition(i);
-        write(name, wrapper, this.writer.rootAsMap());
+        // only write non-null values
+        if (!wrapper.getValueVector().getAccessor().isNull(i)) {
+          write(name, wrapper, this.writer.rootAsMap());
+        }
       }
     }
 

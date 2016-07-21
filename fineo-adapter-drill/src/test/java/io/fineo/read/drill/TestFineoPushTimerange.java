@@ -1,26 +1,23 @@
 package io.fineo.read.drill;
 
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.BeanProperty;
 import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.collect.ImmutableList;
 import io.fineo.read.drill.exec.store.plugin.SourceFsTable;
+import io.fineo.schema.exception.SchemaNotFoundException;
+import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.drill.common.expression.FieldReference;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.logical.FormatPluginConfig;
-import org.apache.drill.common.logical.StoragePluginConfig;
 import org.apache.drill.exec.proto.UserBitShared;
 import org.apache.drill.exec.store.avro.AvroFormatConfig;
 import org.apache.drill.exec.store.dfs.FileSystemConfig;
 import org.apache.drill.exec.store.dfs.NamedFormatPluginConfig;
-import org.apache.drill.exec.store.dfs.easy.EasyGroupScan;
 import org.apache.drill.exec.store.easy.json.JSONFormatPlugin;
 import org.apache.drill.exec.store.easy.sequencefile.SequenceFileFormatConfig;
 import org.apache.drill.exec.store.easy.text.TextFormatPlugin;
@@ -42,6 +39,8 @@ import java.util.stream.Collectors;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static junit.framework.TestCase.assertEquals;
+import static org.apache.calcite.util.ImmutableNullableList.of;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -67,7 +66,7 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     module.addDeserializer(SchemaPath.class, new JsonDeserializer<SchemaPath>() {
       @Override
       public SchemaPath deserialize(JsonParser p, DeserializationContext ctxt)
-        throws IOException, JsonProcessingException {
+        throws IOException {
         return SchemaPath.create(UserBitShared.NamePart.newBuilder().setName(p.getText()).build());
       }
     });
@@ -111,27 +110,79 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     Map<String, Object> jsonMap = MAPPER.readValue(jsonPlan, Map.class);
     List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
     Map<String, Object> scan = graph.get(0);
-    List<String> files = (List<String>) scan.get("files");
-    String filePrefix = "file:";
-    assertEquals(newArrayList(j2.getValue().toString(), j3.getValue().toString()).stream().map(
-      f -> filePrefix + f).collect(Collectors.toList()), files);
 
-
-    StoreClerk clerk = new StoreClerk(state.store, org);
-    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
-    String selectionRoot = (String) scan.get("selectionRoot");
-    File file = new File(j1.getKey().getBasedir(), "0");
-    file = new File(file, j1.getKey().getFormat());
-    file = new File(file, j1.getKey().getOrg());
-    file = new File(file, metric.getMetricId());
-    assertEquals(filePrefix + file, selectionRoot);
-    List<String> columns = (List<String>) scan.get("columns");
-    assertEquals(newArrayList("`*`"), columns);
-    FormatPluginConfig format = MAPPER.readValue(MAPPER.writeValueAsString(scan.get("format")),
-      FormatPluginConfig.class);
-    assertTrue("Expected a json type format!", format instanceof JSONFormatPlugin.JSONFormatConfig);
+    File selectionRoot = getSelectionRoot(state.store, j1.getKey());
+    validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class, of(j2.getValue(), j3.getValue()),
+      selectionRoot, of("`*`"));
   }
 
+  /**
+   * Because of the way the PruneScanRule works we have to select at least one partition. Thus,
+   * we can get the case where we don't actually select any rows (filtered out from incoming) BUT
+   * we need to provide some sort of schema from the recombinator
+   *
+   * @throws Exception on failure
+   */
+  @Test
+  public void testPushTimerangeIntoQuerySingleFile() throws Exception {
+    TestState state = register();
+
+    Map<String, Object> values = newHashMap();
+    values.put(fieldname, false);
+    File tmp = folder.newFolder("drill");
+    long start = LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
+    Pair<SourceFsTable, File> j1 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+      start, newArrayList(values));
+
+    // ensure that the fineo-test plugin is enabled
+    bootstrap(j1.getKey());
+
+    String query = verifySelectStar(ImmutableList.of("`timestamp` > " + start),
+      result -> assertFalse("Got a row when we shouldn't have!", result.next()));
+
+    // check that we do, in fact, actually scan that one file... even though the partition
+    // definitely excludes it.
+    Connection conn = drill.getConnection();
+    String explain = explain(query);
+    ResultSet plan = conn.createStatement().executeQuery(explain);
+    assertTrue("After successful read, could not get the plan for query: " + explain, plan.next());
+    String jsonPlan = plan.getString("json");
+    Map<String, Object> jsonMap = MAPPER.readValue(jsonPlan, Map.class);
+    List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
+    Map<String, Object> scan = graph.get(0);
+
+    File selectionRoot = getSelectionRoot(state.store, j1.getKey());
+    validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class, of(j1.getValue()),
+      selectionRoot, of("`*`"));
+  }
+
+  private File getSelectionRoot(SchemaStore store, SourceFsTable source)
+    throws SchemaNotFoundException {
+    StoreClerk clerk = new StoreClerk(store, org);
+    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
+    File selectionRoot = new File(source.getBasedir(), "0");
+    selectionRoot = new File(selectionRoot, source.getFormat());
+    selectionRoot = new File(selectionRoot, source.getOrg());
+    return new File(selectionRoot, metric.getMetricId());
+  }
+
+  private void validatePlan(Map<String, Object> scan, Class<? extends FormatPluginConfig>
+    pluginFormat, List<File> files, File selectionRoot, List<String> columns)
+    throws IOException {
+    String filePrefix = "file:";
+    assertEquals(files.stream().map(f -> filePrefix + f).collect(Collectors.toList()),
+      scan.get("files"));
+
+    assertEquals(filePrefix + selectionRoot, scan.get("selectionRoot"));
+    assertEquals(columns, scan.get("columns"));
+    FormatPluginConfig format = MAPPER.readValue(MAPPER.writeValueAsString(scan.get("format")),
+      FormatPluginConfig.class);
+    assertEquals("Expected a json type format!", pluginFormat, format.getClass());
+  }
+
+  // yup, just gonna duplicate the above, but with parquet and json. we have more control over
+  // exactly what gets validated and I don't have enough mental capacity to break this into
+  // intelligible bite-size chunks right now. #startup
   @Test
   public void testPushTimerangeIntoMultipleFileQuery() throws Exception {
     TestState state = register();

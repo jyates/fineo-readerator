@@ -1,5 +1,6 @@
 package io.fineo.read.drill;
 
+import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
@@ -96,6 +97,58 @@ public class TestFineoReadTable extends BaseFineoTest {
     });
   }
 
+  /**
+   * Ensure that we handle switching back and forth between alias and user-visible name for a
+   * field based on the stored values. It can be tricky because we don't want to overwrite the
+   * field value from the earlier with the later and we still want to handle nulls correctly.
+   */
+  @Test
+  public void testKnownAliasKnownField() throws Exception {
+    TestState state = register();
+    // create a new alias name for the field
+    Metric metric = state.metric;
+    SchemaStore store = state.store;
+    SchemaBuilder builder = SchemaBuilder.create();
+    SchemaBuilder.OrganizationBuilder ob = builder.updateOrg(store.getOrgMetadata(org));
+    Map<String, String> aliasToCname = AvroSchemaManager.getAliasRemap(metric);
+    String cname = aliasToCname.get(fieldname);
+    String storeFieldName = "other-field-name";
+    SchemaBuilder.Organization org =
+      ob.updateSchema(metric).updateField(cname).withAlias(storeFieldName).asField().build()
+        .build();
+    store.updateOrgMetric(org, metric);
+
+    // write a file with the new field name
+    File tmp = folder.newFolder("drill");
+    Map<String, Object> v1 = new HashMap<>();
+    v1.put(fieldname, true);
+    Map<String, Object> v2 = new HashMap<>();
+    v2.put(storeFieldName, false);
+    Map<String, Object> v3 = new HashMap<>();
+    v3.put(fieldname, true);
+    bootstrap(state.write(tmp, 1, v1), state.write(tmp, 2, v2), state.write(tmp, 3, v3));
+
+    // we should read this as the client visible name
+    Boolean value = (Boolean) v2.remove(storeFieldName);
+    v2.put(fieldname, value);
+
+    verifySelectStar(withNext(v1, v2, v3));
+
+    // add a new row with a null value
+    Map<String, Object> v4 = new HashMap<>();
+    bootstrap(state.write(tmp, 4, v4));
+    v4.put(fieldname, null);
+    verifySelectStar(withNext(v1, v2, v3, v4));
+  }
+
+  private Verify<ResultSet> withNext(Map<String, Object>... rows) {
+    return result -> {
+      for (Map<String, Object> row : rows) {
+        assertNext(result, row);
+      }
+    };
+  }
+
   @Test
   public void testReadTwoSources() throws Exception {
     Map<String, Object> values = new HashMap<>();
@@ -139,7 +192,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     verifySelectStar(result -> {
       assertTrue(result.next());
       Map radio = (Map) result.getObject(FineoCommon.MAP_FIELD);
-      assertEquals("Mismatch for radio field: "+uk, values.get(uk), radio.get(uk));
+      assertEquals("Mismatch for radio field: " + uk, values.get(uk), radio.get(uk));
       assertEquals(values.get(uk2), radio.get(uk2).toString());
     });
   }
