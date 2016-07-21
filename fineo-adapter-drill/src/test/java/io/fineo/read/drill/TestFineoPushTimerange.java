@@ -28,7 +28,6 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -192,20 +191,20 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     values.put(fieldname, false);
     // filtering only appears to work if we have more than 1 partition, so create two json
     // partitions
-    long start = Instant.from(LocalDate.of(1980, 1, 1)).toEpochMilli();
+    long start = LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
     SourceFsTable json = state.write(tmp, org, metrictype, start, values);
     SourceFsTable json2 = state.write(tmp, org, metrictype, start + (ONE_DAY_MILLIS * 2), values);
-    SourceFsTable json3 = state.write(tmp, org, metrictype, start + (ONE_DAY_MILLIS * 3), values);
 
     // write parquet that is different
     Map<String, Object> values2 = newHashMap(values);
     values2.put(fieldname, true);
-    SourceFsTable parquet = writeParquet(state, tmp, org, metrictype, ONE_DAY_MILLIS * 2, values2);
+    SourceFsTable parquet = writeParquet(state, tmp, org, metrictype, start + 11 + ONE_DAY_MILLIS *
+                                                                                   2, values2);
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(json, json2, parquet);
 
-    String query = verifySelectStar(ImmutableList.of("`timestamp` > " + ONE_DAY_MILLIS), result
+    String query = verifySelectStar(ImmutableList.of("`timestamp` > " + start), result
       -> {
       assertNext(result, values);
       assertNext(result, values2);
