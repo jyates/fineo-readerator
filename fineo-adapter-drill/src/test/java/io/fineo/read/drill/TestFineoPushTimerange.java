@@ -82,7 +82,7 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     values.put(fieldname, false);
     File tmp = folder.newFolder("drill");
     Map<String, Object> values2 = newHashMap(values);
-    long start = LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
+    long start = get1980();
     Pair<SourceFsTable, File> j1 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
       start, newArrayList(values));
     Pair<SourceFsTable, File> j2 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
@@ -111,8 +111,8 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     Map<String, Object> scan = graph.get(0);
 
     File selectionRoot = getSelectionRoot(state.store, j1.getKey());
-    validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class, of(j2.getValue(), j3.getValue()),
-      selectionRoot, of("`*`"));
+    validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class,
+      prefixFilesWithFILE(j2.getValue(), j3.getValue()), selectionRoot, of("`*`"));
   }
 
   /**
@@ -129,7 +129,7 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     Map<String, Object> values = newHashMap();
     values.put(fieldname, false);
     File tmp = folder.newFolder("drill");
-    long start = LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
+    long start = get1980();
     Pair<SourceFsTable, File> j1 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
       start, newArrayList(values));
 
@@ -151,8 +151,13 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     Map<String, Object> scan = graph.get(0);
 
     File selectionRoot = getSelectionRoot(state.store, j1.getKey());
-    validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class, of(j1.getValue()),
-      selectionRoot, of("`*`"));
+    List<String> files = prefixFilesWithFILE(j1.getValue());
+    validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class, files, selectionRoot, of("`*`"));
+  }
+
+  private List<String> prefixFilesWithFILE(File... files) {
+    List<File> fl = newArrayList(files);
+    return fl.stream().map(f -> "file:" + f).collect(Collectors.toList());
   }
 
   private File getSelectionRoot(SchemaStore store, SourceFsTable source)
@@ -166,12 +171,11 @@ public class TestFineoPushTimerange extends BaseFineoTest {
   }
 
   private void validatePlan(Map<String, Object> scan, Class<? extends FormatPluginConfig>
-    pluginFormat, List<File> files, File selectionRoot, List<String> columns)
+    pluginFormat, List<String> files, File selectionRoot, List<String> columns)
     throws IOException {
-    String filePrefix = "file:";
-    assertEquals(files.stream().map(f -> filePrefix + f).collect(Collectors.toList()),
-      scan.get("files"));
+    assertEquals(files, scan.get("files"));
 
+    String filePrefix = "file:";
     assertEquals(filePrefix + selectionRoot, scan.get("selectionRoot"));
     assertEquals(columns, scan.get("columns"));
     FormatPluginConfig format = MAPPER.readValue(MAPPER.writeValueAsString(scan.get("format")),
@@ -191,28 +195,58 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     values.put(fieldname, false);
     // filtering only appears to work if we have more than 1 partition, so create two json
     // partitions
-    long start = LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
-    SourceFsTable json = state.write(tmp, org, metrictype, start, values);
-    SourceFsTable json2 = state.write(tmp, org, metrictype, start + (ONE_DAY_MILLIS * 2), values);
+    long start = get1980();
+    Pair<SourceFsTable, File> json =
+      writeJsonAndGetOutputFile(state.store, tmp, org, metrictype, start, of(values));
+    Pair<SourceFsTable, File> json2 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+      start + (ONE_DAY_MILLIS * 2), of(values));
 
     // write parquet that is different
     Map<String, Object> values2 = newHashMap(values);
     values2.put(fieldname, true);
-    SourceFsTable parquet = writeParquet(state, tmp, org, metrictype, start + 11 + ONE_DAY_MILLIS *
-                                                                                   2, values2);
+    Pair<SourceFsTable, File> parquet =
+      writeParquet(state, tmp, org, metrictype, start, values2);
+    Pair<SourceFsTable, File> parquet2 =
+      writeParquet(state, tmp, org, metrictype, start + 11 + ONE_DAY_MILLIS * 2, values2);
 
-    // ensure that the fineo-test plugin is enabled
-    bootstrap(json, json2, parquet);
+    // enable the json and parquet formats. We only need the first one here b/c time is not
+    // included in the information sent, but rather extracted from the filesystem layout
+    bootstrap(json.getKey(), parquet.getKey());
 
-    String query = verifySelectStar(ImmutableList.of("`timestamp` > " + start), result
-      -> {
-      assertNext(result, values);
-      assertNext(result, values2);
-    });
+    String query =
+      verifySelectStar(ImmutableList.of("`timestamp` > " + start), withNext(values, values2));
     Connection conn = drill.getConnection();
     String explain = explain(query);
     ResultSet plan = conn.createStatement().executeQuery(explain);
-    System.out.println(plan);
+    assertTrue("After successful read, could not get the plan for query: " + explain, plan.next());
+    String jsonPlan = plan.getString("json");
+    Map<String, Object> jsonMap = MAPPER.readValue(jsonPlan, Map.class);
+    List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
+
+    Map<String, Object> parquetScan = getGraphStep(graph, "parquet-scan");
+    File selectionRoot = getSelectionRoot(state.store, parquet.getKey());
+    List<String> files =
+      of(parquet2.getValue()).stream().map(File::toString).collect(Collectors.toList());
+    validatePlan(parquetScan, ParquetFormatConfig.class, files, selectionRoot, of("`*`"));
+
+    Map<String, Object> jsonScan = getGraphStep(graph, "fs-scan");
+    selectionRoot = getSelectionRoot(state.store, json.getKey());
+    files = prefixFilesWithFILE(json2.getValue());
+    validatePlan(jsonScan, JSONFormatPlugin.JSONFormatConfig.class, files, selectionRoot,
+      of("`*`"));
+  }
+
+  private Map<String, Object> getGraphStep(List<Map<String, Object>> graph, String popName) {
+    for (Map<String, Object> pop : graph) {
+      if (pop.get("pop").equals(popName)) {
+        return pop;
+      }
+    }
+    return null;
+  }
+
+  private long get1980() {
+    return LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
   }
 
   private String explain(String sql) {

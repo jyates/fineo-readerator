@@ -141,14 +141,6 @@ public class TestFineoReadTable extends BaseFineoTest {
     verifySelectStar(withNext(v1, v2, v3, v4));
   }
 
-  private Verify<ResultSet> withNext(Map<String, Object>... rows) {
-    return result -> {
-      for (Map<String, Object> row : rows) {
-        assertNext(result, row);
-      }
-    };
-  }
-
   @Test
   public void testReadTwoSources() throws Exception {
     Map<String, Object> values = new HashMap<>();

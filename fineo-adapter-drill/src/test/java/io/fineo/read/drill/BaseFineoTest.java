@@ -15,7 +15,6 @@ import io.fineo.read.drill.exec.store.plugin.SourceFsTable;
 import io.fineo.schema.OldSchemaException;
 import io.fineo.schema.avro.SchemaTestUtils;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
-import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
@@ -69,6 +68,14 @@ public class BaseFineoTest extends BaseDynamoTableTest {
 
   protected final String org = "orgid1", metrictype = "metricid1", fieldname = "field1";
   private static final Joiner AND = Joiner.on(" AND ");
+
+  protected Verify<ResultSet> withNext(Map<String, Object>... rows) {
+    return result -> {
+      for (Map<String, Object> row : rows) {
+        assertNext(result, row);
+      }
+    };
+  }
 
   @FunctionalInterface
   protected interface Verify<T> {
@@ -156,6 +163,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     String metricType, long ts, List<Map<String, Object>> values) throws IOException {
     return writeJsonAndGetOutputFile(store, dir, org, metricType, ts, values).getKey();
   }
+
   protected static Pair<SourceFsTable, File> writeJsonAndGetOutputFile(SchemaStore store, File
     dir, String org, String metricType, long ts, List<Map<String, Object>> values)
     throws IOException {
@@ -177,8 +185,8 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     return new ImmutablePair<>(table, out);
   }
 
-  protected SourceFsTable writeParquet(TestState state, File dir, String orgid, String metricType,
-    long ts, Map<String, Object>... rows) throws Exception {
+  protected Pair<SourceFsTable, File> writeParquet(TestState state, File dir, String orgid,
+    String metricType, long ts, Map<String, Object>... rows) throws Exception {
     // set the values in the row
     StoreClerk clerk = new StoreClerk(state.store, org);
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
@@ -210,10 +218,16 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     File outputDir = createOutputDir(source, metric, ts);
     File from = new File("/tmp", table);
     Files.move(from, outputDir);
-    return source;
+    for (File f : outputDir.listFiles()) {
+      if (!f.getName().endsWith(".crc")) {
+        return new ImmutablePair<>(source, f);
+      }
+    }
+    LOG.error("Could not find a valid parquet file in: " + outputDir);
+    return null;
   }
 
-  protected static File createOutputDir(SourceFsTable table, StoreClerk.Metric metric, long ts){
+  protected static File createOutputDir(SourceFsTable table, StoreClerk.Metric metric, long ts) {
     String metricId = metric.getMetricId();
     File dir = new File(table.getBasedir());
     File version = new File(dir, FineoStoragePlugin.VERSION);

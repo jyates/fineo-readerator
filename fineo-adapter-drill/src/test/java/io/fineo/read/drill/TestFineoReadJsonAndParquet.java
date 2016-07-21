@@ -29,7 +29,7 @@ public class TestFineoReadJsonAndParquet extends BaseFineoTest {
     File tmp = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, false);
-    SourceFsTable parquet = writeParquet(state, tmp, org, metrictype, 1, values);
+    SourceFsTable parquet = writeParquet(state, tmp, org, metrictype, 1, values).getKey();
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(parquet);
@@ -49,7 +49,7 @@ public class TestFineoReadJsonAndParquet extends BaseFineoTest {
     SourceFsTable json = state.write(tmp, org, metrictype, 1, values);
     Map<String, Object> values2 = newHashMap(values);
     values2.put(fieldname, true);
-    SourceFsTable parquet = writeParquet(state, tmp, org, metrictype, 2, values2);
+    SourceFsTable parquet = writeParquet(state, tmp, org, metrictype, 2, values2).getKey();
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(json, parquet);
