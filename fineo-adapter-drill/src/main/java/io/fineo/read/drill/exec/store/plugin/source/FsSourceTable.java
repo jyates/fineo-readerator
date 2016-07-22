@@ -1,33 +1,28 @@
-package io.fineo.read.drill.exec.store.plugin;
+package io.fineo.read.drill.exec.store.plugin.source;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.htrace.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.htrace.fasterxml.jackson.annotation.JsonTypeName;
 
-@JsonTypeName(SourceFsTable.NAME)
-public class SourceFsTable {
+@JsonTypeName(FsSourceTable.NAME)
+public class FsSourceTable extends SourceTable {
 
   @JsonIgnore
-  public static final String NAME = "source";
+  public static final String NAME = "fs-source";
   @JsonIgnore
   private static final String FILE_SCHEMA = "dfs";
 
-  private final String schema;
   private final String format;
   private final String basedir;
   private final String org;
 
-  public SourceFsTable(@JsonProperty("format") String format,
+  public FsSourceTable(@JsonProperty("format") String format,
     @JsonProperty("basedir") String basedir,
     @JsonProperty("org") String org) {
-    this.schema = FILE_SCHEMA;
+    super(FILE_SCHEMA);
     this.format = format;
     this.basedir = basedir;
     this.org = org;
-  }
-
-  public String getSchema() {
-    return schema;
   }
 
   public String getFormat() {
@@ -46,10 +41,10 @@ public class SourceFsTable {
   public boolean equals(Object o) {
     if (this == o)
       return true;
-    if (!(o instanceof SourceFsTable))
+    if (!(o instanceof FsSourceTable))
       return false;
 
-    SourceFsTable that = (SourceFsTable) o;
+    FsSourceTable that = (FsSourceTable) o;
 
     if (!getSchema().equals(that.getSchema()))
       return false;

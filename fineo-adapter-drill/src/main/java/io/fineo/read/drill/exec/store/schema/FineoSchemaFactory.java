@@ -8,7 +8,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
 import com.google.common.collect.ImmutableList;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
-import io.fineo.read.drill.exec.store.plugin.SourceFsTable;
+import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.schema.SchemaPlus;
@@ -61,7 +61,7 @@ public class FineoSchemaFactory implements SchemaFactory {
 
     List<String> parentName = ImmutableList.of("fineo");
     for (String org : orgs) {
-      List<SourceFsTable> sources = sub.getSchemas(org);
+      List<FsSourceTable> sources = sub.getSchemas(org);
       SubTableScanBuilder scanner = new SubTableScanBuilder(sources);
       parent.add(org, new FineoSchema(parentName, org, this.plugin, scanner, store));
     }

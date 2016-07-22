@@ -1,10 +1,8 @@
 package io.fineo.read.drill;
 
-import com.google.common.base.Function;
-import com.google.common.base.Joiner;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
-import io.fineo.read.drill.exec.store.plugin.SourceFsTable;
+import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
 import io.fineo.schema.avro.AvroSchemaManager;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
@@ -19,8 +17,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.ResultSet;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -54,7 +50,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, false);
     List<Map<String, Object>> rows = newArrayList(values);
-    SourceFsTable out = state.write(tmp, org, metrictype, 1, rows);
+    FsSourceTable out = state.write(tmp, org, metrictype, 1, rows);
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(out);
@@ -84,7 +80,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     File tmp = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(storeFieldName, false);
-    SourceFsTable out = state.write(tmp, 1, values);
+    FsSourceTable out = state.write(tmp, 1, values);
 
     bootstrap(out);
 
@@ -311,12 +307,12 @@ public class TestFineoReadTable extends BaseFineoTest {
 
     // write two different files that occur on different days
     File tmp = folder.newFolder("drill");
-    List<SourceFsTable> files = new ArrayList<>();
+    List<FsSourceTable> files = new ArrayList<>();
     Instant now = Instant.now();
     files.add(state.write(tmp, now.toEpochMilli(), contents));
 
     // ensure that the fineo-test plugin is enabled
-    bootstrap(files.toArray(new SourceFsTable[0]));
+    bootstrap(files.toArray(new FsSourceTable[0]));
 
     verifySelectStar(of(fieldname + " IS TRUE"), result -> {
       assertNext(result, contents);
@@ -336,7 +332,7 @@ public class TestFineoReadTable extends BaseFineoTest {
 
     // write two different files that occur on different days
     File tmp = folder.newFolder("drill");
-    List<SourceFsTable> files = new ArrayList<>();
+    List<FsSourceTable> files = new ArrayList<>();
     Instant now = Instant.now();
     files.add(state.write(tmp, now.toEpochMilli(), contents));
 
@@ -345,7 +341,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     files.add(state.write(tmp, longAgo.toEpochMilli(), newHashMap()));
 
     // ensure that the fineo-test plugin is enabled
-    bootstrap(files.toArray(new SourceFsTable[0]));
+    bootstrap(files.toArray(new FsSourceTable[0]));
 
     verifySelectStar(of(fieldname + " IS TRUE"), result -> {
       assertNext(result, contents);
@@ -361,11 +357,11 @@ public class TestFineoReadTable extends BaseFineoTest {
 
     // write two different files that occur on different days
     File tmp = folder.newFolder("drill");
-    List<SourceFsTable> files = new ArrayList<>();
+    List<FsSourceTable> files = new ArrayList<>();
     Instant now = Instant.now();
     files.add(state.write(tmp, now.toEpochMilli(), contents));
     // ensure that the fineo-test plugin is enabled
-    bootstrap(files.toArray(new SourceFsTable[0]));
+    bootstrap(files.toArray(new FsSourceTable[0]));
 
     verifySelectStar(of("`timestamp` > " + now.minus(5, ChronoUnit.DAYS).toEpochMilli()),
       result -> {
@@ -382,7 +378,7 @@ public class TestFineoReadTable extends BaseFineoTest {
 
     // write two different files that occur on different days
     File tmp = folder.newFolder("drill");
-    List<SourceFsTable> files = new ArrayList<>();
+    List<FsSourceTable> files = new ArrayList<>();
     Instant now = Instant.now();
     files.add(state.write(tmp, now.toEpochMilli(), contents));
 
@@ -392,7 +388,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     files.add(state.write(tmp, longAgo.toEpochMilli(), contents2));
 
     // ensure that the fineo-test plugin is enabled
-    bootstrap(files.toArray(new SourceFsTable[0]));
+    bootstrap(files.toArray(new FsSourceTable[0]));
 
     verifySelectStar(of("`timestamp` > " + longAgo.toEpochMilli()), result -> {
       assertNext(result, contents);
@@ -449,14 +445,14 @@ public class TestFineoReadTable extends BaseFineoTest {
     TestState state = register();
 
     File tmp = folder.newFolder("drill");
-    List<SourceFsTable> files = new ArrayList<>();
+    List<FsSourceTable> files = new ArrayList<>();
     int i = 0;
     for (Map<String, Object> contents : fileContents) {
       files.add(state.write(tmp, i++, contents));
     }
 
     // ensure that the fineo-test plugin is enabled
-    bootstrap(files.toArray(new SourceFsTable[0]));
+    bootstrap(files.toArray(new FsSourceTable[0]));
 
     verifySelectStar(result -> {
       int j = 0;

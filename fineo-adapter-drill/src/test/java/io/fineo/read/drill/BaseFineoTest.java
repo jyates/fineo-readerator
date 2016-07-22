@@ -11,7 +11,7 @@ import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
-import io.fineo.read.drill.exec.store.plugin.SourceFsTable;
+import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
 import io.fineo.schema.avro.SchemaTestUtils;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
@@ -106,7 +106,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     verify.verify(conn.createStatement().executeQuery(stmt));
   }
 
-  protected void bootstrap(SourceFsTable... files) throws IOException {
+  protected void bootstrap(FsSourceTable... files) throws IOException {
     LocalDynamoTestUtil util = dynamo.getUtil();
     BootstrapFineo bootstrap = new BootstrapFineo();
     BootstrapFineo.DrillConfigBuilder builder =
@@ -114,7 +114,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
                .withLocalDynamo(util.getUrl())
                .withRepository(tables.getTestTableName())
                .withOrgs(org);
-    for (SourceFsTable file : files) {
+    for (FsSourceTable file : files) {
       builder.withLocalSource(file);
     }
     bootstrap.strap(builder);
@@ -143,28 +143,28 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       this.store = store;
     }
 
-    SourceFsTable write(File dir, long ts, Map<String, Object>... values)
+    FsSourceTable write(File dir, long ts, Map<String, Object>... values)
       throws IOException {
       return write(dir, org, metrictype, ts, values);
     }
 
-    public SourceFsTable write(File dir, String org, String metricType, long ts,
+    public FsSourceTable write(File dir, String org, String metricType, long ts,
       Map<String, Object>... values) throws IOException {
       return write(dir, org, metricType, ts, newArrayList(values));
     }
 
-    public SourceFsTable write(File dir, String org, String metricType, long ts,
+    public FsSourceTable write(File dir, String org, String metricType, long ts,
       List<Map<String, Object>> values) throws IOException {
       return writeJson(store, dir, org, metricType, ts, values);
     }
   }
 
-  protected static SourceFsTable writeJson(SchemaStore store, File dir, String org,
+  protected static FsSourceTable writeJson(SchemaStore store, File dir, String org,
     String metricType, long ts, List<Map<String, Object>> values) throws IOException {
     return writeJsonAndGetOutputFile(store, dir, org, metricType, ts, values).getKey();
   }
 
-  protected static Pair<SourceFsTable, File> writeJsonAndGetOutputFile(SchemaStore store, File
+  protected static Pair<FsSourceTable, File> writeJsonAndGetOutputFile(SchemaStore store, File
     dir, String org, String metricType, long ts, List<Map<String, Object>> values)
     throws IOException {
     StoreClerk clerk = new StoreClerk(store, org);
@@ -172,7 +172,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     // get the actual metric type
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
 
-    SourceFsTable table = new SourceFsTable("json", dir.getPath(), org);
+    FsSourceTable table = new FsSourceTable("json", dir.getPath(), org);
     File outputDir = createOutputDir(table, metric, ts);
 
     for (Map<String, Object> json : values) {
@@ -185,7 +185,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     return new ImmutablePair<>(table, out);
   }
 
-  protected Pair<SourceFsTable, File> writeParquet(TestState state, File dir, String orgid,
+  protected Pair<FsSourceTable, File> writeParquet(TestState state, File dir, String orgid,
     String metricType, long ts, Map<String, Object>... rows) throws Exception {
     // set the values in the row
     StoreClerk clerk = new StoreClerk(state.store, org);
@@ -214,7 +214,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     conn.createStatement().execute(request);
 
     //copy the contents to the actual output file that we want to use for ingest
-    SourceFsTable source = new SourceFsTable("parquet", dir.getPath(), org);
+    FsSourceTable source = new FsSourceTable("parquet", dir.getPath(), org);
     File outputDir = createOutputDir(source, metric, ts);
     File from = new File("/tmp", table);
     Files.move(from, outputDir);
@@ -227,7 +227,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     return null;
   }
 
-  protected static File createOutputDir(SourceFsTable table, StoreClerk.Metric metric, long ts) {
+  protected static File createOutputDir(FsSourceTable table, StoreClerk.Metric metric, long ts) {
     String metricId = metric.getMetricId();
     File dir = new File(table.getBasedir());
     File version = new File(dir, FineoStoragePlugin.VERSION);

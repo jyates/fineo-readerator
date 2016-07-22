@@ -16,6 +16,7 @@
   <logger name="org.apache.drill.exec.planner.sql.handlers.DefaultSqlHandler" level="DEBUG"/>
   <logger name="org.apache.calcite.plan" level="TRACE"/>
   <logger name="io.fineo.read.drill.exec.store.rel.recombinator.physical.batch" level="TRACE"/>
+  <logger name="io.fineo.read.drill.BootstrapFineo" level="DEBUG"/>
   <!--<logger name="io.fineo.read.drill.exec.store.rel.recombinator.physical.batch" level="DEBUG"/>-->
   <root level="INFO">
     <appender-ref ref="CONSOLE"/>

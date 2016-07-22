@@ -1,11 +1,12 @@
 package io.fineo.read.drill;
 
+import com.amazonaws.services.dynamodbv2.document.Table;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import io.fineo.read.drill.exec.store.plugin.SourceFsTable;
+import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -15,6 +16,8 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -24,11 +27,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class BootstrapFineo {
 
+  private static final Logger LOG = LoggerFactory.getLogger(BootstrapFineo.class);
   private static final String URL = "http://127.0.0.1:8047";
 
   public final Map<String, Object> plugin = new HashMap<>();
@@ -36,7 +37,7 @@ public class BootstrapFineo {
   private final Map<String, String> repository = new HashMap<>();
   private final Map<String, String> aws = new HashMap<>();
   private final Map<String, String> dynamo = new HashMap<>();
-  private final Multimap<String, SourceFsTable> sources = ArrayListMultimap.create();
+  private final Multimap<String, FsSourceTable> sources = ArrayListMultimap.create();
   private final List<String> orgs = new ArrayList<>();
 
   public DrillConfigBuilder builder() {
@@ -50,7 +51,7 @@ public class BootstrapFineo {
       return this;
     }
 
-    public DrillConfigBuilder withLocalSource(SourceFsTable table) {
+    public DrillConfigBuilder withLocalSource(FsSourceTable table) {
       BootstrapFineo.this.sources.put(table.getOrg(), table);
       return this;
     }
@@ -87,6 +88,14 @@ public class BootstrapFineo {
       aws.put("credentials", "provided");
       aws.put("region", "us-east-1");
     }
+
+    public DrillConfigBuilder withDynamoKeyMapper() {
+      return this;
+    }
+
+    public DrillConfigBuilder withDynamoTable(Table table) {
+      return this;
+    }
   }
 
   public boolean strap(DrillConfigBuilder config) throws IOException {
@@ -94,6 +103,7 @@ public class BootstrapFineo {
     HttpPost post = new HttpPost(URL + "/storage/fineo.json");
     post.setHeader("Content-type", "application/json");
     String plugin = config.build();
+    LOG.debug("Updating plugin with config: " + plugin);
     post.setEntity(new StringEntity(plugin, ContentType.APPLICATION_JSON));
     CloseableHttpResponse response2 = httpclient.execute(post);
 

@@ -1,19 +1,12 @@
 package io.fineo.read.drill;
 
 
-import com.google.common.io.Files;
-import io.fineo.read.drill.exec.store.plugin.SourceFsTable;
-import io.fineo.schema.exception.SchemaNotFoundException;
-import io.fineo.schema.store.StoreClerk;
+import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
-import java.sql.Connection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
@@ -29,7 +22,7 @@ public class TestFineoReadJsonAndParquet extends BaseFineoTest {
     File tmp = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, false);
-    SourceFsTable parquet = writeParquet(state, tmp, org, metrictype, 1, values).getKey();
+    FsSourceTable parquet = writeParquet(state, tmp, org, metrictype, 1, values).getKey();
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(parquet);
@@ -46,10 +39,10 @@ public class TestFineoReadJsonAndParquet extends BaseFineoTest {
     File tmp = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, false);
-    SourceFsTable json = state.write(tmp, org, metrictype, 1, values);
+    FsSourceTable json = state.write(tmp, org, metrictype, 1, values);
     Map<String, Object> values2 = newHashMap(values);
     values2.put(fieldname, true);
-    SourceFsTable parquet = writeParquet(state, tmp, org, metrictype, 2, values2).getKey();
+    FsSourceTable parquet = writeParquet(state, tmp, org, metrictype, 2, values2).getKey();
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(json, parquet);

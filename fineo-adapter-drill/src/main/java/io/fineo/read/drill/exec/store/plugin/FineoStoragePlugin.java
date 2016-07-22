@@ -2,6 +2,7 @@ package io.fineo.read.drill.exec.store.plugin;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.read.drill.exec.store.rel.fixed.physical.FixedSchemaPrule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition
@@ -14,6 +15,7 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.drill.common.JSONOptions;
+import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.logical.StoragePluginConfig;
 import org.apache.drill.exec.ops.OptimizerRulesContext;
@@ -22,6 +24,7 @@ import org.apache.drill.exec.planner.PlannerPhase;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.store.AbstractStoragePlugin;
 import org.apache.drill.exec.store.SchemaConfig;
+import org.apache.drill.exec.store.StoragePlugin;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -43,10 +46,12 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   private final FineoSchemaFactory factory;
   private final DrillbitContext context;
   private final Multimap<PlannerPhase, RelOptRule> rules;
+  private final DynamoStoragePluginConfig dynamo;
 
   public FineoStoragePlugin(FineoStoragePluginConfig configuration, DrillbitContext c,
-    String name) {
+    String name) throws ExecutionSetupException {
     this.config = configuration;
+    this.dynamo = (DynamoStoragePluginConfig) c.getStorage().getPlugin("dynamo").getConfig();
     this.factory = getFactory(name);
     this.context = c;
 

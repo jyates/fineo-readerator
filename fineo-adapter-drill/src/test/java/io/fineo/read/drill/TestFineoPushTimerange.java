@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.collect.ImmutableList;
-import io.fineo.read.drill.exec.store.plugin.SourceFsTable;
+import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
@@ -83,11 +83,11 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     File tmp = folder.newFolder("drill");
     Map<String, Object> values2 = newHashMap(values);
     long start = get1980();
-    Pair<SourceFsTable, File> j1 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+    Pair<FsSourceTable, File> j1 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
       start, newArrayList(values));
-    Pair<SourceFsTable, File> j2 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+    Pair<FsSourceTable, File> j2 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
       start + (ONE_DAY_MILLIS * 2), newArrayList(values));
-    Pair<SourceFsTable, File> j3 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+    Pair<FsSourceTable, File> j3 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
       start + (ONE_DAY_MILLIS * 3), newArrayList(values2));
 
     // ensure that the fineo-test plugin is enabled
@@ -130,7 +130,7 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     values.put(fieldname, false);
     File tmp = folder.newFolder("drill");
     long start = get1980();
-    Pair<SourceFsTable, File> j1 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+    Pair<FsSourceTable, File> j1 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
       start, newArrayList(values));
 
     // ensure that the fineo-test plugin is enabled
@@ -160,7 +160,7 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     return fl.stream().map(f -> "file:" + f).collect(Collectors.toList());
   }
 
-  private File getSelectionRoot(SchemaStore store, SourceFsTable source)
+  private File getSelectionRoot(SchemaStore store, FsSourceTable source)
     throws SchemaNotFoundException {
     StoreClerk clerk = new StoreClerk(store, org);
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
@@ -196,17 +196,17 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     // filtering only appears to work if we have more than 1 partition, so create two json
     // partitions
     long start = get1980();
-    Pair<SourceFsTable, File> json =
+    Pair<FsSourceTable, File> json =
       writeJsonAndGetOutputFile(state.store, tmp, org, metrictype, start, of(values));
-    Pair<SourceFsTable, File> json2 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+    Pair<FsSourceTable, File> json2 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
       start + (ONE_DAY_MILLIS * 2), of(values));
 
     // write parquet that is different
     Map<String, Object> values2 = newHashMap(values);
     values2.put(fieldname, true);
-    Pair<SourceFsTable, File> parquet =
+    Pair<FsSourceTable, File> parquet =
       writeParquet(state, tmp, org, metrictype, start, values2);
-    Pair<SourceFsTable, File> parquet2 =
+    Pair<FsSourceTable, File> parquet2 =
       writeParquet(state, tmp, org, metrictype, start + 11 + ONE_DAY_MILLIS * 2, values2);
 
     // enable the json and parquet formats. We only need the first one here b/c time is not
