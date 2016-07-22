@@ -2,10 +2,15 @@ package io.fineo.drill.exec.store.dynamo.physical;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.fasterxml.jackson.databind.InjectableValues;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import io.fineo.drill.exec.store.dynamo.config.ClientProperties;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
+import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapper;
+import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapperSpec;
+import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubGetSpec;
 import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubQuerySpec;
 import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubReadSpec;
@@ -20,7 +25,9 @@ import org.apache.drill.exec.record.CloseableRecordBatch;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.store.RecordReader;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 // Created by reflection by drill to match the DynamoSubScan
 @SuppressWarnings("unused")
@@ -36,22 +43,43 @@ public class DynamoScanBatchCreator implements BatchCreator<DynamoSubScan> {
     ClientConfiguration client = clientProps.getConfiguration();
     AWSCredentialsProvider credentials = subScan.getCredentials();
     DynamoEndpoint endpoint = subScan.getEndpoint();
+    DynamoTableDefinition table = subScan.getTable();
+    DynamoKeyMapper key = null;
+    if (table.getKeyMapper() != null) {
+      DynamoKeyMapperSpec spec = table.getKeyMapper();
+      Map<String, Object> args = spec.getArgs();
+      ObjectMapper mapper = new ObjectMapper();
+      try {
+        String argString = mapper.writeValueAsString(args);
+        InjectableValues inject = new InjectableValues.Std()
+          .addValue(DynamoKeyMapperSpec.class, spec);
+        key =
+          mapper.setInjectableValues(inject).readValue(argString, DynamoKeyMapper.class);
+      } catch (IOException e) {
+        throw new ExecutionSetupException(e);
+      }
+    }
 
     for (DynamoSubReadSpec scanSpec : subScan.getSpecs()) {
       try {
+        DynamoRecordReader reader;
         if (scanSpec instanceof DynamoSubGetSpec) {
-          readers.add(new DynamoGetRecordReader(credentials, client, endpoint,
+          reader = new DynamoGetRecordReader(credentials, client, endpoint,
             (DynamoSubGetSpec) scanSpec, columns,
-            clientProps.getConsistentRead(), subScan.getTable()));
+            clientProps.getConsistentRead(), table);
         } else if (scanSpec instanceof DynamoSubQuerySpec) {
-          readers.add(new DynamoQueryRecordReader(credentials, client, endpoint,
+          reader = new DynamoQueryRecordReader(credentials, client, endpoint,
             (DynamoSubQuerySpec) scanSpec, columns,
-            clientProps.getConsistentRead(), subScan.getScanProps(), subScan.getTable()));
+            clientProps.getConsistentRead(), subScan.getScanProps(), table);
         } else {
-          readers.add(new DynamoScanRecordReader(credentials, client, endpoint,
+          reader = new DynamoScanRecordReader(credentials, client, endpoint,
             (DynamoSubScanSpec) scanSpec, columns,
-            clientProps.getConsistentRead(), subScan.getScanProps(), subScan.getTable()));
+            clientProps.getConsistentRead(), subScan.getScanProps(), table);
         }
+        if (key != null) {
+          reader.setKeyMapper(key);
+        }
+        readers.add(reader);
       } catch (Exception e1) {
         throw new ExecutionSetupException(e1);
       }

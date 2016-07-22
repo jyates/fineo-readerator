@@ -11,6 +11,8 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.config.DynamoEndpoint;
+import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapper;
+import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapperSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubReadSpec;
 import io.fineo.drill.exec.store.dynamo.spec.sub.DynamoSubScanSpec;
@@ -94,6 +96,9 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
   private AmazonDynamoDBAsyncClient client;
 
   private Iterator<Page<Item, ?>> resultIter;
+  private DynamoKeyMapper keyMapper;
+  private DynamoTableDefinition.PrimaryKey hash;
+  private DynamoTableDefinition.PrimaryKey range;
 
   public DynamoRecordReader(AWSCredentialsProvider credentials, ClientConfiguration clientConf,
     DynamoEndpoint endpoint, T scanSpec, List<SchemaPath> columns, boolean consistentRead,
@@ -116,16 +121,24 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
     endpoint.configure(this.client);
 
     // setup the vectors that we know we will need - the primary key(s)
-    for (DynamoTableDefinition.PrimaryKey pk : tableDef.getKeys()) {
-      String name = pk.getName();
-      String type = pk.getType();
-      // pk has to be a scalar type, so we never get null here
-      MinorType minor = translateDynamoToDrillType(type).minor;
-      MajorType major = required(minor);
-      MaterializedField field = MaterializedField.create(name, major);
-      Class<? extends ValueVector> clazz = TypeHelper.getValueVectorClass(minor, major.getMode());
-      ValueVector vv = getField(field, clazz);
-      topLevelState.scalars.put(name, new ScalarVectorStruct(vv));
+    if (this.keyMapper != null) {
+      for (DynamoTableDefinition.PrimaryKey pk : tableDef.getKeys()) {
+        if (pk.getIsHashKey()) {
+          this.hash = pk;
+        } else {
+          this.range = pk;
+        }
+      }
+
+      DynamoKeyMapperSpec spec = tableDef.getKeyMapper();
+      for (int i = 0; i < spec.getKeyNames().size(); i++) {
+        addDynamoKeyVector(spec.getKeyNames().get(i), spec.getKeyValues().get(i));
+      }
+
+    } else {
+      for (DynamoTableDefinition.PrimaryKey pk : tableDef.getKeys()) {
+        addDynamoKeyVector(pk.getName(), pk.getType());
+      }
     }
 
     DynamoQueryBuilder builder = new DynamoQueryBuilder()
@@ -142,6 +155,16 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
     }
 
     this.resultIter = buildQuery(builder, client);
+  }
+
+  private void addDynamoKeyVector(String name, String type) {
+    // pk has to be a scalar type, so we never get null here
+    MinorType minor = translateDynamoToDrillType(type);
+    MajorType major = required(minor);
+    MaterializedField field = MaterializedField.create(name, major);
+    Class<? extends ValueVector> clazz = TypeHelper.getValueVectorClass(minor, major.getMode());
+    ValueVector vv = getField(field, clazz);
+    topLevelState.scalars.put(name, new ScalarVectorStruct(vv));
   }
 
   protected abstract Iterator<Page<Item, ?>> buildQuery(DynamoQueryBuilder builder,
@@ -175,32 +198,25 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
     return DOTS.join(parts);
   }
 
-  private MajorOrMinor translateDynamoToDrillType(String type) {
+  private MinorType translateDynamoToDrillType(String type) {
     switch (type) {
       // Scalar types
       case "S":
-        return new MajorOrMinor(VARCHAR);
+        return VARCHAR;
       case "N":
-        return new MajorOrMinor(MinorType.DECIMAL38SPARSE);
+        return VARCHAR;
+      // TODO replace with decimal38 when we have the correct impl working
+      // return MinorType.DECIMAL38SPARSE;
       case "B":
-        return new MajorOrMinor(MinorType.VARBINARY);
+        return MinorType.VARBINARY;
       case "BOOL":
-        return new MajorOrMinor(MinorType.BIT);
+        return MinorType.BIT;
     }
     throw new IllegalArgumentException("Don't know how to translate type: " + type);
   }
 
-  private class MajorOrMinor {
-    private MajorType major;
-    private MinorType minor;
-
-    public MajorOrMinor(MajorType major) {
-      this.major = major;
-    }
-
-    public MajorOrMinor(MinorType minor) {
-      this.minor = minor;
-    }
+  public void setKeyMapper(DynamoKeyMapper keyMapper) {
+    this.keyMapper = keyMapper;
   }
 
   @Override
@@ -219,7 +235,7 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
           Object value = attribute.getValue();
           SchemaPath column = getSchemaPath(name);
           topLevelState.setColumn(column);
-          handleField(rowCount, name, value, topLevelState);
+          handleTopField(rowCount, name, value, topLevelState);
         }
       }
     }
@@ -239,6 +255,26 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
       }
     }
     return null;
+  }
+
+  private void handleTopField(int rowCount, String name, Object value, StackState state) {
+    if (keyMapper != null) {
+      Map<String, Object> parts = null;
+      if (name.equals(hash.getName())) {
+        parts = keyMapper.mapHashKey(value);
+      } else if (range != null && name.equals(range.getName())) {
+        parts = keyMapper.mapSortKey(value);
+      }
+
+      if (parts != null) {
+        for (Map.Entry<String, Object> part : parts.entrySet()) {
+          handleField(rowCount, part.getKey(), part.getValue(), state);
+        }
+        return;
+      }
+    }
+
+    handleField(rowCount, name, value, state);
   }
 
   private void handleField(int rowCount, String name, Object value, StackState state) {
@@ -473,8 +509,6 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
         byte[] sparseInt = new byte[24];
         byte[] intBytes = intVal.toByteArray();
         arraycopy(intBytes, 0, sparseInt, 0, intBytes.length);
-//        arraycopy(intBytes, 0, sparseInt, sparseInt.length - intBytes.length, intBytes.length);
-        // TODO revisit handling of Decimal38Dense
         // kind of an ugly way to manage the actual transfer of bytes. However, this is much
         // easier than trying to manage a larger page of bytes.
         Decimal38SparseHolder holder = new Decimal38SparseHolder();

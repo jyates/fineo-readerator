@@ -18,6 +18,7 @@ import io.fineo.lambda.dynamo.rule.AwsDynamoResource;
 import io.fineo.lambda.dynamo.rule.AwsDynamoTablesResource;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
 import org.apache.drill.BaseTestQuery;
+import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatchLoader;
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -51,9 +53,6 @@ public class BaseDynamoTest extends BaseTestQuery {
   @Rule
   public AwsDynamoTablesResource tables = new AwsDynamoTablesResource(dynamo);
 
-  protected static DynamoStoragePlugin storagePlugin;
-  protected static DynamoStoragePluginConfig storagePluginConfig;
-
   protected static final String PK = "pk";
   protected static final String COL1 = "col1";
 
@@ -61,27 +60,36 @@ public class BaseDynamoTest extends BaseTestQuery {
   public static void setupDefaultTestCluster() throws Exception {
     BaseTestQuery.setupDefaultTestCluster();
 
+    updatePlugin(storagePluginConfig -> {
+        storagePluginConfig.setEnabled(true);
+
+        DynamoEndpoint endpoint = new DynamoEndpoint(dynamo.getUtil().getUrl());
+        storagePluginConfig.setEndpointForTesting(endpoint);
+
+        Map<String, Object> credentials = new HashMap<>();
+        AWSCredentials creds = BaseDynamoTableTest.STATIC_CREDENTIALS_PROVIDER.getCredentials();
+        StaticCredentialsConfig credentialsConfig = new StaticCredentialsConfig(creds
+          .getAWSAccessKeyId(), creds.getAWSSecretKey());
+        credentialsConfig.setCredentials(credentials);
+        storagePluginConfig.setCredentialsForTesting(credentials);
+
+        ParallelScanProperties scan = new ParallelScanProperties();
+        scan.setMaxSegments(10);
+        scan.setLimit(1);
+        scan.setSegmentsPerEndpoint(1);
+        storagePluginConfig.setScanPropertiesForTesting(scan);
+      }
+    );
+  }
+
+  protected static void updatePlugin(Consumer<DynamoStoragePluginConfig> update)
+    throws ExecutionSetupException {
     final StoragePluginRegistry pluginRegistry = getDrillbitContext().getStorage();
-    storagePlugin = (DynamoStoragePlugin) pluginRegistry.getPlugin(DynamoStoragePlugin.NAME);
-    storagePluginConfig = (DynamoStoragePluginConfig) storagePlugin.getConfig();
-    storagePluginConfig.setEnabled(true);
-
-    DynamoEndpoint endpoint = new DynamoEndpoint(dynamo.getUtil().getUrl());
-    storagePluginConfig.setEndpointForTesting(endpoint);
-
-    Map<String, Object> credentials = new HashMap<>();
-    AWSCredentials creds = BaseDynamoTableTest.STATIC_CREDENTIALS_PROVIDER.getCredentials();
-    StaticCredentialsConfig credentialsConfig = new StaticCredentialsConfig(creds
-      .getAWSAccessKeyId(), creds.getAWSSecretKey());
-    credentialsConfig.setCredentials(credentials);
-    storagePluginConfig.setCredentialsForTesting(credentials);
-
-    ParallelScanProperties scan = new ParallelScanProperties();
-    scan.setMaxSegments(10);
-    scan.setLimit(1);
-    scan.setSegmentsPerEndpoint(1);
-    storagePluginConfig.setScanPropertiesForTesting(scan);
-
+    DynamoStoragePlugin storagePlugin = (DynamoStoragePlugin) pluginRegistry.getPlugin
+      (DynamoStoragePlugin.NAME);
+    DynamoStoragePluginConfig storagePluginConfig = (DynamoStoragePluginConfig) storagePlugin
+      .getConfig();
+    update.accept(storagePluginConfig);
     pluginRegistry.createOrUpdate(DynamoStoragePlugin.NAME, storagePluginConfig, true);
   }
 
@@ -218,10 +226,11 @@ public class BaseDynamoTest extends BaseTestQuery {
 
   protected Table createHashAndSortTable(String pk, String sort) throws InterruptedException {
     ArrayList<AttributeDefinition> attributeDefinitions = new ArrayList<>();
+    ScalarAttributeType type = ScalarAttributeType.S;
     attributeDefinitions.add(new AttributeDefinition()
-      .withAttributeName(pk).withAttributeType("S"));
-    attributeDefinitions.add(new AttributeDefinition().withAttributeName(sort).withAttributeType(
-      ScalarAttributeType.S));
+      .withAttributeName(pk).withAttributeType(type));
+    attributeDefinitions
+      .add(new AttributeDefinition().withAttributeName(sort).withAttributeType(type));
     ArrayList<KeySchemaElement> keySchema = new ArrayList<>();
     keySchema.add(new KeySchemaElement().withAttributeName(pk).withKeyType(KeyType.HASH));
     keySchema.add(new KeySchemaElement().withAttributeName(sort).withKeyType(KeyType.RANGE));

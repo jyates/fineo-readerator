@@ -38,8 +38,7 @@ public class DynamoStoragePlugin extends AbstractStoragePlugin {
   private AmazonDynamoDBAsyncClient client;
   private DynamoDB model;
 
-  public DynamoStoragePlugin(DynamoStoragePluginConfig conf, DrillbitContext c,
-    String name) {
+  public DynamoStoragePlugin(DynamoStoragePluginConfig conf, DrillbitContext c, String name) {
     this.context = c;
     this.config = conf;
     this.name = name;

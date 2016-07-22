@@ -2,6 +2,7 @@ package io.fineo.drill.exec.store.dynamo;
 
 import com.google.common.collect.ImmutableList;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
+import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapperSpec;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Table;
 import org.apache.drill.exec.store.AbstractSchema;
@@ -9,6 +10,7 @@ import org.apache.drill.exec.store.SchemaConfig;
 import org.apache.drill.exec.store.SchemaFactory;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -40,14 +42,20 @@ public class DynamoSchemaFactory implements SchemaFactory {
     @Override
     public Set<String> getTableNames() {
       return StreamSupport.stream(plugin.getModel().listTables().pages().spliterator(), false)
-        .flatMap(page -> StreamSupport.stream(page.spliterator(), false))
-        .map(table -> table.getDescription().getTableName())
-        .collect(Collectors.toSet());
+                          .flatMap(page -> StreamSupport.stream(page.spliterator(), false))
+                          .map(table -> table.getDescription().getTableName())
+                          .collect(Collectors.toSet());
     }
 
     @Override
     public Table getTable(String name) {
-      return new DrillDynamoTable(plugin, name);
+      DynamoKeyMapperSpec keyMapper = null;
+      Map<String, DynamoKeyMapperSpec> mappers = conf.getKeyMappers();
+      if (mappers != null) {
+        keyMapper = mappers.get(name);
+      }
+
+      return new DrillDynamoTable(plugin, name, keyMapper);
     }
 
     @Override

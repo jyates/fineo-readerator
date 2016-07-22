@@ -24,8 +24,8 @@ public class DynamoScanRecordReader extends DynamoRecordReader<DynamoSubScanSpec
   public DynamoScanRecordReader(AWSCredentialsProvider credentials, ClientConfiguration clientConf,
     DynamoEndpoint endpoint, DynamoSubScanSpec scanSpec,
     List<SchemaPath> columns, boolean consistentRead, ParallelScanProperties scanProperties,
-    DynamoTableDefinition scan) {
-    super(credentials, clientConf, endpoint, scanSpec, columns, consistentRead, scan);
+    DynamoTableDefinition table) {
+    super(credentials, clientConf, endpoint, scanSpec, columns, consistentRead, table);
     this.scanProps = scanProperties;
   }
 
