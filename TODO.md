@@ -1,21 +1,27 @@
 # TODO
 
 3. Reading
-  a. support time-based decision making for reads as a directory/table filter
-    i. pull out time queries and join together into a coherent filter on time
-    ii. support dynamo table-name partitioning
-  
-2. Dynamo Reading
- 1. fix reading Decimal38 (now just reads strings)
- 2. support transfer pairs for base fields, and fields that only have a single value
+  a. Verify timerange source filtering for dynamo reads (limit(0) support)
+  b. Compound key support for dynamo reads
+  c. Filter sources based on timerange (dynamo as much as possible, fs otherwise)
+  d. Merge dynamo and fs reads into a single read path
+  e. Better timestamp support - right now just UNIX epoch timestamp specification
+    i. intervals
+    ii. natural timestamp
+    iii. timezones
 
 3. Server
   a. stand up
   b. integration with dynamo + spark
   c. load testing
 
-
 --- Later ---
+0. RecombinatorRecordBatch
+ a. Improve alias to known field mapping to avoid copying values and instead use transfer pairs
+
+2. Dynamo Reading
+ a. fix reading Decimal38 (now just reads strings)
+
 1. Spark Reading
   0. integrate into drill.
   a. mapping canonical fields to query fields (canonical + aliases)
