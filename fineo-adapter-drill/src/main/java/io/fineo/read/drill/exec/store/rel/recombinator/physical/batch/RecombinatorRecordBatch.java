@@ -159,6 +159,9 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         continue;
       }
 
+      // #startup - we can be even smarter and not copy the fields at all if all the values are
+      // set for all positions in the vector. Even even smarter would be figuring out how to
+      // slice parts of a vector and then transferring the non-null bits from each alias
       LOG.debug("Manually copying fields for {}", name);
       for (int i = 0; i < incomingRecordCount; i++) {
         writer.setPosition(i);
