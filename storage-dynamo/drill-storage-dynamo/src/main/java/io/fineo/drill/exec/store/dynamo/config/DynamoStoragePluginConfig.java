@@ -32,8 +32,8 @@ public class DynamoStoragePluginConfig extends StoragePluginConfig {
     @JsonProperty("key-mappers") Map<String, DynamoKeyMapperSpec> keyMappers) {
     this.credentials = credentials;
     this.endpoint = endpoint;
-    this.client = client;
-    this.scan = scan;
+    this.client = client == null ? new ClientProperties() : client;
+    this.scan = scan == null ? new ParallelScanProperties() : scan;
     this.keyMappers = keyMappers;
   }
 

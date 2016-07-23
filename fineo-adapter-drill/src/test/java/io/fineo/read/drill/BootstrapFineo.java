@@ -79,7 +79,7 @@ public class BootstrapFineo {
     }
 
     public DrillConfigBuilder withDynamoKeyMapper() {
-      mappers.put("*", new DynamoFineoCompoundKeySpec());
+      mappers.put(".*", new DynamoFineoCompoundKeySpec());
       return this;
     }
 

@@ -74,8 +74,7 @@
     </dependency>
     <dependency>
       <groupId>io.fineo.schema</groupId>
-      <artifactId>schema-mgmt</artifactId>
-      <version>1.0-SNAPSHOT</version>
+      <artifactId>schema-core</artifactId>
     </dependency>
     <dependency>
       <groupId>io.fineo.etl.pipeline</groupId>
@@ -149,8 +148,7 @@
     </dependency>
     <dependency>
       <groupId>io.fineo.schema</groupId>
-      <artifactId>schema-mgmt</artifactId>
-      <version>1.0-SNAPSHOT</version>
+      <artifactId>schema-core</artifactId>
       <classifier>tests</classifier>
       <scope>test</scope>
     </dependency>

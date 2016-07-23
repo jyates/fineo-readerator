@@ -1,17 +1,19 @@
 package io.fineo.read.drill;
 
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.fasterxml.jackson.jr.ob.JSON;
 import com.google.common.base.Joiner;
 import com.google.common.io.Files;
-import io.fineo.aws.rule.AwsCredentialResource;
-import io.fineo.drill.exec.store.dynamo.config.StaticCredentialsConfig;
 import io.fineo.drill.rule.DrillClusterRule;
 import io.fineo.internal.customer.Metric;
+import io.fineo.lambda.dynamo.DynamoTableCreator;
+import io.fineo.lambda.dynamo.DynamoTableTimeManager;
 import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
+import io.fineo.lambda.dynamo.avro.Schema;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
@@ -40,9 +42,10 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -71,7 +74,8 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   @Rule
   public TestOutput folder = new TestOutput(false);
 
-  protected final String org = "orgid1", metrictype = "metricid1", fieldname = "field1";
+  protected final String org = "orgid1", metrictype = "n_metricid1", fieldname = "field1";
+  private static final String DYNAMO_TABLE_PREFIX = "test-dynamo-client-";
   private static final Joiner AND = Joiner.on(" AND ");
 
   protected Verify<ResultSet> withNext(Map<String, Object>... rows) {
@@ -117,18 +121,22 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   }
 
   protected void bootstrap(FsSourceTable... files) throws IOException {
-    LocalDynamoTestUtil util = dynamo.getUtil();
     BootstrapFineo bootstrap = new BootstrapFineo();
-    BootstrapFineo.DrillConfigBuilder builder =
-      bootstrap.builder()
-               .withLocalDynamo(util.getUrl())
-               .withRepository(tables.getTestTableName())
-               .withOrgs(org)
-               .withCredentials(dynamo.getCredentials().getFakeProvider());
+    BootstrapFineo.DrillConfigBuilder builder = basicBootstrap(bootstrap.builder());
+
     for (FsSourceTable file : files) {
       builder.withLocalSource(file);
     }
     assertTrue("Failed to bootstrap drill!", bootstrap.strap(builder));
+  }
+
+  protected BootstrapFineo.DrillConfigBuilder basicBootstrap(
+    BootstrapFineo.DrillConfigBuilder builder) {
+    LocalDynamoTestUtil util = dynamo.getUtil();
+    return builder.withLocalDynamo(util.getUrl())
+                  .withRepository(tables.getTestTableName())
+                  .withOrgs(org)
+                  .withCredentials(dynamo.getCredentials().getFakeProvider());
   }
 
   protected TestState register() throws IOException, OldSchemaException {
@@ -148,6 +156,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   protected class TestState {
     Metric metric;
     SchemaStore store;
+    private DynamoTableCreator creator;
 
     public TestState(Metric metric, SchemaStore store) {
       this.metric = metric;
@@ -167,6 +176,19 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     public FsSourceTable write(File dir, String org, String metricType, long ts,
       List<Map<String, Object>> values) throws IOException {
       return writeJson(store, dir, org, metricType, ts, values);
+    }
+
+    public Table write(Item wrote) {
+      DynamoDB dynamo = new DynamoDB(tables.getAsyncClient());
+      if (creator == null) {
+        DynamoTableTimeManager ttm = new DynamoTableTimeManager(tables.getAsyncClient(),
+          DYNAMO_TABLE_PREFIX);
+        this.creator = new DynamoTableCreator(ttm, dynamo, 1, 1);
+      }
+
+      long ts = wrote.getLong(Schema.SORT_KEY_NAME);
+      String name = creator.getTableAndEnsureExists(ts);
+      return dynamo.getTable(name);
     }
   }
 
@@ -340,5 +362,9 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       .withReadCapacityUnits(1L)
       .withWriteCapacityUnits(1L));
     return create;
+  }
+
+  protected long get1980() {
+    return LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
   }
 }

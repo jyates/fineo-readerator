@@ -245,10 +245,6 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     return null;
   }
 
-  private long get1980() {
-    return LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
-  }
-
   private String explain(String sql) {
     return "EXPLAIN PLAN INCLUDING ALL ATTRIBUTES WITH IMPLEMENTATION FOR " + sql;
   }
