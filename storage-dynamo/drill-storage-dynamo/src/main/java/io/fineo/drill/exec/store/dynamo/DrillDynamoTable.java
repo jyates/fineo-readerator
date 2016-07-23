@@ -54,6 +54,8 @@ public class DrillDynamoTable extends DynamicDrillTable {
   @Override
   public RelDataType getRowType(RelDataTypeFactory typeFactory) {
     RelDataType type = super.getRowType(typeFactory);
+    // force add the star field, this is a dynamic row
+    type.getFieldCount();
     // add the sort/partition keys that the mapper should produce
     if (key != null) {
       for (String field : key.getKeyNames()) {
