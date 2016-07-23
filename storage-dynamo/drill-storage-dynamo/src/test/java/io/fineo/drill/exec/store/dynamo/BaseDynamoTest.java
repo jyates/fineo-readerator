@@ -26,10 +26,12 @@ import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.rpc.user.QueryDataBatch;
 import org.apache.drill.exec.store.StoragePluginRegistry;
 import org.apache.drill.exec.util.Text;
+import org.apache.htrace.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -71,6 +73,14 @@ public class BaseDynamoTest extends BaseTestQuery {
         StaticCredentialsConfig credentialsConfig = new StaticCredentialsConfig(creds
           .getAWSAccessKeyId(), creds.getAWSSecretKey());
         credentialsConfig.setCredentials(credentials);
+        // map the credentials to a generic map and back again so the actual credential config gets
+        // converted to a map, just like if/when we would configure the plugin 'normally'
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+          credentials = mapper.readValue(mapper.writeValueAsString(credentials), Map.class);
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
         storagePluginConfig.setCredentialsForTesting(credentials);
 
         ParallelScanProperties scan = new ParallelScanProperties();

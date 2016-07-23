@@ -52,7 +52,12 @@ public class DynamoSchemaFactory implements SchemaFactory {
       DynamoKeyMapperSpec keyMapper = null;
       Map<String, DynamoKeyMapperSpec> mappers = conf.getKeyMappers();
       if (mappers != null) {
-        keyMapper = mappers.get(name);
+        for (Map.Entry<String, DynamoKeyMapperSpec> mapper : mappers.entrySet()) {
+          if (name.matches(mapper.getKey())) {
+            keyMapper = mappers.get(name);
+            break;
+          }
+        }
       }
 
       return new DrillDynamoTable(plugin, name, keyMapper);
