@@ -86,11 +86,16 @@ public final class DynamoPushFilterIntoScan {
 
     @Override
     public boolean matches(RelOptRuleCall call) {
-      final ScanPrel scan = call.rel(1);
-      if (scan.getGroupScan() instanceof DynamoGroupScan) {
+      if (checkDynamoScan(call.rel(1)) || checkDynamoScan(call.rel(2))) {
         return super.matches(call);
       }
       return false;
+    }
+
+    private boolean checkDynamoScan(RelNode scan) {
+      return scan instanceof ScanPrel ?
+             ((ScanPrel) scan).getGroupScan() instanceof DynamoGroupScan :
+             false;
     }
 
     @Override

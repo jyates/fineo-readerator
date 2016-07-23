@@ -26,4 +26,9 @@ public class DynamoEndpoint {
       client.setRegion(RegionUtils.getRegion(regionOrUrl));
     }
   }
+
+  @JsonProperty("regionOrUrl")
+  public String getRegionOrUrl() {
+    return regionOrUrl;
+  }
 }

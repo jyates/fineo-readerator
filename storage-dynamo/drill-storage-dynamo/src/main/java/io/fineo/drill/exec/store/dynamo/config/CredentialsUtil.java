@@ -24,10 +24,10 @@ public class CredentialsUtil {
              new ProfileCredentialsProvider();
     }),
     STATIC(map -> {
-      StaticCredentialsConfig config =
-        (StaticCredentialsConfig) map.get(StaticCredentialsConfig.NAME);
-      return new StaticCredentialsProvider(new BasicAWSCredentials(config.getKey(), config
-        .getSecret()));
+      Map<String, String> config = (Map<String, String>) map.get(StaticCredentialsConfig.NAME);
+      String key = config.get("key");
+      String value = config.get("secret");
+      return new StaticCredentialsProvider(new BasicAWSCredentials(key, value));
     });
 
     private final Function<Map<String, Object>, AWSCredentialsProvider> func;

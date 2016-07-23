@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store.plugin;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 
@@ -9,7 +10,8 @@ public class SchemaRepositoryConfig {
   public static final String NAME = "schema-repository";
   private final String table;
 
-  public SchemaRepositoryConfig(String table) {
+  @JsonCreator
+  public SchemaRepositoryConfig(@JsonProperty("table") String table) {
     this.table = table;
   }
 

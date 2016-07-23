@@ -3,15 +3,12 @@
     fineo : {
       type:"fineo",
       enabled: false,
-      aws: {
-        region: "us-east-1",
-        credentials: "provided"
+      schema-repository:{
+        table: "DEFAULT_SCHEMA_TABLE_NAME"
       },
-      repository:{
-        table: "schema-table"
-      },
-      sources:{
-      }
+      orgs: [],
+      fs-sources: [],
+      dynamo-sources: []
     }
   }
 }

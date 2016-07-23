@@ -1,10 +1,14 @@
 package io.fineo.read.drill;
 
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.fasterxml.jackson.jr.ob.JSON;
 import com.google.common.base.Joiner;
 import com.google.common.io.Files;
+import io.fineo.aws.rule.AwsCredentialResource;
+import io.fineo.drill.exec.store.dynamo.config.StaticCredentialsConfig;
 import io.fineo.drill.rule.DrillClusterRule;
 import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
@@ -38,6 +42,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -113,11 +118,12 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       bootstrap.builder()
                .withLocalDynamo(util.getUrl())
                .withRepository(tables.getTestTableName())
-               .withOrgs(org);
+               .withOrgs(org)
+               .withCredentials(dynamo.getCredentials().getFakeProvider());
     for (FsSourceTable file : files) {
       builder.withLocalSource(file);
     }
-    bootstrap.strap(builder);
+    assertTrue("Failed to bootstrap drill!", bootstrap.strap(builder));
   }
 
   protected TestState register() throws IOException, OldSchemaException {
@@ -232,7 +238,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     File dir = new File(table.getBasedir());
     File version = new File(dir, FineoStoragePlugin.VERSION);
     File format = new File(version, table.getFormat());
-    File orgDir = new File(format, table.getOrg());
+    File orgDir = new File(format, metric.getOrgId());
     File metricDir = new File(orgDir, metricId);
     Date date = new Date(ts);
     File dateDir = new File(metricDir, date.toString());

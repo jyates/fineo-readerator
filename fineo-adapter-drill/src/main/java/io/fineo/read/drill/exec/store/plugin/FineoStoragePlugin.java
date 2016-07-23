@@ -119,7 +119,6 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   public DynamoDB getDynamo() {
     if (this.dynamoClient == null) {
       AmazonDynamoDBAsyncClient client = getDynamoClient();
-      this.dynamo.getEndpoint().configure(client);
       this.dynamoClient = new DynamoDB(client);
     }
     return dynamoClient;
@@ -136,6 +135,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   public AmazonDynamoDBAsyncClient getDynamoClient() {
     if (this.client == null) {
       this.client = new AmazonDynamoDBAsyncClient(dynamo.inflateCredentials());
+      this.dynamo.getEndpoint().configure(client);
     }
     return client;
   }

@@ -31,7 +31,6 @@ public class DynamoStoragePluginConfig extends StoragePluginConfig {
     @JsonProperty(ParallelScanProperties.NAME) ParallelScanProperties scan,
     @JsonProperty("key-mappers") Map<String, DynamoKeyMapperSpec> keyMappers) {
     this.credentials = credentials;
-    this.inflatedCredentials = CredentialsUtil.getProvider(credentials);
     this.endpoint = endpoint;
     this.client = client;
     this.scan = scan;
@@ -40,26 +39,34 @@ public class DynamoStoragePluginConfig extends StoragePluginConfig {
 
   @JsonIgnore
   public AWSCredentialsProvider inflateCredentials() {
+    if (this.inflatedCredentials == null) {
+      this.inflatedCredentials = CredentialsUtil.getProvider(credentials);
+    }
     return inflatedCredentials;
   }
 
   @SuppressWarnings("unused")
+  @JsonProperty("credentials")
   public Map<String, Object> getCredentials() {
     return credentials;
   }
 
+  @JsonProperty(DynamoEndpoint.NAME)
   public DynamoEndpoint getEndpoint() {
     return endpoint;
   }
 
+  @JsonProperty(ClientProperties.NAME)
   public ClientProperties getClient() {
     return client;
   }
 
+  @JsonProperty(ParallelScanProperties.NAME)
   public ParallelScanProperties getScan() {
     return scan;
   }
 
+  @JsonProperty("key-mappers")
   public Map<String, DynamoKeyMapperSpec> getKeyMappers() {
     return keyMappers;
   }
@@ -72,16 +79,29 @@ public class DynamoStoragePluginConfig extends StoragePluginConfig {
       return false;
 
     DynamoStoragePluginConfig that = (DynamoStoragePluginConfig) o;
-    if (!inflateCredentials().equals(that.inflateCredentials())) {
+
+    if (getEndpoint() != null ? !getEndpoint().equals(that.getEndpoint()) :
+        that.getEndpoint() != null)
       return false;
-    }
-    return getEndpoint().equals(that.getEndpoint());
+    if (getClient() != null ? !getClient().equals(that.getClient()) : that.getClient() != null)
+      return false;
+    if (getScan() != null ? !getScan().equals(that.getScan()) : that.getScan() != null)
+      return false;
+    if (getCredentials() != null ? !getCredentials().equals(that.getCredentials()) :
+        that.getCredentials() != null)
+      return false;
+    return getKeyMappers() != null ? getKeyMappers().equals(that.getKeyMappers()) :
+           that.getKeyMappers() == null;
+
   }
 
   @Override
   public int hashCode() {
-    int result = inflateCredentials().hashCode();
-    result = 31 * result + getEndpoint().hashCode();
+    int result = getEndpoint() != null ? getEndpoint().hashCode() : 0;
+    result = 31 * result + (getClient() != null ? getClient().hashCode() : 0);
+    result = 31 * result + (getScan() != null ? getScan().hashCode() : 0);
+    result = 31 * result + (getCredentials() != null ? getCredentials().hashCode() : 0);
+    result = 31 * result + (getKeyMappers() != null ? getKeyMappers().hashCode() : 0);
     return result;
   }
 

@@ -166,7 +166,7 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
     File selectionRoot = new File(source.getBasedir(), "0");
     selectionRoot = new File(selectionRoot, source.getFormat());
-    selectionRoot = new File(selectionRoot, source.getOrg());
+    selectionRoot = new File(selectionRoot, org);
     return new File(selectionRoot, metric.getMetricId());
   }
 

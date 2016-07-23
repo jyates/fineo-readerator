@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.plugin;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import io.fineo.read.drill.exec.store.plugin.source.DynamoSourceTable;
@@ -10,6 +11,7 @@ import org.apache.drill.common.logical.StoragePluginConfigBase;
 import java.util.List;
 import java.util.Map;
 
+@JsonIgnoreProperties
 @JsonTypeName(FineoStoragePluginConfig.NAME)
 public class FineoStoragePluginConfig extends StoragePluginConfigBase {
 
@@ -31,14 +33,17 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
     this.dynamoSources = dynamoSources;
   }
 
+  @JsonProperty(SchemaRepositoryConfig.NAME)
   public SchemaRepositoryConfig getRepository() {
     return repository;
   }
 
+  @JsonProperty("fs-sources")
   public List<FsSourceTable> getFsSources() {
     return fsTables;
   }
 
+  @JsonProperty("dynamo-sources")
   public List<DynamoSourceTable> getDynamoSources() {
     return dynamoSources;
   }
