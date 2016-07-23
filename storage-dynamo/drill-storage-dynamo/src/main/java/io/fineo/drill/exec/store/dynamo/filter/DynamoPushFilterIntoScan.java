@@ -86,7 +86,8 @@ public final class DynamoPushFilterIntoScan {
 
     @Override
     public boolean matches(RelOptRuleCall call) {
-      if (checkDynamoScan(call.rel(1)) || checkDynamoScan(call.rel(2))) {
+      if ((call.getRelList().size() >= 2 && checkDynamoScan(call.rel(1))) || (
+        call.getRelList().size() >= 3 && checkDynamoScan(call.rel(2)))) {
         return super.matches(call);
       }
       return false;

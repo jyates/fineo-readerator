@@ -17,6 +17,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -390,9 +392,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     // ensure that the fineo-test plugin is enabled
     bootstrap(files.toArray(new FsSourceTable[0]));
 
-    verifySelectStar(of("`timestamp` > " + longAgo.toEpochMilli()), result -> {
-      assertNext(result, contents);
-    });
+    verifySelectStar(of("`timestamp` > " + longAgo.toEpochMilli()), withNext(contents));
   }
 
 

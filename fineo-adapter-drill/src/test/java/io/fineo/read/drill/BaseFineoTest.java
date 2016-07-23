@@ -79,7 +79,12 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       for (Map<String, Object> row : rows) {
         assertNext(result, row);
       }
+      assertNoMore(result);
     };
+  }
+
+  protected void assertNoMore(ResultSet result) throws SQLException {
+    assertFalse("Expected no more rows, but got at least one more row!", result.next());
   }
 
   @FunctionalInterface
