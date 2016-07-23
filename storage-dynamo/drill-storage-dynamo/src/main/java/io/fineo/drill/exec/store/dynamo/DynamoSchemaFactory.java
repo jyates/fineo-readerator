@@ -54,7 +54,7 @@ public class DynamoSchemaFactory implements SchemaFactory {
       if (mappers != null) {
         for (Map.Entry<String, DynamoKeyMapperSpec> mapper : mappers.entrySet()) {
           if (name.matches(mapper.getKey())) {
-            keyMapper = mappers.get(name);
+            keyMapper = mapper.getValue();
             break;
           }
         }

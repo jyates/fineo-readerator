@@ -38,4 +38,13 @@ public class DynamoKeyMapperSpec {
   public Map<String, Object> getArgs() {
     return args;
   }
+
+  @Override
+  public String toString() {
+    return "DynamoKeyMapperSpec{" +
+           "keyNames=" + keyNames +
+           ", keyValues=" + keyValues +
+           ", args=" + args +
+           '}';
+  }
 }
