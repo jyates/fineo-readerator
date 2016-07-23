@@ -47,4 +47,13 @@ public class DynamoGroupScanSpec {
   public void setTable(DynamoTableDefinition table) {
     this.table = table;
   }
+
+  @Override
+  public String toString() {
+    return "DynamoGroupScanSpec{" +
+           "table=" + table +
+           ", scan=" + scan +
+           ", getOrQuery=" + getOrQuery +
+           '}';
+  }
 }

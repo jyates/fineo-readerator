@@ -67,5 +67,23 @@ public class DynamoTableDefinition {
     public void setType(String type) {
       this.type = type;
     }
+
+    @Override
+    public String toString() {
+      return "PrimaryKey{" +
+             "name='" + name + '\'' +
+             ", type='" + type + '\'' +
+             ", isHashKey=" + isHashKey +
+             '}';
+    }
+  }
+
+  @Override
+  public String toString() {
+    return "DynamoTableDefinition{" +
+           "name='" + name + '\'' +
+           ", keys=" + keys +
+           ", keyMapper=" + keyMapper +
+           '}';
   }
 }

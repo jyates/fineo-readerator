@@ -252,7 +252,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
   @Override
   public String toString() {
     return "DynamoGroupScan{" +
-           ", spec=" + spec +
+           "spec=" + spec +
            ", columns=" + columns +
            '}';
   }
