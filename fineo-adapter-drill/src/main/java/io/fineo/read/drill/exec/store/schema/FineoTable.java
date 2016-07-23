@@ -3,12 +3,14 @@ package io.fineo.read.drill.exec.store.schema;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.avro.Schema;
+import org.apache.calcite.plan.Context;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.TranslatableTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.tools.RelBuilder;
 import org.apache.drill.exec.planner.logical.DrillTable;
 
 import java.util.function.Function;

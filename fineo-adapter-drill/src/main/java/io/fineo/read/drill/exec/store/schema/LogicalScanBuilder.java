@@ -1,21 +1,15 @@
 package io.fineo.read.drill.exec.store.schema;
 
-import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
-import io.fineo.schema.avro.AvroSchemaEncoder;
-import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
+import org.apache.calcite.plan.Context;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
-import org.apache.calcite.rel.RelCollationTraitDef;
-import org.apache.calcite.rel.RelCollations;
-import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalTableScan;
-import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.tools.RelBuilder;
 
 import java.util.ArrayList;
@@ -30,11 +24,15 @@ public class LogicalScanBuilder {
 
   private final RelOptTable relOptTable;
   private final RelOptCluster cluster;
+  private final RelBuilder relBuilder;
   private List<RelNode> tables = new ArrayList<>();
 
   public LogicalScanBuilder(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
     this.cluster = context.getCluster();
     this.relOptTable = relOptTable;
+    Context c = context.getCluster().getPlanner().getContext();
+    this.relBuilder = RelBuilder.proto(c)
+                                      .create(context.getCluster(), relOptTable.getRelOptSchema());
   }
 
   /**
@@ -46,13 +44,18 @@ public class LogicalScanBuilder {
    */
   public LogicalScanBuilder scan(String... schemaAndTable) {
     // this is always a dynamic table
+    LogicalTableScan scan = getTableScan(schemaAndTable);
+    this.tables.add(scan);
+    return this;
+  }
+
+  public LogicalTableScan getTableScan(String ...schemaAndTable){
     RelOptTable table =
       relOptTable.getRelOptSchema().getTableForMember(newArrayList(schemaAndTable));
     LogicalTableScan scan =
       new LogicalTableScan(cluster, cluster.traitSetOf(Convention.NONE), table);
     addFields(scan);
-    this.tables.add(scan);
-    return this;
+    return scan;
   }
 
   private void addFields(RelNode scan) {
@@ -64,21 +67,24 @@ public class LogicalScanBuilder {
     }
   }
 
+  public RelBuilder getRelBuilder() {
+    return relBuilder;
+  }
+
   public FineoRecombinatorMarkerRel buildMarker(StoreClerk.Metric metric) {
-    RelDataType type = this.relOptTable.getRowType();
-    int index = type.getFieldNames().indexOf(AvroSchemaEncoder.TIMESTAMP_KEY);
-    // ensure that the output is sorted on timestamp ascending with trait
-//    RelFieldCollation sort = new RelFieldCollation(index, RelFieldCollation.Direction.ASCENDING);
     RelTraitSet traits = cluster.traitSet()
                                 .plus(Convention.NONE);
-//                                .plus(RelCollationTraitDef.INSTANCE.canonize(RelCollations.of(sort)));
     FineoRecombinatorMarkerRel marker =
       new FineoRecombinatorMarkerRel(cluster, traits, this.relOptTable, metric);
     marker.setInputs(this.tables);
     return marker;
   }
 
-  public RelNode getFirstScan() {
-    return this.tables.get(0);
+  public void scan(RelNode relNode) {
+    this.tables.add(relNode);
   }
+
+//  public RelNode getFirstScan() {
+//    return this.tables.get(0);
+//  }
 }

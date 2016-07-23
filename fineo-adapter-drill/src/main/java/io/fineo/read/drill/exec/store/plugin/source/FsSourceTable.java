@@ -1,10 +1,11 @@
 package io.fineo.read.drill.exec.store.plugin.source;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.htrace.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.htrace.fasterxml.jackson.annotation.JsonTypeName;
 
-@JsonTypeName(FsSourceTable.NAME)
+@JsonTypeName("fs-source")
 public class FsSourceTable extends SourceTable {
 
   @JsonIgnore
@@ -14,15 +15,13 @@ public class FsSourceTable extends SourceTable {
 
   private final String format;
   private final String basedir;
-  private final String org;
 
+  @JsonCreator
   public FsSourceTable(@JsonProperty("format") String format,
-    @JsonProperty("basedir") String basedir,
-    @JsonProperty("org") String org) {
+    @JsonProperty("basedir") String basedir) {
     super(FILE_SCHEMA);
     this.format = format;
     this.basedir = basedir;
-    this.org = org;
   }
 
   public String getFormat() {
@@ -33,8 +32,9 @@ public class FsSourceTable extends SourceTable {
     return basedir;
   }
 
-  public String getOrg() {
-    return org;
+  @JsonProperty
+  public String getSchema() {
+    return schema;
   }
 
   @Override
@@ -46,22 +46,16 @@ public class FsSourceTable extends SourceTable {
 
     FsSourceTable that = (FsSourceTable) o;
 
-    if (!getSchema().equals(that.getSchema()))
-      return false;
     if (!getFormat().equals(that.getFormat()))
       return false;
-    if (!getBasedir().equals(that.getBasedir()))
-      return false;
-    return getOrg().equals(that.getOrg());
+    return getBasedir().equals(that.getBasedir());
 
   }
 
   @Override
   public int hashCode() {
-    int result = getSchema().hashCode();
-    result = 31 * result + getFormat().hashCode();
+    int result = getFormat().hashCode();
     result = 31 * result + getBasedir().hashCode();
-    result = 31 * result + getOrg().hashCode();
     return result;
   }
 }

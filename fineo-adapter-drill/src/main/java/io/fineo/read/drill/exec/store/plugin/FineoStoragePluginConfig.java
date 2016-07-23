@@ -1,13 +1,12 @@
 package io.fineo.read.drill.exec.store.plugin;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import io.fineo.read.drill.exec.store.plugin.source.DynamoSourceTable;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.apache.drill.common.logical.StoragePluginConfigBase;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -15,29 +14,38 @@ import java.util.Map;
 public class FineoStoragePluginConfig extends StoragePluginConfigBase {
 
   public static final String NAME = "fineo";
-  private final Map<String, String> repository;
-  private final Map<String, String> aws;
-  private final  Map<String, List<FsSourceTable>> sources;
+  private final SchemaRepositoryConfig repository;
+  private final List<FsSourceTable> fsTables;
+  private final List<DynamoSourceTable> dynamoSources;
+  private final List<String> orgs;
 
   @JsonCreator
-  public FineoStoragePluginConfig(@JsonProperty("repository") Map<String, String> repository,
-    @JsonProperty("aws") Map<String, String> aws,
-    @JsonProperty("sources")  Map<String, List<FsSourceTable>> sources) {
+  public FineoStoragePluginConfig(
+    @JsonProperty(SchemaRepositoryConfig.NAME) SchemaRepositoryConfig repository,
+    @JsonProperty("orgs") List<String> orgs,
+    @JsonProperty("fs-sources") List<FsSourceTable> fsSources,
+    @JsonProperty("dynamo-sources") List<DynamoSourceTable> dynamoSources) {
+    this.orgs = orgs;
     this.repository = repository;
-    this.aws = aws;
-    this.sources = sources;
+    this.fsTables = fsSources;
+    this.dynamoSources = dynamoSources;
   }
 
-  public Map<String, String> getRepository() {
+  public SchemaRepositoryConfig getRepository() {
     return repository;
   }
 
-  public Map<String, String> getAws() {
-    return aws;
+  public List<FsSourceTable> getFsSources() {
+    return fsTables;
   }
 
-  public Map<String, List<FsSourceTable>> getSources() {
-    return sources;
+  public List<DynamoSourceTable> getDynamoSources() {
+    return dynamoSources;
+  }
+
+  @JsonProperty("orgs")
+  public List<String> getOrgs() {
+    return orgs;
   }
 
   @Override
@@ -51,19 +59,21 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
 
     if (!getRepository().equals(that.getRepository()))
       return false;
-    return getAws().equals(that.getAws());
+    if (fsTables != null ? !fsTables.equals(that.fsTables) : that.fsTables != null)
+      return false;
+    if (getDynamoSources() != null ? !getDynamoSources().equals(that.getDynamoSources()) :
+        that.getDynamoSources() != null)
+      return false;
+    return getOrgs().equals(that.getOrgs());
 
   }
 
   @Override
   public int hashCode() {
     int result = getRepository().hashCode();
-    result = 31 * result + getAws().hashCode();
+    result = 31 * result + (fsTables != null ? fsTables.hashCode() : 0);
+    result = 31 * result + (getDynamoSources() != null ? getDynamoSources().hashCode() : 0);
+    result = 31 * result + getOrgs().hashCode();
     return result;
-  }
-
-  @JsonIgnore
-  public Collection<String> getOrgs() {
-    return sources.keySet();
   }
 }

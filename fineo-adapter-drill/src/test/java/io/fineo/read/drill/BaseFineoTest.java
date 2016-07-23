@@ -172,7 +172,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     // get the actual metric type
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
 
-    FsSourceTable table = new FsSourceTable("json", dir.getPath(), org);
+    FsSourceTable table = new FsSourceTable("json", dir.getPath());
     File outputDir = createOutputDir(table, metric, ts);
 
     for (Map<String, Object> json : values) {
@@ -214,7 +214,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     conn.createStatement().execute(request);
 
     //copy the contents to the actual output file that we want to use for ingest
-    FsSourceTable source = new FsSourceTable("parquet", dir.getPath(), org);
+    FsSourceTable source = new FsSourceTable("parquet", dir.getPath());
     File outputDir = createOutputDir(source, metric, ts);
     File from = new File("/tmp", table);
     Files.move(from, outputDir);

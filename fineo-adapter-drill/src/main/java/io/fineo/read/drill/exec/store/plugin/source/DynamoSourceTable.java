@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store.plugin.source;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import org.apache.htrace.fasterxml.jackson.annotation.JsonIgnore;
@@ -16,14 +17,23 @@ public class DynamoSourceTable extends SourceTable {
   private static final String SCHEMA = "dynamo";
 
   private final String pattern;
+  private final String prefix;
 
-  public DynamoSourceTable(@JsonProperty("pattern") String pattern) {
+  @JsonCreator
+  public DynamoSourceTable(@JsonProperty("pattern") String pattern,
+    @JsonProperty("prefix") String prefix) {
     super(SCHEMA);
     this.pattern = pattern;
+    this.prefix = prefix;
   }
 
   @JsonProperty("pattern")
   public String getPattern() {
     return pattern;
+  }
+
+  @JsonProperty("prefix")
+  public String getPrefix() {
+    return prefix;
   }
 }

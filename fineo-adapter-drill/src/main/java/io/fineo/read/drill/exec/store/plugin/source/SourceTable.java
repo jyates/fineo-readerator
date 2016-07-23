@@ -1,12 +1,15 @@
 package io.fineo.read.drill.exec.store.plugin.source;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 
 /**
  * Base class for the source table for Fineo to read
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class")
+@JsonAutoDetect
+@JsonTypeName("source")
 public abstract class SourceTable {
 
   protected final String schema;
@@ -15,7 +18,7 @@ public abstract class SourceTable {
     this.schema = schema;
   }
 
-  @JsonProperty
+  @JsonProperty("schema")
   public String getSchema() {
     return schema;
   }

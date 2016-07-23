@@ -1,5 +1,7 @@
 package io.fineo.read.drill.exec.store.plugin;
 
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
+import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
@@ -24,7 +26,6 @@ import org.apache.drill.exec.planner.PlannerPhase;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.store.AbstractStoragePlugin;
 import org.apache.drill.exec.store.SchemaConfig;
-import org.apache.drill.exec.store.StoragePlugin;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -47,6 +48,8 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   private final DrillbitContext context;
   private final Multimap<PlannerPhase, RelOptRule> rules;
   private final DynamoStoragePluginConfig dynamo;
+  private AmazonDynamoDBAsyncClient client;
+  private DynamoDB dynamoClient;
 
   public FineoStoragePlugin(FineoStoragePluginConfig configuration, DrillbitContext c,
     String name) throws ExecutionSetupException {
@@ -111,5 +114,29 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   public Set<? extends RelOptRule> getOptimizerRules(OptimizerRulesContext optimizerContext,
     PlannerPhase phase) {
     return new HashSet<>(rules.get(phase));
+  }
+
+  public DynamoDB getDynamo() {
+    if (this.dynamoClient == null) {
+      AmazonDynamoDBAsyncClient client = getDynamoClient();
+      this.dynamo.getEndpoint().configure(client);
+      this.dynamoClient = new DynamoDB(client);
+    }
+    return dynamoClient;
+  }
+
+  @Override
+  public void close() throws Exception {
+    if(this.dynamoClient != null){
+      this.dynamoClient.shutdown();
+    }
+    super.close();
+  }
+
+  public AmazonDynamoDBAsyncClient getDynamoClient() {
+    if (this.client == null) {
+      this.client = new AmazonDynamoDBAsyncClient(dynamo.inflateCredentials());
+    }
+    return client;
   }
 }
