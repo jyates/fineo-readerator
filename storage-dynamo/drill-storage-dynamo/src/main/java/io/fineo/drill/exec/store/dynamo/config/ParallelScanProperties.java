@@ -19,9 +19,9 @@ public class ParallelScanProperties {
   private int maxSegments = Integer.MAX_VALUE;
   // maximum number of segments to run per endpoint. May be less than this if you have a low
   // number of max segments and lots of endpoints.
-  private int segmentsPerEndpoint = -1;
+  private int segmentsPerEndpoint = 10;
   // maximum number of rows to return from each scan request per endpoint.
-  private int limit = -1;
+  private int limit = 100;
   // approximate number of rows that each DrillBit should be reading from the whole table
   private long approximateRowsPerEndpoint = 1000;
 

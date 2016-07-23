@@ -73,16 +73,17 @@ public class SubTableScanBuilder {
   }
 
   private RelNode addDynamoScan(LogicalScanBuilder builder, String tableName, String metricId) {
-    LogicalTableScan scan = builder.getTableScan("dynamo", tableName);
-    // add a filter for the table on the org and metric
-    RelBuilder rel = builder.getRelBuilder();
-    rel.push(scan);
-
-    List<RexNode> conditions = new ArrayList<>(2);
-    conditions.add(equals(scan, AvroSchemaEncoder.ORG_ID_KEY, org));
-    conditions.add(equals(scan, AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metricId));
-
-    return rel.filter(conditions).build();
+    return builder.getTableScan("dynamo", tableName);
+    // we already filter on org/metric in the recombinator, so no need to add it here a second time
+//    // add a filter for the table on the org and metric
+//    RelBuilder rel = builder.getRelBuilder();
+//    rel.push(scan);
+//
+//    List<RexNode> conditions = new ArrayList<>(2);
+//    conditions.add(equals(scan, AvroSchemaEncoder.ORG_ID_KEY, org));
+//    conditions.add(equals(scan, AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metricId));
+//
+//    return rel.filter(conditions).build();
   }
 
   private RexNode equals(LogicalTableScan scan, String field, String value) {

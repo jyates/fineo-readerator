@@ -48,11 +48,16 @@ public final class DynamoPushFilterIntoScan {
     "DynamoPushFilterIntoScan:Filter_On_Scan") {
 
     @Override
+    protected ScanPrel getScan(RelOptRuleCall call) {
+      return call.rel(1);
+    }
+
+    @Override
     protected void pushDown(RelOptRuleCall call) {
       final FilterPrel filter = call.rel(0);
       final RexNode condition = filter.getCondition();
 
-      final ScanPrel scan = call.rel(1);
+      final ScanPrel scan = getScan(call);
       DynamoGroupScan groupScan = (DynamoGroupScan) scan.getGroupScan();
       doPushFilterToScan(call, filter, null, scan, groupScan, condition);
     }
@@ -66,10 +71,15 @@ public final class DynamoPushFilterIntoScan {
     "DynamoPushFilterIntoScan:Filter_On_Project") {
 
     @Override
+    protected ScanPrel getScan(RelOptRuleCall call) {
+      return call.rel(2);
+    }
+
+    @Override
     protected void pushDown(RelOptRuleCall call) {
       final FilterPrel filter = call.rel(0);
       final ProjectPrel project = call.rel(1);
-      final ScanPrel scan = call.rel(2);
+      final ScanPrel scan = getScan(call);
 
       // convert the filter to one that references the child of the project
       final RexNode condition = RelOptUtil.pushPastProject(filter.getCondition(), project);
@@ -101,7 +111,7 @@ public final class DynamoPushFilterIntoScan {
 
     @Override
     public final void onMatch(RelOptRuleCall call) {
-      final ScanPrel scan = call.rel(1);
+      final ScanPrel scan = getScan(call);
       // according to Drill docs we ned to check again even after the matches check
       GroupScan gs = scan.getGroupScan();
       if (!(gs instanceof DynamoGroupScan)) {
@@ -119,6 +129,8 @@ public final class DynamoPushFilterIntoScan {
       }
       pushDown(call);
     }
+
+    protected abstract ScanPrel getScan(RelOptRuleCall call);
 
     protected abstract void pushDown(RelOptRuleCall call);
   }

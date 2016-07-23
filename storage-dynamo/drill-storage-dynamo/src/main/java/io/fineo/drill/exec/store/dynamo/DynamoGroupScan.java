@@ -149,7 +149,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
     // no affinity for any work unit
     long portion = this.desc.getTableSizeBytes() / units;
     for (int i = 0; i < units; i++) {
-      work.add(new DynamoScanWork((int) units, i, portion, filter));
+      work.add(new DynamoScanWork((int) units, i, portion == 0 ? 1 : portion, filter));
     }
   }
 
@@ -187,15 +187,16 @@ public class DynamoGroupScan extends AbstractGroupScan {
   @Override
   public ScanStats getScanStats() {
     // for simple scans, we have to look at all the rows
+    ScanStats.GroupScanProperty rowsCountable = ScanStats.GroupScanProperty.EXACT_ROW_COUNT;
     long recordCount = desc.getItemCount();
-    // prefer to use Dynamo filtering whenever possible
-    float cpuCost = 0;
     // guess the disk costs.
     //  1. scan  - reads everything
     //  2. query - reads hash/sort + filter
     //  3. get - reads hash/sort, but no filter
+    float cpuCost = 0;
     float diskCost = 100f;
     if (this.getSpec().getGetOrQuery() != null) {
+      rowsCountable = ScanStats.GroupScanProperty.NO_EXACT_ROW_COUNT;
       int getCount = this.getSpec().getGetOrQuery().stream()
                          .mapToInt(spec -> spec instanceof DynamoGetFilterSpec ? 1 : 0)
                          .sum();
@@ -210,9 +211,7 @@ public class DynamoGroupScan extends AbstractGroupScan {
         diskCost = getCount / recordCount;
       }
     }
-    return new ScanStats(ScanStats.GroupScanProperty.NO_EXACT_ROW_COUNT,
-      recordCount == 0 ? 1 : recordCount,
-      cpuCost, diskCost);
+    return new ScanStats(rowsCountable, recordCount == 0 ? 1 : recordCount, cpuCost, diskCost);
   }
 
   @Override
