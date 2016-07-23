@@ -14,7 +14,9 @@ import org.schemarepo.ValidatorFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static com.google.common.collect.ImmutableList.of;
 
@@ -40,7 +42,7 @@ public class FineoSchemaFactory implements SchemaFactory {
     parent = parent.add("fineo", new FineoBaseSchema(of(), "fineo") {
     });
 
-    List<SourceTable> sources = new ArrayList<>();
+    Set<SourceTable> sources = new HashSet<>();
     sources.addAll(config.getFsSources());
     sources.addAll(config.getDynamoSources());
     List<String> parentName = of("fineo");

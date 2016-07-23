@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 public class SubTableScanBuilder {
@@ -34,7 +35,7 @@ public class SubTableScanBuilder {
   private final String org;
   private final DynamoDB dynamo;
 
-  public SubTableScanBuilder(String org, List<SourceTable> sourceFsTables, DynamoDB dynamo) {
+  public SubTableScanBuilder(String org, Set<SourceTable> sourceFsTables, DynamoDB dynamo) {
     this.org = org;
     for (SourceTable source : sourceFsTables) {
       sources.put(source.getSchema(), source);
