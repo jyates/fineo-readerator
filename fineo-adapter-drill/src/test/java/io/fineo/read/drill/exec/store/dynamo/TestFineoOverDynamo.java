@@ -10,7 +10,6 @@ import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.PlanValidator;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.StoreClerk;
-import org.apache.htrace.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -26,8 +25,6 @@ import static org.junit.Assert.assertNotEquals;
  * Do Fineo-style reads over a dynamo table
  */
 public class TestFineoOverDynamo extends BaseFineoTest {
-
-  private static ObjectMapper MAPPER = new ObjectMapper();
 
   @Test
   public void testReadSingleRow() throws Exception {
