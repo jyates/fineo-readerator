@@ -2,6 +2,7 @@ package io.fineo.drill.exec.store.dynamo.spec.sub;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.fasterxml.jackson.annotation.JacksonInject;
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
@@ -36,6 +37,7 @@ public class DynamoSubScan extends AbstractBase implements SubScan {
   private final ParallelScanProperties scanProps;
   private final DynamoTableDefinition table;
 
+  @JsonCreator
   public DynamoSubScan(@JacksonInject StoragePluginRegistry registry,
     @JsonProperty("storage") StoragePluginConfig storage,
     @JsonProperty("specs") List<DynamoSubReadSpec> subReadList,

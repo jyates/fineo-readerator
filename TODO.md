@@ -21,6 +21,11 @@
 
 2. Dynamo Reading
  a. fix reading Decimal38 (now just reads strings)
+ b. Better support for PK Mapping.
+  i. Separate sort and hash key expansion in mapper so we can be smart about what fields to 
+  include in the table definition
+  ii. Use the KeyMapper when building the filter condition so we can avoid referencing the 
+  'actual' fields at all 
 
 1. Spark Reading
   0. integrate into drill.

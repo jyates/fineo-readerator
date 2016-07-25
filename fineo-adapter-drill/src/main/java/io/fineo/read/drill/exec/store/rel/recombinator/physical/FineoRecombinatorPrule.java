@@ -14,7 +14,7 @@ import org.apache.drill.exec.planner.physical.Prule;
  */
 public class FineoRecombinatorPrule extends Prule {
 
-  public static FineoRecombinatorPrule INSTANCE = new FineoRecombinatorPrule();
+  public static final FineoRecombinatorPrule INSTANCE = new FineoRecombinatorPrule();
 
   private FineoRecombinatorPrule() {
     super(RelOptHelper.any(FineoRecombinatorRel.class), "Prel.FineoRecombinatorPrule");

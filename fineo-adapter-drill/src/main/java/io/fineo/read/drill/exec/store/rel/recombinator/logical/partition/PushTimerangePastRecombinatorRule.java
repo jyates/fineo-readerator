@@ -19,8 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.calcite.util.ImmutableNullableList.of;
-
 /**
  * Rule that pushes a timerange filter (WHERE) past the recombinator and into the actual scan
  */
@@ -34,6 +32,18 @@ public class PushTimerangePastRecombinatorRule extends RelOptRule {
     super(operand(LogicalFilter.class, operand(FineoRecombinatorMarkerRel.class,
       unordered(operand(TableScan.class, null, Predicates.alwaysTrue(), none())))),
       "FineoPushTimerangePastRecombinatorRule");
+  }
+
+  @Override
+  public boolean matches(RelOptRuleCall call) {
+    FineoRecombinatorMarkerRel fmr = call.rel(1);
+    List<RelNode> scans = call.getChildRels(fmr);
+    for (RelNode scan : scans) {
+      if (!(scan instanceof TableScan)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @Override
@@ -58,12 +68,10 @@ public class PushTimerangePastRecombinatorRule extends RelOptRule {
       RelNode translated = scan;
       if (!builder.isScanAll() && timestamps != null) {
         translated = handler.translateScanFromGeneratedRex(scan, timestamps);
-        // oops, it wasn't translated, so back to the original scan
-        if (translated == null) {
-          translated = scan;
-        }
       }
-      translatedScans.add(translated);
+      if (translated != null) {
+        translatedScans.add(translated);
+      }
     }
 
     // all the scans stay the same

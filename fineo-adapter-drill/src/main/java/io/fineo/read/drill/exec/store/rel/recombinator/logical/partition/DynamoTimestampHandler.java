@@ -36,11 +36,9 @@ public class DynamoTimestampHandler implements TimestampHandler {
   public RelNode translateScanFromGeneratedRex(TableScan scan, RexNode timestamps) {
     // decide if we even need this scan by evaluating the tree of true/false expressions
     if (!evaluate(timestamps)) {
-      // table is 'removed' from query to limiting the output to 0
-      RexNode zero = rexer.makeZeroLiteral(rexer.getTypeFactory().createSqlType(INTEGER));
-      return new DrillLimitRel(scan.getCluster(), scan.getTraitSet(), scan, zero, zero);
+      return null;
     }
-    return null;
+    return scan;
   }
 
   private boolean evaluate(RexNode timestamps) {
@@ -85,23 +83,21 @@ public class DynamoTimestampHandler implements TimestampHandler {
     @Override
     public RexNode buildGreaterThan(SingleFunctionProcessor processor) {
       long epoch = PushTimerangePastRecombinatorRule.asEpoch(processor);
-      return parts.getStart() >= epoch ?
+      return parts.getEnd() > epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);
     }
 
     @Override
     public RexNode buildGreaterThanOrEquals(SingleFunctionProcessor processor) {
-      long epoch = PushTimerangePastRecombinatorRule.asEpoch(processor);
-      return parts.getStart() >= epoch ?
-             builder.makeLiteral(true) :
-             builder.makeLiteral(false);
+      // end range of table is non-inclusive, so we do the same logic as greaterThan
+      return buildGreaterThan(processor);
     }
 
     @Override
     public RexNode buildLessThan(SingleFunctionProcessor processor) {
       long epoch = PushTimerangePastRecombinatorRule.asEpoch(processor);
-      return parts.getEnd() < epoch ?
+      return parts.getStart() < epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);
     }
@@ -109,7 +105,7 @@ public class DynamoTimestampHandler implements TimestampHandler {
     @Override
     public RexNode buildLessThanOrEquals(SingleFunctionProcessor processor) {
       long epoch = PushTimerangePastRecombinatorRule.asEpoch(processor);
-      return parts.getEnd() < epoch ?
+      return parts.getStart() <= epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);
     }
@@ -117,6 +113,7 @@ public class DynamoTimestampHandler implements TimestampHandler {
     @Override
     public RexNode buildEquals(SingleFunctionProcessor processor) {
       long epoch = PushTimerangePastRecombinatorRule.asEpoch(processor);
+      // interval CONTAINS
       return parts.getStart() >= epoch && parts.getEnd() < epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);

@@ -236,6 +236,10 @@ public class TestFineoPushTimerange extends BaseFineoTest {
       of("`*`"));
   }
 
+  private String explain(String sql) {
+    return "EXPLAIN PLAN INCLUDING ALL ATTRIBUTES WITH IMPLEMENTATION FOR " + sql;
+  }
+
   private Map<String, Object> getGraphStep(List<Map<String, Object>> graph, String popName) {
     for (Map<String, Object> pop : graph) {
       if (pop.get("pop").equals(popName)) {
@@ -243,9 +247,5 @@ public class TestFineoPushTimerange extends BaseFineoTest {
       }
     }
     return null;
-  }
-
-  private String explain(String sql) {
-    return "EXPLAIN PLAN INCLUDING ALL ATTRIBUTES WITH IMPLEMENTATION FOR " + sql;
   }
 }

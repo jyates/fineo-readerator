@@ -82,10 +82,11 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
 
     // transform FRMR -> FRR
     rules.put(PlannerPhase.LOGICAL, FineoRecombinatorRule.INSTANCE);
-    // transform FRR -> FRPr
-    rules.put(PlannerPhase.PHYSICAL, FineoRecombinatorPrule.INSTANCE);
+
     // FixedR -> FixedPr
     rules.put(PlannerPhase.PHYSICAL, FixedSchemaPrule.INSTANCE);
+    // FRR -> FRPr
+    rules.put(PlannerPhase.PHYSICAL, FineoRecombinatorPrule.INSTANCE);
     return rules;
   }
 
@@ -126,7 +127,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
 
   @Override
   public void close() throws Exception {
-    if(this.dynamoClient != null){
+    if (this.dynamoClient != null) {
       this.dynamoClient.shutdown();
     }
     super.close();

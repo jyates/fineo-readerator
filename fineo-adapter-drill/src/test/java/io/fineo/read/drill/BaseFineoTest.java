@@ -384,4 +384,8 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   protected long get1980() {
     return LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
   }
+
+  protected static String bt(String columnName){
+    return format("`%s`", columnName);
+  }
 }

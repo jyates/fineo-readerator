@@ -10,7 +10,7 @@ import org.apache.drill.exec.planner.physical.Prule;
 
 public class FixedSchemaPrule extends Prule {
 
-  public static FixedSchemaPrule INSTANCE = new FixedSchemaPrule();
+  public static final FixedSchemaPrule INSTANCE = new FixedSchemaPrule();
 
   private FixedSchemaPrule() {
     super(RelOptHelper.any(FixedSchemaProjection.class), "Prel.FixedSchemaPrule");
