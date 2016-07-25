@@ -2,6 +2,7 @@ package io.fineo.read.drill.exec.store.dynamo;
 
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
 import io.fineo.lambda.dynamo.Schema;
@@ -85,24 +86,11 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     String query =
       verifySelectStar(of(bt(TIMESTAMP_KEY) + " <= " + (ts + 100)), withNext(expected));
     new PlanValidator(query)
-      .validateDynamoQuery(0, scan -> {
-        try {
-          assertEquals("dynamo-scan", scan.get("pop"));
-          assertEquals(newArrayList(bt("*")), scan.get("columns"));
-          Map<String, Object> scanSpec = (Map<String, Object>) scan.get("spec");
-          Map<String, Object> tableDef = (Map<String, Object>) scanSpec.get("table");
-          assertEquals(table.getTableName(), tableDef.get("name"));
-          assertNull(scanSpec.get("scan"));
-          List getOrQuery = (List) scanSpec.get("getOrQuery");
-          String gqString = MAPPER.writeValueAsString(getOrQuery);
-          List<DynamoReadFilterSpec> gq = MAPPER.readValue(gqString, List.class);
-          assertEquals("Wrong number of gets/queries! " + gq, 1, gq.size());
-          Map<String, Object> map = (Map<String, Object>) gq.get(0);
-          assertEquals(DynamoQueryFilterSpec.class.getName(), map.get("@class"));
-        } catch (Exception e) {
-          throw new RuntimeException(e);
-        }
-      })
+      .validateDynamoQuery(0)
+      .withTable(table)
+      .withGetOrQueries(
+        new DynamoQueryFilterSpec(DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
+          key), null)).done()
       .validate(drill.getConnection());
   }
 

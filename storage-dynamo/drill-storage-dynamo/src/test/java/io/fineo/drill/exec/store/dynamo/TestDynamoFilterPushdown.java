@@ -2,8 +2,6 @@ package io.fineo.drill.exec.store.dynamo;
 
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoGetFilterSpec;
@@ -13,7 +11,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -22,15 +19,11 @@ import static com.google.common.collect.Lists.newArrayList;
 import static io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec.create;
 import static org.apache.commons.lang3.tuple.ImmutablePair.of;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 /**
  *
  */
 public class TestDynamoFilterPushdown extends BaseDynamoTest {
-
-  private static final ObjectMapper MAPPER = new ObjectMapper();
 
   /**
    * Table with just a hash key has the hash key fully specified, which should cause a single Get
@@ -67,23 +60,13 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     // should create a get
     String query = selectStarWithPK("p1", "t", table) + " AND sort = 's1'";
     verify(runAndReadResults(query), item);
-    validatePlanWithGets(query, pkEquals("p1").and(create("equal", "sort", "s1")));
+    validatePlanWithGets(query,
+      pkEquals("p1").and(create("equal", "sort", "s1")));
     // should create a query
     query = selectStarWithPK("p1", "t", table) + " AND sort >= 's1'";
     verify(runAndReadResults(query), item);
-    validatePlanWithQueries(query, of(pkEquals("p1").and(gte("sort", "s1")), null));
-  }
-
-  private DynamoFilterSpec gte(String key, Object val) {
-    return create("greater_than_or_equal_to", key, val);
-  }
-
-  private DynamoFilterSpec pkEquals(Object eq) {
-    return equals(PK, eq);
-  }
-
-  private DynamoFilterSpec equals(String key, Object value) {
-    return create("equal", key, value);
+    validatePlanWithQueries(query, of(pkEquals("p1").and(
+      DynamoPlanValidationUtils.gte("sort", "s1")), null));
   }
 
   @Test
@@ -93,7 +76,8 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     Table t = createTableWithItems(item);
     String query = selectStarWithPK("pk", "t", t) + " AND t." + COL1 + " = '1'";
     verify(runAndReadResults(query), item);
-    validatePlanWithQueries(query, of(pkEquals("pk"), equals(COL1, "1")));
+    validatePlanWithQueries(query,
+      of(pkEquals("pk"), DynamoPlanValidationUtils.equals(COL1, "1")));
 
     // number column
     item = new Item();
@@ -102,7 +86,8 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     t.putItem(item);
     query = selectStarWithPK("pk2", "t", t) + " AND t." + COL1 + " = 1";
     verify(runAndReadResults(query), item);
-    validatePlanWithQueries(query, of(pkEquals("pk2"), equals(COL1, 1)));
+    validatePlanWithQueries(query,
+      of(pkEquals("pk2"), DynamoPlanValidationUtils.equals(COL1, 1)));
   }
 
   @Test
@@ -114,7 +99,11 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     String query =
       selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as varchar)";
     verify(runAndReadResults(query), item);
-    ImmutablePair<DynamoFilterSpec, DynamoFilterSpec> spec = of(pkEquals("pk"), equals(COL1, null));
+    ImmutablePair<DynamoFilterSpec, DynamoFilterSpec> spec =
+      of(pkEquals("pk"), DynamoPlanValidationUtils
+
+
+        .equals(COL1, null));
     validatePlanWithQueries(query, spec);
     // we return nulls are varchar b/c we can cast anything from varchar. Make sure that a
     // boolean null cast also works
@@ -134,7 +123,9 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
       selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as varchar)";
     assertEquals("Should not have found a row when checking for = null and column not set!",
       0, runAndReadResults(query).size());
-    ImmutablePair<DynamoFilterSpec, DynamoFilterSpec> spec = of(pkEquals("pk"), equals(COL1, null));
+    ImmutablePair<DynamoFilterSpec, DynamoFilterSpec> spec =
+      of(pkEquals("pk"), DynamoPlanValidationUtils
+        .equals(COL1, null));
     validatePlanWithQueries(query, spec);
     // see above for why trying a different type
     query = selectStarWithPK("pk", "t", table) + " AND t." + COL1 + " = cast(null as BOOLEAN)";
@@ -153,7 +144,7 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     Table table = createTableWithItems(item);
     String select = "SELECT *" + from(table) + "t WHERE t." + COL1 + " = 1";
     verify(runAndReadResults(select), item);
-    DynamoFilterSpec spec = equals(COL1, 1);
+    DynamoFilterSpec spec = DynamoPlanValidationUtils.equals(COL1, 1);
     validatePlanWithScan(select, spec);
 
     Item item2 = new Item();
@@ -193,7 +184,8 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    "t." + PK + " = 'pk2' AND " +
                    "t." + COL1 + " = '2'";
     verify(runAndReadResults(query), i2);
-    validatePlanWithQueries(query, of(pkEquals("pk2"), equals(COL1, "2")));
+    validatePlanWithQueries(query,
+      of(pkEquals("pk2"), DynamoPlanValidationUtils.equals(COL1, "2")));
   }
 
   @Test
@@ -210,7 +202,9 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    "ORDER BY t." + PK + " ASC";
     verify(runAndReadResults(query), item, i2);
     validatePlan(query, null, null,
-      newArrayList(new DynamoQueryFilterSpec(pkEquals("pk2"), gte(COL1, 2)),
+      newArrayList(new DynamoQueryFilterSpec(pkEquals("pk2"),
+          DynamoPlanValidationUtils
+            .gte(COL1, 2)),
         new DynamoGetFilterSpec(pkEquals("pk"))));
   }
 
@@ -229,8 +223,8 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    "ORDER BY t." + PK + " ASC";
     verify(runAndReadResults(query), item, i2);
     validatePlanWithQueries(query,
-      of(pkEquals("pk2"), gte(COL1, 2)),
-      of(pkEquals("pk"), equals(COL1, 1)));
+      of(pkEquals("pk2"), DynamoPlanValidationUtils.gte(COL1, 2)),
+      of(pkEquals("pk"), DynamoPlanValidationUtils.equals(COL1, 1)));
   }
 
   @Test
@@ -248,7 +242,8 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    "ORDER BY t." + PK + " ASC";
     verify(runAndReadResults(query));
     validatePlanWithScan(query,
-      pkEquals("pk").and(equals(COL1, 1)).and(pkEquals("pk2")).and(gte(COL1, 2)));
+      pkEquals("pk").and(DynamoPlanValidationUtils.equals(COL1, 1)).and(
+        pkEquals("pk2")).and(DynamoPlanValidationUtils.gte(COL1, 2)));
   }
 
   @Test
@@ -265,7 +260,9 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    "t." + COL1 + " >= 2" +
                    "ORDER BY t." + PK + " ASC";
     verify(runAndReadResults(query), item, i2);
-    validatePlanWithScan(query, pkEquals("pk").and(equals(COL1, 1)).or(gte(COL1, 2)));
+    validatePlanWithScan(query,
+      pkEquals("pk").and(DynamoPlanValidationUtils.equals(COL1, 1)).or(
+        DynamoPlanValidationUtils.gte(COL1, 2)));
   }
 
   @Test
@@ -283,8 +280,11 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
                    " AND " +
                    "t." + COL1 + " >= '2')";
     verify(runAndReadResults(query));
-    validatePlanWithQueries(query, of(pkEquals("pk").and(equals(COL1, "1")), null),
-      of(pkEquals("pk").and(gte(COL1, "2")), null));
+    validatePlanWithQueries(query, of(
+      pkEquals("pk").and(DynamoPlanValidationUtils.equals(COL1, "1")),
+      null),
+      of(pkEquals("pk").and(DynamoPlanValidationUtils.gte(COL1, "2")),
+        null));
 //    verify(runAndReadResults("SELECT *" + from(table) + "t WHERE " +
 //                             "t." + PK + " = 'pk'" + " AND (" +
 //                             "t." + COL1 + " = '1'" +
@@ -311,7 +311,8 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
     String query = selectStarWithPK("pk", "t", table) + " AND " +
                    "t." + COL1 + " BETWEEN 1 AND 2";
     verify(runAndReadResults(query), item);
-    validatePlanWithQueries(query, of(pkEquals("pk"), create("between", COL1, 1, 2)));
+    validatePlanWithQueries(query, of(
+      pkEquals("pk"), create("between", COL1, 1, 2)));
   }
 
   @Test
@@ -356,24 +357,14 @@ public class TestDynamoFilterPushdown extends BaseDynamoTest {
       columns = newArrayList("`*`");
     }
     Map<String, Object> plan = justOneRow(runAndReadResults(explain(query)));
-    Map<String, Object> json = MAPPER.readValue(plan.get("json").toString(), Map.class);
+    Map<String, Object> json = DynamoPlanValidationUtils.MAPPER.readValue(plan.get("json").toString(), Map.class);
     List<Map<String, Object>> graph = (List<Map<String, Object>>) json.get("graph");
     Map<String, Object> dynamo = graph.get(0);
-    assertEquals(DynamoGroupScan.NAME, dynamo.get("pop"));
-    assertEquals(columns, dynamo.get("columns"));
-    assertTrue((Boolean) dynamo.get("filterPushedDown"));
-    Map<String, Object> spec = (Map<String, Object>) dynamo.get("spec");
-    String specString = MAPPER.writeValueAsString(spec);
-    DynamoGroupScanSpec gSpec = MAPPER.readValue(specString, DynamoGroupScanSpec.class);
-    if (scan == null) {
-      assertNull(gSpec.getScan());
-      List<DynamoReadFilterSpec> actual = gSpec.getGetOrQuery();
-      Collections.sort(actual, (spec1, spec2) -> spec1.toString().compareTo(spec2.toString()));
-      assertEquals(getOrQuery, actual);
-    } else {
-      assertNull(gSpec.getGetOrQuery());
-      assertEquals(scan, gSpec.getScan());
-    }
+    DynamoPlanValidationUtils.validatePlan(dynamo, columns, scan, getOrQuery);
+  }
+
+  public static DynamoFilterSpec pkEquals(Object eq) {
+    return DynamoPlanValidationUtils.equals(BaseDynamoTest.PK, eq);
   }
 
   private String explain(String sql) {
