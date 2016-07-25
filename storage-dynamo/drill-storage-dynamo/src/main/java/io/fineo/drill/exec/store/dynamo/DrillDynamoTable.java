@@ -61,12 +61,13 @@ public class DrillDynamoTable extends DynamicDrillTable {
       for (String field : key.getKeyNames()) {
         type.getField(field, true, false);
       }
-    } else {
-      // no mapper, so just rely on what the descriptor says
-      List<KeySchemaElement> keys = desc.getKeySchema();
-      for (KeySchemaElement elem : keys) {
-        type.getField(elem.getAttributeName(), true, false);
-      }
+    }
+    // since we don't support pushing the key combination into the filter building, we need to
+    // support the key schema elements in our key schema so hash/sort can be used in the filter.
+    List<KeySchemaElement> keys = desc.getKeySchema();
+    for (KeySchemaElement elem : keys) {
+      type.getField(elem.getAttributeName(), true, false);
+
     }
 
     return type;

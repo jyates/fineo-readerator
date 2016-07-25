@@ -27,4 +27,11 @@ public class DynamoFineoCompoundKeyMapper extends DynamoKeyMapper {
     out.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metric);
     return out;
   }
+
+  @Override
+  public Map<String, Object> mapSortKey(Object value) {
+    Map<String, Object> out = new HashMap<>();
+    out.put(AvroSchemaEncoder.TIMESTAMP_KEY, value);
+    return out;
+  }
 }

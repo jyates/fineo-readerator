@@ -122,6 +122,10 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         vectors.addUnknownField(field, outputName);
       } else {
         outputName = aliasMap.getOutputName(outputName);
+        if (outputName == null) {
+          LOG.debug("Skipping: '{}' because not dynamic field, but no alias mapping found", name);
+          continue;
+        }
         vectors.addKnownField(field, outputName);
       }
     }

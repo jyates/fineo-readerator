@@ -1,22 +1,25 @@
 package io.fineo.read.drill.exec.store.dynamo;
 
-import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
-import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
-import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
-import io.fineo.lambda.dynamo.DynamoTableCreator;
-import io.fineo.lambda.dynamo.DynamoTableTimeManager;
-import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
-import io.fineo.lambda.dynamo.avro.Schema;
+import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.schema.avro.AvroSchemaEncoder;
-import org.apache.commons.lang3.tuple.Pair;
+import io.fineo.schema.store.StoreClerk;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.List;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+
+import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
+import static java.lang.String.format;
+import static org.apache.calcite.util.ImmutableNullableList.of;
+import static org.junit.Assert.assertNotEquals;
 
 /**
  * Do Fineo-style reads over a dynamo table
@@ -28,19 +31,22 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     TestState state = register();
     long ts = get1980();
 
+    StoreClerk clerk = new StoreClerk(state.getStore(), org);
+    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
+
     Item wrote = new Item();
-    wrote.with(Schema.PARTITION_KEY_NAME, org + metrictype);
+    wrote.with(Schema.PARTITION_KEY_NAME, org + metric.getMetricId());
     wrote.with(Schema.SORT_KEY_NAME, ts);
-    wrote.with("field1", 10);
+    wrote.with("field1", true);
     Table table = state.write(wrote);
     bootstrap(table);
 
-    Item expected = new Item();
-    expected.with(AvroSchemaEncoder.ORG_ID_KEY, org);
-    expected.with(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    expected.with(AvroSchemaEncoder.TIMESTAMP_KEY, ts);
-    expected.with("field1", 10);
-    verifySelectStar(withNext(expected.asMap()));
+    Map<String, Object> expected = new HashMap<>();
+    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
+    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(TIMESTAMP_KEY, ts);
+    expected.put("field1", true);
+    verifySelectStar(withNext(expected));
   }
 
   private void bootstrap(Table... tables) throws IOException {

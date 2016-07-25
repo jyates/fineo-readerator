@@ -1,11 +1,15 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical;
 
+import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.exec.store.rel.fixed.logical.FixedSchemaProjection;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
+import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelOptTable;
+import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
@@ -59,38 +63,21 @@ public class FineoRecombinatorRule extends RelOptRule {
     // output type to which we need to conform
     RelDataType rowType = fmr.getRowType();
 
+    RexBuilder rexBuilder = cluster.getRexBuilder();
     int scanCount = 0;
     List<StoreClerk.Field> userFields = fmr.getMetric().getUserVisibleFields();
-    for (RelNode relNode : fmr.getInputs()) {
-      RelDataType type = relNode.getRowType();
-      Map<RelDataTypeField, StoreClerk.Field> typeToField = new HashMap<>();
-      // add the user fields + aliases - its a dynamic table!
-      for (StoreClerk.Field field : userFields) {
-        typeToField.put(type.getField(field.getName(), false, false), field);
-        for (String alias : field.getAliases()) {
-          typeToField.put(type.getField(alias, false, false), field);
-        }
-      }
-
-      // create proper casts for known fields + expansions
-      List<RexNode> expanded = new ArrayList<>();
-      for (RelDataTypeField field : type.getFieldList()) {
-        RexNode node = cluster.getRexBuilder().makeInputRef(relNode, field.getIndex());
-        StoreClerk.Field storeField = typeToField.get(field);
-        if (storeField != null) {
-          node = cast(cluster.getRexBuilder(), rowType, storeField, node);
-        }
-        expanded.add(node);
-      }
-      relNode = LogicalProject.create(relNode, expanded, relNode.getRowType());
+    for (RelNode tableNode : fmr.getInputs()) {
+      // cast table fields to the expected user-typed fields
+      tableNode = cast(tableNode, userFields, rexBuilder, rowType);
 
       // wrap with a filter to limit the output to the correct org and metric
-      RelNode filter = LogicalFilter
-        .create(relNode, getOrgAndMetricFilter(cluster.getRexBuilder(), fmr, relNode));
-      // Child should be the logical equivalent of the filter
-      filter = convert(filter, relNode.getTraitSet().plus(DRILL_LOGICAL));
+      RexNode orgMetricCondition = getOrgAndMetricFilter(rexBuilder, fmr, tableNode);
+      RelNode filter = LogicalFilter.create(tableNode, orgMetricCondition);
+
+      // Child of this is the -logical- equivalent of the filter
+      filter = convert(filter, tableNode.getTraitSet().plus(DRILL_LOGICAL));
       FineoRecombinatorRel rel =
-        new FineoRecombinatorRel(cluster, relNode.getTraitSet().plus(DRILL_LOGICAL), filter,
+        new FineoRecombinatorRel(cluster, tableNode.getTraitSet().plus(DRILL_LOGICAL), filter,
           fmr.getMetric());
       // that is then wrapped in "fixed row type projection" so the union and downstream
       // projections apply nicely. This is especially important as the StarColumnConverter only
@@ -113,10 +100,42 @@ public class FineoRecombinatorRule extends RelOptRule {
     call.transformTo(builder.build());
   }
 
+  private RelNode cast(RelNode tableNode, List<StoreClerk.Field> userFields, RexBuilder rexer,
+    RelDataType rowType) {
+    RelDataType tableType = tableNode.getRowType();
+    Map<RelDataTypeField, StoreClerk.Field> typeToField = new HashMap<>();
+    // add the user fields + aliases - its a dynamic table!
+    for (StoreClerk.Field field : userFields) {
+      typeToField.put(tableType.getField(field.getName(), false, false), field);
+      for (String alias : field.getAliases()) {
+        typeToField.put(tableType.getField(alias, false, false), field);
+      }
+    }
+
+    // create proper casts for known fields + expansions.
+    List<RexNode> expanded = new ArrayList<>();
+    for (RelDataTypeField field : tableType.getFieldList()) {
+      RexNode node = rexer.makeInputRef(tableNode, field.getIndex());
+      StoreClerk.Field storeField = typeToField.get(field);
+      if (storeField != null) {
+        node = cast(rexer, rowType, storeField, node);
+      } else if (field.getName().equals(AvroSchemaEncoder.TIMESTAMP_KEY)) {
+        // dynamo reads the timestamp as a string, so we need to cast it to the expected LONG type
+        node = cast(rexer, rowType, AvroSchemaEncoder.TIMESTAMP_KEY, node);
+      }
+      expanded.add(node);
+    }
+    return LogicalProject.create(tableNode, expanded, tableType);
+  }
+
   private RexNode cast(RexBuilder builder, RelDataType fineoRowType, StoreClerk.Field storeField,
-    RexNode nodetoCast) {
-    RelDataType type = fineoRowType.getField(storeField.getName(), false, false).getType();
-    RexNode cast = builder.makeCast(type, nodetoCast);
+    RexNode nodeToCast) {
+    return cast(builder, fineoRowType, storeField.getName(), nodeToCast);
+  }
+
+  private RexNode cast(RexBuilder builder, RelDataType row, String fieldName, RexNode refToCast) {
+    RelDataType type = row.getField(fieldName, false, false).getType();
+    RexNode cast = builder.makeCast(type, refToCast);
     // add a base64 decoding for byte[] stored as text
     if (type.getSqlTypeName() == SqlTypeName.BINARY) {
       cast =
@@ -126,18 +145,45 @@ public class FineoRecombinatorRule extends RelOptRule {
   }
 
   private RexNode getOrgAndMetricFilter(RexBuilder builder, FineoRecombinatorMarkerRel fmr,
-    RelNode input) {
-    RelDataType row = input.getRowType();
-    RexInputRef org =
-      builder.makeInputRef(input, row.getField(ORG_ID_KEY, false, false).getIndex());
-    RexInputRef metric =
-      builder.makeInputRef(input, row.getField(ORG_METRIC_TYPE_KEY, false, false).getIndex());
+    RelNode castProject) {
+    RelDataType row = castProject.getRowType();
     StoreClerk.Metric userMetric = fmr.getMetric();
-    RexLiteral orgId = builder.makeLiteral(userMetric.getOrgId());
-    RexLiteral metricType = builder.makeLiteral(userMetric.getMetricId());
-    RexNode orgEq = builder.makeCall(SqlStdOperatorTable.EQUALS, org, orgId);
-    RexNode metricEq = builder.makeCall(SqlStdOperatorTable.EQUALS, metric, metricType);
-    return RexUtil.composeConjunction(builder, of(orgEq, metricEq), false);
+    List<String> name = getSourceTableQualifiedName(castProject);
+    switch (name.get(0)) {
+      case "dfs":
+        RexInputRef org =
+          builder.makeInputRef(castProject, row.getField(ORG_ID_KEY, false, false).getIndex());
+        RexInputRef metric =
+          builder
+            .makeInputRef(castProject, row.getField(ORG_METRIC_TYPE_KEY, false, false).getIndex());
+        RexLiteral orgId = builder.makeLiteral(userMetric.getOrgId());
+        RexLiteral metricType = builder.makeLiteral(userMetric.getMetricId());
+        RexNode orgEq = builder.makeCall(SqlStdOperatorTable.EQUALS, org, orgId);
+        RexNode metricEq = builder.makeCall(SqlStdOperatorTable.EQUALS, metric, metricType);
+        return RexUtil.composeConjunction(builder, of(orgEq, metricEq), false);
+      case "dynamo":
+        String partitionKey = Schema.getPartitionKey(userMetric.getOrgId(), userMetric
+          .getMetricId()).getS();
+        RexInputRef pkRef =
+          builder.makeInputRef(castProject,
+            row.getField(Schema.PARTITION_KEY_NAME, false, false).getIndex());
+        RexLiteral pk = builder.makeLiteral(partitionKey);
+        return builder.makeCall(SqlStdOperatorTable.EQUALS, pkRef, pk);
+    }
+    throw new UnsupportedOperationException("Don't know how to support table: " + name);
+  }
+
+  private List<String> getSourceTableQualifiedName(RelNode input) {
+    RelOptTable table = null;
+    while (table == null) {
+      table = input.getTable();
+      if (table == null) {
+        input = input instanceof RelSubset ?
+                ((RelSubset) input).getRelList().get(0) :
+                input.getInput(0);
+      }
+    }
+    return table.getQualifiedName();
   }
 
   private List<RexNode> getProjects(RexBuilder rexBuilder, RelDataType rowType) {

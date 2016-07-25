@@ -13,7 +13,7 @@ import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.DynamoTableCreator;
 import io.fineo.lambda.dynamo.DynamoTableTimeManager;
 import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
-import io.fineo.lambda.dynamo.avro.Schema;
+import io.fineo.lambda.dynamo.Schema;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
@@ -37,6 +37,7 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.ResultSet;
@@ -74,7 +75,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   @Rule
   public TestOutput folder = new TestOutput(false);
 
-  protected final String org = "orgid1", metrictype = "n_metricid1", fieldname = "field1";
+  protected final String org = "orgid1", metrictype = "metricid1", fieldname = "field1";
   private static final String DYNAMO_TABLE_PREFIX = "test-dynamo-client-";
   private static final Joiner AND = Joiner.on(" AND ");
 
@@ -188,7 +189,17 @@ public class BaseFineoTest extends BaseDynamoTableTest {
 
       long ts = wrote.getLong(Schema.SORT_KEY_NAME);
       String name = creator.getTableAndEnsureExists(ts);
-      return dynamo.getTable(name);
+      Table table = dynamo.getTable(name);
+      table.putItem(wrote);
+      return table;
+    }
+
+    public Metric getMetric() {
+      return metric;
+    }
+
+    public SchemaStore getStore() {
+      return store;
     }
   }
 
@@ -315,6 +326,12 @@ public class BaseFineoTest extends BaseDynamoTableTest {
               if (expected instanceof byte[]) {
                 assertArrayEquals("Mismatch for column: " + key + "\n" + toStringRow(result),
                   (byte[]) expected, (byte[]) actual);
+              } else if(expected instanceof BigDecimal){
+                // cast the expected down to the
+                assertEquals("Mismatch for column: " + key +
+                             ".\nExpected:" + values +
+                             "\nActual:" + toStringRow(result),
+                  expected, actual);
               } else {
                 assertEquals("Mismatch for column: " + key +
                              ".\nExpected:" + values +
@@ -337,7 +354,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     assertNull("Radio wasn't null!", result.getObject(FineoCommon.MAP_FIELD));
   }
 
-  private String toStringRow(ResultSet result) throws SQLException {
+  protected String toStringRow(ResultSet result) throws SQLException {
     StringBuffer sb = new StringBuffer("row=[");
     ResultSetMetaData meta = result.getMetaData();
     for (int i = 1; i <= meta.getColumnCount(); i++) {

@@ -13,7 +13,8 @@ import static org.apache.calcite.util.ImmutableNullableList.of;
  */
 public class DynamoFineoCompoundKeySpec extends DynamoKeyMapperSpec {
   public DynamoFineoCompoundKeySpec() {
-    super(of(AvroSchemaEncoder.ORG_ID_KEY, AvroSchemaEncoder.ORG_METRIC_TYPE_KEY), of("S", "S"),
+    super(of(AvroSchemaEncoder.ORG_ID_KEY, AvroSchemaEncoder.ORG_METRIC_TYPE_KEY,
+      AvroSchemaEncoder.TIMESTAMP_KEY), of("S", "S", "N"),
       args());
   }
 
