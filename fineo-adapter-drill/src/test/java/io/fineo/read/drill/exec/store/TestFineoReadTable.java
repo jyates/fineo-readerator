@@ -1,7 +1,7 @@
-package io.fineo.read.drill;
+package io.fineo.read.drill.exec.store;
 
 import io.fineo.internal.customer.Metric;
-import io.fineo.read.drill.exec.store.FineoCommon;
+import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
 import io.fineo.schema.avro.AvroSchemaManager;
@@ -63,8 +63,8 @@ public class TestFineoReadTable extends BaseFineoTest {
   public void testStoringNonUserVisibleFieldName() throws Exception {
     TestState state = register();
     // create a new alias name for the field
-    Metric metric = state.metric;
-    SchemaStore store = state.store;
+    Metric metric = state.getMetric();
+    SchemaStore store = state.getStore();
     SchemaBuilder builder = SchemaBuilder.create();
     SchemaBuilder.OrganizationBuilder ob = builder.updateOrg(store.getOrgMetadata(org));
     Map<String, String> aliasToCname = AvroSchemaManager.getAliasRemap(metric);
@@ -101,8 +101,8 @@ public class TestFineoReadTable extends BaseFineoTest {
   public void testKnownAliasKnownField() throws Exception {
     TestState state = register();
     // create a new alias name for the field
-    Metric metric = state.metric;
-    SchemaStore store = state.store;
+    Metric metric = state.getMetric();
+    SchemaStore store = state.getStore();
     SchemaBuilder builder = SchemaBuilder.create();
     SchemaBuilder.OrganizationBuilder ob = builder.updateOrg(store.getOrgMetadata(org));
     Map<String, String> aliasToCname = AvroSchemaManager.getAliasRemap(metric);

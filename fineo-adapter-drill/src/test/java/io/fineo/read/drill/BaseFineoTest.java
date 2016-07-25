@@ -164,7 +164,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       this.store = store;
     }
 
-    FsSourceTable write(File dir, long ts, Map<String, Object>... values)
+    public FsSourceTable write(File dir, long ts, Map<String, Object>... values)
       throws IOException {
       return write(dir, org, metrictype, ts, values);
     }

@@ -1,4 +1,4 @@
-package io.fineo.read.drill;
+package io.fineo.read.drill.exec.store;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.collect.ImmutableList;
+import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.SchemaStore;
@@ -45,7 +46,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * Ensure that we push the timerange down into the scan when applicable
  */
-public class TestFineoPushTimerange extends BaseFineoTest {
+public class TestPushTimerangePastFMR extends BaseFineoTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -83,11 +84,11 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     File tmp = folder.newFolder("drill");
     Map<String, Object> values2 = newHashMap(values);
     long start = get1980();
-    Pair<FsSourceTable, File> j1 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+    Pair<FsSourceTable, File> j1 = writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
       start, newArrayList(values));
-    Pair<FsSourceTable, File> j2 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+    Pair<FsSourceTable, File> j2 = writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
       start + (ONE_DAY_MILLIS * 2), newArrayList(values));
-    Pair<FsSourceTable, File> j3 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+    Pair<FsSourceTable, File> j3 = writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
       start + (ONE_DAY_MILLIS * 3), newArrayList(values2));
 
     // ensure that the fineo-test plugin is enabled
@@ -110,7 +111,7 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
     Map<String, Object> scan = graph.get(0);
 
-    File selectionRoot = getSelectionRoot(state.store, j1.getKey());
+    File selectionRoot = getSelectionRoot(state.getStore(), j1.getKey());
     validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class,
       prefixFilesWithFILE(j2.getValue(), j3.getValue()), selectionRoot, of("`*`"));
   }
@@ -130,7 +131,7 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     values.put(fieldname, false);
     File tmp = folder.newFolder("drill");
     long start = get1980();
-    Pair<FsSourceTable, File> j1 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+    Pair<FsSourceTable, File> j1 = writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
       start, newArrayList(values));
 
     // ensure that the fineo-test plugin is enabled
@@ -150,7 +151,7 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
     Map<String, Object> scan = graph.get(0);
 
-    File selectionRoot = getSelectionRoot(state.store, j1.getKey());
+    File selectionRoot = getSelectionRoot(state.getStore(), j1.getKey());
     List<String> files = prefixFilesWithFILE(j1.getValue());
     validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class, files, selectionRoot, of("`*`"));
   }
@@ -197,8 +198,9 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     // partitions
     long start = get1980();
     Pair<FsSourceTable, File> json =
-      writeJsonAndGetOutputFile(state.store, tmp, org, metrictype, start, of(values));
-    Pair<FsSourceTable, File> json2 = writeJsonAndGetOutputFile(state.store, tmp, org, metrictype,
+      writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype, start, of(values));
+    Pair<FsSourceTable, File> json2 = writeJsonAndGetOutputFile(state.getStore(), tmp, org,
+      metrictype,
       start + (ONE_DAY_MILLIS * 2), of(values));
 
     // write parquet that is different
@@ -224,13 +226,13 @@ public class TestFineoPushTimerange extends BaseFineoTest {
     List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
 
     Map<String, Object> parquetScan = getGraphStep(graph, "parquet-scan");
-    File selectionRoot = getSelectionRoot(state.store, parquet.getKey());
+    File selectionRoot = getSelectionRoot(state.getStore(), parquet.getKey());
     List<String> files =
       of(parquet2.getValue()).stream().map(File::toString).collect(Collectors.toList());
     validatePlan(parquetScan, ParquetFormatConfig.class, files, selectionRoot, of("`*`"));
 
     Map<String, Object> jsonScan = getGraphStep(graph, "fs-scan");
-    selectionRoot = getSelectionRoot(state.store, json.getKey());
+    selectionRoot = getSelectionRoot(state.getStore(), json.getKey());
     files = prefixFilesWithFILE(json2.getValue());
     validatePlan(jsonScan, JSONFormatPlugin.JSONFormatConfig.class, files, selectionRoot,
       of("`*`"));

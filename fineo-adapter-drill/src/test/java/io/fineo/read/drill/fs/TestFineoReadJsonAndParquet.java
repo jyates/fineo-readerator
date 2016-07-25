@@ -1,6 +1,7 @@
-package io.fineo.read.drill;
+package io.fineo.read.drill.fs;
 
 
+import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.junit.Test;
 
