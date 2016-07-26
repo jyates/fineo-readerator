@@ -5,7 +5,6 @@ import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
-import com.amazonaws.services.dynamodbv2.xspec.M;
 import com.fasterxml.jackson.jr.ob.JSON;
 import com.google.common.base.Joiner;
 import com.google.common.io.Files;
@@ -62,7 +61,6 @@ import static java.lang.String.format;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -82,9 +80,14 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   private static final Joiner AND = Joiner.on(" AND ");
 
   protected Verify<ResultSet> withNext(Map<String, Object>... rows) {
+    return withNext(true, rows);
+  }
+
+  protected Verify<ResultSet> withNext(boolean addRadio, Map<String, Object>... rows) {
     return result -> {
+      int i = 0;
       for (Map<String, Object> row : rows) {
-        assertNext(result, row);
+        assertNext(i++, addRadio, result, row);
       }
       assertNoMore(result);
     };
@@ -306,11 +309,12 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     row.put(TIMESTAMP_KEY, ts);
   }
 
-  protected void assertNext(ResultSet result, Map<String, Object> values) throws SQLException {
-    assertNext(0, result, values);
+  protected void assertNext(boolean addRadio, ResultSet result, Map<String, Object> values) throws
+    SQLException {
+    assertNext(0, addRadio, result, values);
   }
 
-  protected void assertNext(int j, ResultSet result, Map<String, Object> values)
+  protected void assertNext(int j, boolean addRadio, ResultSet result, Map<String, Object> values)
     throws SQLException {
     assertTrue("Could not get next result for values: " + values, result.next());
     if (j >= 0) {
@@ -334,6 +338,9 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     List<String> expectedKeys = newArrayList(values.keySet());
     expectedKeys.remove(ORG_ID_KEY);
     expectedKeys.remove(ORG_METRIC_TYPE_KEY);
+    if (addRadio && !expectedKeys.contains(FineoCommon.MAP_FIELD)) {
+      expectedKeys.add(FineoCommon.MAP_FIELD);
+    }
     List<String> actualKeys = getColumns(result.getMetaData());
     Collections.sort(expectedKeys);
     Collections.sort(actualKeys);

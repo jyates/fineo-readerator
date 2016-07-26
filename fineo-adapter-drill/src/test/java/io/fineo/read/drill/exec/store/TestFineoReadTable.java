@@ -54,9 +54,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     // ensure that the fineo-test plugin is enabled
     bootstrap(out);
 
-    verifySelectStar(result -> {
-      assertNext(result, values);
-    });
+    verifySelectStar(withNext(values));
   }
 
   @Test
@@ -87,9 +85,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     Boolean value = (Boolean) values.remove(storeFieldName);
     values.put(fieldname, value);
 
-    verifySelectStar(result -> {
-      assertNext(result, values);
-    });
+    verifySelectStar(withNext(values));
   }
 
   /**
@@ -247,7 +243,7 @@ public class TestFineoReadTable extends BaseFineoTest {
       f("6string", Schema.Type.STRING));
 
 //    verify("SELECT *, CAST(f4 as FLOAT) FROM fineo."+org+"."+metrictype, result ->{});
-    verifySelectStar(result -> assertNext(result, values));
+    verifySelectStar(withNext(values));
   }
 
   @Test
@@ -443,12 +439,6 @@ public class TestFineoReadTable extends BaseFineoTest {
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(files.toArray(new FsSourceTable[0]));
-
-    verifySelectStar(result -> {
-      int j = 0;
-      for (Map<String, Object> content : fileContents) {
-        assertNext(j++, result, content);
-      }
-    });
+    verifySelectStar(withNext(fileContents));
   }
 }

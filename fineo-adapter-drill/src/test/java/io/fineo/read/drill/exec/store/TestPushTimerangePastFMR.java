@@ -94,11 +94,8 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
     // ensure that the fineo-test plugin is enabled
     bootstrap(j1.getKey(), j2.getKey(), j3.getKey());
 
-    String query = verifySelectStar(ImmutableList.of("`timestamp` > " + start),
-      result -> {
-        assertNext(result, values);
-        assertNext(result, values2);
-      });
+    String query =
+      verifySelectStar(ImmutableList.of("`timestamp` > " + start), withNext(values, values2));
 
     // make sure that the base scan only uses 2 of the three possible files from the correct
     // partitions.

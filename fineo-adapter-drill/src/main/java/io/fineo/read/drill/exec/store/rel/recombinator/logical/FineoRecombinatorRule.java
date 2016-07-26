@@ -78,7 +78,7 @@ public class FineoRecombinatorRule extends RelOptRule {
       filter = convert(filter, tableNode.getTraitSet().plus(DRILL_LOGICAL));
       FineoRecombinatorRel rel =
         new FineoRecombinatorRel(cluster, tableNode.getTraitSet().plus(DRILL_LOGICAL), filter,
-          fmr.getMetric());
+          fmr.getMetric(), rowType);
       // that is then wrapped in "fixed row type projection" so the union and downstream
       // projections apply nicely. This is especially important as the StarColumnConverter only
       // pushes down per-table projections when a parent * exists. Thus, the above rel, with the

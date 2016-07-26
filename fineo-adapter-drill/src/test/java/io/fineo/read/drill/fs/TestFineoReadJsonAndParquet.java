@@ -29,9 +29,7 @@ public class TestFineoReadJsonAndParquet extends BaseFineoTest {
     // ensure that the fineo-test plugin is enabled
     bootstrap(parquet);
 
-    verifySelectStar(result -> {
-      assertNext(result, values);
-    });
+    verifySelectStar(withNext(values));
   }
 
   @Test
