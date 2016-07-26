@@ -131,6 +131,13 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
           if (radio != null) {
             container.remove(radio);
           }
+          // rebuild the schema, but this time we will add back in the unknown fields into a new
+          // map vector. This ensures that we create a new schema with new MaterializedFields and
+          // don't muddy the upstream operator with changing fields in a schema. If we didn't do
+          // this, we would have a schema change (marked from the deep schema callback) but the
+          // schema we passed up would already have been changed b/c the Map's MF would have
+          // added the child and thus we would get a case where schema.equals(newSchema), but
+          // there was a schema change. Specifically, see ExternalSortBatch#innerNext
           return createSchema(true, false);
         }
       } else {
