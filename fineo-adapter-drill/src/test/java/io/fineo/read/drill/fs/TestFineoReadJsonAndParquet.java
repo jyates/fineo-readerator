@@ -2,6 +2,7 @@ package io.fineo.read.drill.fs;
 
 
 import io.fineo.read.drill.BaseFineoTest;
+import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.junit.Test;
 
@@ -48,9 +49,28 @@ public class TestFineoReadJsonAndParquet extends BaseFineoTest {
     // ensure that the fineo-test plugin is enabled
     bootstrap(json, parquet);
 
-    verifySelectStar(result -> {
-      assertNext(result, values);
-      assertNext(result, values2);
-    });
+    verifySelectStar(withNext(values, values2));
+  }
+
+  @Test
+  public void testUnionKnownAndUnknownFields() throws Exception {
+    TestState state = register();
+
+    File tmp = folder.newFolder("drill");
+    Map<String, Object> values = new HashMap<>();
+    values.put("uk", 1);
+    FsSourceTable json = state.write(tmp, org, metrictype, 1, values);
+    Map<String, Object> values2 = new HashMap<>();
+    values2.put(fieldname, true);
+    FsSourceTable parquet = writeParquet(state, tmp, org, metrictype, 2, values2).getKey();
+
+    // ensure that the fineo-test plugin is enabled
+    bootstrap(json, parquet);
+
+    Map<String, Object> result = newHashMap(values2);
+    Map<String, Object> radio = new HashMap<>();
+    radio.put("uk", 1);
+    result.put(FineoCommon.MAP_FIELD, radio);
+    verifySelectStar(withNext(result));
   }
 }

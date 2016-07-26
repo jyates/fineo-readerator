@@ -65,23 +65,17 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
    * Generally, the schema is fixed after the first call. However, when the upstream schema changes
    * we have to map a new incoming field to one of the outgoing fields.
    *
-   * @return <tt>true</tt> if the schema we return has changed, which only should ever happen on
-   * the first call to this method
+   * @return <tt>true</tt> if the schema we return has changed
    */
   @Override
   protected boolean setupNewSchema() throws SchemaChangeException {
-    boolean hadSchema = this.builtSchema;
-    if (!builtSchema) {
-      // buildSchema() is only used the first time in AbstractBatchRecord and only when creating
-      createSchema();
-      this.builtSchema = true;
-    }
-
-    return hadSchema ^ builtSchema;
+    return createSchema(this.builtSchema);
   }
 
-  protected void createSchema() throws SchemaChangeException {
-    container.clear();
+  protected boolean createSchema(boolean hadSchema) throws SchemaChangeException {
+    if (!hadSchema) {
+      container.clear();
+    }
     // figure out what the table prefix is from the sub-table
     BatchSchema inschema = incoming.getSchema();
     String prefix = null;
@@ -107,6 +101,10 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     // there it builds the actual mapping in the execution, so we don't need to keep the same order
     this.prefix = prefix;
 
+    // always create the radio field - necessary to avoid casting conflicts when using multiple
+    // sources, only some of which have a unknown fields see
+    // UnionAllRecordBatch$UnionAllInput#inferoutputFields
+    vectors.ensureRadio();
     for (MaterializedField field : inschema) {
       String name = field.getName();
       boolean dynamic = name.startsWith(prefix);
@@ -130,9 +128,12 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       }
     }
 
+    this.builtSchema = true;
     if (mutator.isNewSchema()) {
       container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
+      return true;
     }
+    return false;
   }
 
   @Override

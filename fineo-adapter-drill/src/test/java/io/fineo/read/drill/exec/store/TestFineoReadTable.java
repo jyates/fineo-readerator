@@ -386,7 +386,6 @@ public class TestFineoReadTable extends BaseFineoTest {
     verifySelectStar(of("`timestamp` > " + longAgo.toEpochMilli()), withNext(contents));
   }
 
-
   private Map<String, Object> bootstrapFileWithFields(FieldInstance<?>... fields)
     throws IOException, OldSchemaException {
     return bootstrapFileWithFields(1, fields);

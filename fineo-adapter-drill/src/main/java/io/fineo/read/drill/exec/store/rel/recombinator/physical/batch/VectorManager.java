@@ -49,14 +49,17 @@ public class VectorManager {
     }
   }
 
+  public void ensureRadio() throws SchemaChangeException {
+    if (radio != null) {
+      return;
+    }
+    radio = new VectorHolder<>();
+    MaterializedField fm = MaterializedField.create(FineoCommon.MAP_FIELD, MapVector.TYPE);
+    radio.vector = mutator.addField(fm, MapVector.class);
+  }
+
   public void addUnknownField(MaterializedField field, String outputName)
     throws SchemaChangeException {
-    if (radio == null) {
-      radio = new VectorHolder<>();
-      MaterializedField fm = MaterializedField.create(FineoCommon.MAP_FIELD, MapVector.TYPE);
-      radio.vector = mutator.addField(fm, MapVector.class);
-    }
-
     VectorHolder holder = new VectorHolder();
     Class<? extends ValueVector> clazz = getVectorClass(field);
     holder.vector = radio.vector.addOrGet(outputName, field.getType(), clazz);

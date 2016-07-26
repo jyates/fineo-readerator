@@ -5,6 +5,7 @@ import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
+import com.amazonaws.services.dynamodbv2.xspec.M;
 import com.fasterxml.jackson.jr.ob.JSON;
 import com.google.common.base.Joiner;
 import com.google.common.io.Files;
@@ -25,6 +26,7 @@ import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.test.rule.TestOutput;
+import oadd.org.apache.drill.exec.util.Text;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.ClassRule;
@@ -118,6 +120,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   protected void verify(String stmt, Verify<ResultSet> verify) throws Exception {
     LOG.info("Attempting query: " + stmt);
     Connection conn = drill.getConnection();
+    conn.createStatement().execute("ALTER SESSION SET `exec.enable_union_type` = true");
     verify.verify(conn.createStatement().executeQuery(stmt));
   }
 
@@ -323,22 +326,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
             try {
               Object expected = values.get(key);
               Object actual = result.getObject(key);
-              if (expected instanceof byte[]) {
-                assertArrayEquals("Mismatch for column: " + key + "\n" + toStringRow(result),
-                  (byte[]) expected, (byte[]) actual);
-              } else if(expected instanceof BigDecimal){
-                // cast the expected down to the
-                assertEquals("Mismatch for column: " + key +
-                             ".\nExpected:" + values +
-                             "\nActual:" + toStringRow(result),
-                  expected, actual);
-              } else {
-                assertEquals("Mismatch for column: " + key +
-                             ".\nExpected:" + values +
-                             "\nActual:" + toStringRow(result),
-                  expected, actual);
-              }
-
+              assertSqlValuesEquals(key, result, expected, actual);
             } catch (SQLException e) {
               assertFalse("Got exception: " + e, true);
             }
@@ -346,12 +334,42 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     List<String> expectedKeys = newArrayList(values.keySet());
     expectedKeys.remove(ORG_ID_KEY);
     expectedKeys.remove(ORG_METRIC_TYPE_KEY);
-    expectedKeys.add(FineoCommon.MAP_FIELD);
     List<String> actualKeys = getColumns(result.getMetaData());
     Collections.sort(expectedKeys);
     Collections.sort(actualKeys);
     assertEquals("Wrong number of incoming columns!", expectedKeys, actualKeys);
-    assertNull("Radio wasn't null!", result.getObject(FineoCommon.MAP_FIELD));
+  }
+
+  private void assertSqlValuesEquals(String key, ResultSet result, Object expected, Object actual)
+    throws SQLException {
+    if (expected instanceof byte[]) {
+      assertArrayEquals("Mismatch for column: " + key + "\n" + toStringRow(result),
+        (byte[]) expected, (byte[]) actual);
+      return;
+    } else if (expected instanceof BigDecimal) {
+      // cast the expected down to the
+      assertEquals("Mismatch for column: " + key + "\nActual:" + toStringRow(result),
+        expected, actual);
+      return;
+    } else if (expected instanceof Map) {
+      assertTrue(actual instanceof Map);
+      Map expectedMap = (Map) expected;
+      Map actualMap = (Map) actual;
+      for (Object entry : expectedMap.entrySet()) {
+        Object mapKey = ((Map.Entry) entry).getKey();
+        assertSqlValuesEquals(key + "." + mapKey, result, ((Map.Entry) entry).getValue(), actualMap
+          .get(mapKey));
+      }
+      return;
+    } else if (expected instanceof String) {
+      if (actual instanceof Text) {
+        assertSqlValuesEquals(key, result, expected, actual.toString());
+        return;
+      }
+      // fall through
+    }
+    assertEquals("Mismatch for column: " + key + "\nActual:" + toStringRow(result),
+      expected, actual);
   }
 
   protected String toStringRow(ResultSet result) throws SQLException {
@@ -385,7 +403,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     return LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
   }
 
-  protected static String bt(String columnName){
+  protected static String bt(String columnName) {
     return format("`%s`", columnName);
   }
 }

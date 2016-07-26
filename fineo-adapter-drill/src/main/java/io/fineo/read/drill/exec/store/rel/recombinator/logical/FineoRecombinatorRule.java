@@ -82,11 +82,12 @@ public class FineoRecombinatorRule extends RelOptRule {
       // that is then wrapped in "fixed row type projection" so the union and downstream
       // projections apply nicely. This is especially important as the StarColumnConverter only
       // pushes down per-table projections when a parent * exists. Thus, the above rel, with the
-      // dynamic field, must exist before the get to the actual schema.
-      FixedSchemaProjection fsp =
-        new FixedSchemaProjection(cluster, rel.getTraitSet().plus(DRILL_LOGICAL),
-          rel, getProjects(cluster.getRexBuilder(), rowType), rowType);
-      builder.push(fsp);
+      // dynamic field, must exist before we project to the actual schema.
+//      FixedSchemaProjection fsp =
+//        new FixedSchemaProjection(cluster, rel.getTraitSet().plus(DRILL_LOGICAL),
+//          rel, getProjects(cluster.getRexBuilder(), rowType), rowType);
+//      builder.push(fsp);
+      builder.push(rel);
       scanCount++;
     }
 
@@ -96,7 +97,7 @@ public class FineoRecombinatorRule extends RelOptRule {
     }
 
     // result needs to be sorted on the timestamp
-    addSort(builder, cluster);
+//    addSort(builder, cluster);
     call.transformTo(builder.build());
   }
 
