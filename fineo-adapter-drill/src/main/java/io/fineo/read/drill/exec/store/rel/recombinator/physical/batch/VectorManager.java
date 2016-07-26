@@ -121,8 +121,12 @@ public class VectorManager {
   }
 
   private ValueVector getVector(MaterializedField field) throws SchemaChangeException {
-    Class<? extends ValueVector> clazz = getVectorClass(field);
-    return mutator.addField(field, clazz);
+    ValueVector out = fieldVectorMap.get(field.getName());
+    if (out == null) {
+      Class<? extends ValueVector> clazz = getVectorClass(field);
+      out = mutator.addField(field, clazz);
+    }
+    return out;
   }
 
   private Class<? extends ValueVector> getVectorClass(MaterializedField field) {

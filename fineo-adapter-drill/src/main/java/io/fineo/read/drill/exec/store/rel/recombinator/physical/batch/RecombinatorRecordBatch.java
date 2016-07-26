@@ -49,11 +49,10 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     super(popConfig, context, incoming);
     // figure out how we should map the fields
     Metric metric = popConfig.getMetricObj();
-    StoreClerk.Metric clerk = new StoreClerk.Metric(null, metric, null);
+    StoreClerk.Metric clerkMetric = new StoreClerk.Metric(null, metric, null);
     String partitionDesignator =
       context.getOptions().getOption(ExecConstants.FILESYSTEM_PARTITION_COLUMN_LABEL).string_val;
-    this.aliasMap = new AliasFieldNameManager(clerk, partitionDesignator);
-
+    this.aliasMap = new AliasFieldNameManager(clerkMetric, partitionDesignator);
     // handle doing the vector allocation
     this.vectors = new VectorManager(aliasMap, oContext, callBack, container);
     // mutator wrapper around the container for managing vectors
@@ -111,6 +110,9 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     // sources, only some of which have a unknown fields see
     // UnionAllRecordBatch$UnionAllInput#inferOutputFields
     vectors.ensureRadio();
+
+    // handle creating the other fields from the incoming schema; things like the alias and
+    // unknown fields
     for (MaterializedField field : inschema) {
       String name = field.getName();
       boolean dynamic = name.startsWith(prefix);
@@ -146,6 +148,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
           LOG.debug("Skipping: '{}' because not dynamic field, but no alias mapping found", name);
           continue;
         }
+        // handles alias mapping and required fields
         vectors.addKnownField(field, outputName);
       }
     }

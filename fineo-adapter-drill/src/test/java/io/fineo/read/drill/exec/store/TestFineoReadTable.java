@@ -382,6 +382,24 @@ public class TestFineoReadTable extends BaseFineoTest {
     verifySelectStar(of("`timestamp` > " + longAgo.toEpochMilli()), withNext(contents));
   }
 
+  /**
+   * We don't read the field from the underlying object, but we should still create the field
+   * in the output content as <tt>null</tt>. Drill handles this for us because we have specified
+   * the schema we expect from this layer, so if its not here, Drill injects the null vector
+   * (rather than having to specify all the fields up front, in #createSchema)
+   */
+  @Test
+  public void testReadFieldNotSpecified() throws Exception {
+    TestState state = register();
+    Map<String, Object> contents = new HashMap<>();
+    File tmp = folder.newFolder("drill");
+    Instant now = Instant.now();
+    bootstrap(state.write(tmp, now.toEpochMilli(), contents));
+
+    contents.put(fieldname, null);
+    verifySelectStar(withNext(contents));
+  }
+
   private Map<String, Object> bootstrapFileWithFields(FieldInstance<?>... fields)
     throws IOException, OldSchemaException {
     return bootstrapFileWithFields(1, fields);
