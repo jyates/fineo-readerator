@@ -3,8 +3,10 @@ package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.expr.BasicTypeHelper;
-import org.apache.drill.exec.physical.impl.OutputMutator;
+import org.apache.drill.exec.ops.OperatorContext;
 import org.apache.drill.exec.record.MaterializedField;
+import org.apache.drill.exec.record.VectorContainer;
+import org.apache.drill.exec.vector.SchemaChangeCallBack;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.MapVector;
 
@@ -13,20 +15,21 @@ import java.util.Map;
 
 public class VectorManager {
 
-  private final OutputMutator mutator;
+  private final Mutator mutator;
+  private Map<String, ValueVector> fieldVectorMap = new HashMap<>();
   private Map<String, VectorHolder> required = new HashMap<>();
   private Map<String, String> knownInputToOutput = new HashMap<>();
   private Map<String, VectorHolder> knownOutputToVector = new HashMap<>();
 
-
   private VectorHolder<MapVector> radio;
   private Map<String, VectorHolder> unknown = new HashMap<>();
 
-  public VectorManager(OutputMutator mutator) {
+  public VectorManager(AliasFieldNameManager aliasMap, OperatorContext oContext,
+    SchemaChangeCallBack callBack, VectorContainer container) {
     for (String field : FineoCommon.REQUIRED_FIELDS) {
       required.put(field, new VectorHolder());
     }
-    this.mutator = mutator;
+    this.mutator = new Mutator(aliasMap, oContext, callBack, container, fieldVectorMap);
   }
 
   public void addKnownField(MaterializedField field, String outputName)
@@ -58,12 +61,33 @@ public class VectorManager {
     radio.vector = mutator.addField(fm, MapVector.class);
   }
 
-  public void addUnknownField(MaterializedField field, String outputName)
+  public MapVector clearRadio() {
+    if (this.radio == null || this.radio.vector == null) {
+      return null;
+    }
+    // remove references to the vector and the holder
+    this.radio.vector.clear();
+    ValueVector map = this.fieldVectorMap.remove(FineoCommon.MAP_FIELD);
+    this.radio = null;
+    return (MapVector) map;
+  }
+
+  /**
+   * Add an unknown field vector
+   *
+   * @param field      description of the field to add
+   * @param outputName the name out of the vector in the output container
+   * @return <tt>true</tt> if this was a new vector, <tt>false</tt> otherwise
+   * @throws SchemaChangeException
+   */
+  public boolean addUnknownField(MaterializedField field, String outputName)
     throws SchemaChangeException {
     VectorHolder holder = new VectorHolder();
     Class<? extends ValueVector> clazz = getVectorClass(field);
+    ValueVector prev = radio.vector.getChild(outputName);
     holder.vector = radio.vector.addOrGet(outputName, field.getType(), clazz);
     unknown.put(field.getName(), holder);
+    return prev == null || prev != holder.vector;
   }
 
   public ValueVector getRequiredVector(String name) {
@@ -86,6 +110,10 @@ public class VectorManager {
       vv = holder.vector;
     }
     return vv;
+  }
+
+  public Mutator getMutator() {
+    return mutator;
   }
 
   private class VectorHolder<T extends ValueVector> {

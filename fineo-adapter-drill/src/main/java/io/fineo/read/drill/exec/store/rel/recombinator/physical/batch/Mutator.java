@@ -16,11 +16,8 @@ import org.apache.drill.exec.vector.ValueVector;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 class Mutator implements OutputMutator {
-  private Map<String, ValueVector> fieldVectorMap = new HashMap<>();
+  private final Map<String, ValueVector> fieldVectorMap;
   private final AliasFieldNameManager aliasMap;
   private final OperatorContext oContext;
   private final SchemaChangeCallBack callBack;
@@ -32,11 +29,12 @@ class Mutator implements OutputMutator {
   private boolean schemaChanged = true;
 
   Mutator(AliasFieldNameManager aliasMap, OperatorContext oContext, SchemaChangeCallBack callBack,
-    VectorContainer container) {
+    VectorContainer container, Map<String, ValueVector> fieldVectorMap) {
     this.aliasMap = aliasMap;
     this.oContext = oContext;
     this.callBack = callBack;
     this.container = container;
+    this.fieldVectorMap = fieldVectorMap;
   }
 
   @SuppressWarnings("unchecked")

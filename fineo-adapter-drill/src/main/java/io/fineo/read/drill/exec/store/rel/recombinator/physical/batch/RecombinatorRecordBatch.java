@@ -16,6 +16,7 @@ import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.ValueVector;
+import org.apache.drill.exec.vector.complex.MapVector;
 import org.apache.drill.exec.vector.complex.impl.VectorContainerWriter;
 import org.apache.drill.exec.vector.complex.reader.FieldReader;
 import org.apache.drill.exec.vector.complex.writer.BaseWriter;
@@ -54,11 +55,11 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     this.aliasMap = new AliasFieldNameManager(clerk, partitionDesignator);
 
     // handle doing the vector allocation
-    this.mutator = new Mutator(aliasMap, oContext, callBack, container);
+    this.vectors = new VectorManager(aliasMap, oContext, callBack, container);
+    // mutator wrapper around the container for managing vectors
+    this.mutator = vectors.getMutator();
     // do the writing for fields that we need to copy piecemeal
     this.writer = new VectorContainerWriter(mutator, false);
-    // manage which vector we should use for each field
-    this.vectors = new VectorManager(mutator);
   }
 
   /**
@@ -73,6 +74,11 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
   }
 
   protected boolean createSchema(boolean hadSchema) throws SchemaChangeException {
+    return createSchema(hadSchema, true);
+  }
+
+  protected boolean createSchema(boolean hadSchema, boolean optionallyRefreshRadioVector) throws
+    SchemaChangeException {
     if (!hadSchema) {
       container.clear();
     }
@@ -103,7 +109,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
     // always create the radio field - necessary to avoid casting conflicts when using multiple
     // sources, only some of which have a unknown fields see
-    // UnionAllRecordBatch$UnionAllInput#inferoutputFields
+    // UnionAllRecordBatch$UnionAllInput#inferOutputFields
     vectors.ensureRadio();
     for (MaterializedField field : inschema) {
       String name = field.getName();
@@ -117,7 +123,16 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
       // its an unknown field - we aren't skipping it and its a dynamic field
       if (dynamic) {
-        vectors.addUnknownField(field, outputName);
+        boolean isNewVector = vectors.addUnknownField(field, outputName);
+        // this is an 'update' to the schema
+        if (hadSchema && isNewVector && optionallyRefreshRadioVector) {
+          // "replace" the map so we get a new schema generated for the map
+          MapVector radio = vectors.clearRadio();
+          if (radio != null) {
+            container.remove(radio);
+          }
+          return createSchema(true, false);
+        }
       } else {
         outputName = aliasMap.getOutputName(outputName);
         if (outputName == null) {
