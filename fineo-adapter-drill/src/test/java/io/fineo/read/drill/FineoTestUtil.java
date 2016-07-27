@@ -3,6 +3,8 @@ package io.fineo.read.drill;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.fasterxml.jackson.jr.ob.JSON;
+import com.google.common.base.Joiner;
+import com.google.common.io.Files;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
@@ -19,6 +21,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.sql.Connection;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -46,7 +49,8 @@ public class FineoTestUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(FineoTestUtil.class);
 
-  private FineoTestUtil(){}
+  private FineoTestUtil() {
+  }
 
   protected static void setValues(Map<String, Object> row, String org, StoreClerk.Metric metric,
     long ts) {
@@ -62,8 +66,8 @@ public class FineoTestUtil {
     if (j >= 0) {
       String row = toStringRow(result);
       LOG.info("Checking row " + j + "." +
-                             "\n\tExpected Content =>" + values +
-                             "\n\tActual row content: " + row);
+               "\n\tExpected Content =>" + values +
+               "\n\tActual row content: " + row);
     }
     values.keySet().stream()
           .filter(Predicate.isEqual(ORG_ID_KEY).negate())
@@ -215,6 +219,63 @@ public class FineoTestUtil {
   }
 
   protected static void assertNoMore(ResultSet result) throws SQLException {
-    assertFalse("Expected no more rows, but got at least one more row!", result.next());
+    boolean next = result.next();
+    List<String> rows = new ArrayList<>();
+    if (next) {
+      rows.add(toStringRow(result));
+      while (result.next()) {
+        rows.add(toStringRow(result));
+      }
+    }
+    assertFalse("Expected no more rows, but got " + rows.size() + " more rows!\n\t" +
+                Joiner.on("\n\t").join(rows), next);
+  }
+
+  public static <T, V> Pair<T, V> p(T t, V v) {
+    return new ImmutablePair<>(t, v);
+  }
+
+  protected static Pair<FsSourceTable, File> writeParquet(BaseFineoTest.TestState state,
+    Connection conn, File
+    dir, String
+    orgid,
+    String metricType, long ts, Map<String, Object>... rows) throws Exception {
+    // set the values in the row
+    StoreClerk clerk = new StoreClerk(state.store, orgid);
+    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
+    for (Map<String, Object> row : rows) {
+      setValues(row, orgid, metric, ts);
+    }
+
+    // write to a tmp json file
+    File tmp = new File(dir, "tmp-json");
+    if (!tmp.exists()) {
+      assertTrue("Couldn't make the tmp directory: " + tmp, tmp.mkdirs());
+    }
+    File out = new File(tmp, format("%s-tmp-to-parquet.json", UUID.randomUUID()));
+    writeJsonFile(out, rows);
+
+    // create a parquet table
+    String path = "dfs.`" + out + "`";
+    String table = "tmp_parquet";
+    String request = format("CREATE TABLE %s AS SELECT * from %s", table, path);
+    String alter = "alter session set `store.format`='parquet'";
+    String use = "use dfs.tmp";
+    conn.createStatement().execute(alter);
+    conn.createStatement().execute(use);
+    conn.createStatement().execute(request);
+
+    //copy the contents to the actual output file that we want to use for ingest
+    FsSourceTable source = new FsSourceTable("parquet", dir.getPath());
+    File outputDir = createOutputDir(source, metric, ts);
+    File from = new File("/tmp", table);
+    Files.move(from, outputDir);
+    for (File f : outputDir.listFiles()) {
+      if (!f.getName().endsWith(".crc")) {
+        return new ImmutablePair<>(source, f);
+      }
+    }
+    LOG.error("Could not find a valid parquet file in: " + outputDir);
+    return null;
   }
 }

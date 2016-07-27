@@ -131,6 +131,10 @@ public class BootstrapFineo {
       dynamoConfig.put("enabled", "true");
       dynamo.put("config", dynamoConfig);
     }
+
+    public void bootstrap() throws IOException {
+      BootstrapFineo.this.strap(this);
+    }
   }
 
   public boolean strap(DrillConfigBuilder config) throws IOException {

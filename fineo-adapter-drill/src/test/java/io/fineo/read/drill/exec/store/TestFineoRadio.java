@@ -2,11 +2,11 @@ package io.fineo.read.drill.exec.store;
 
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.BaseFineoTest;
+import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.avro.AvroSchemaManager;
 import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -187,7 +187,7 @@ public class TestFineoRadio extends BaseFineoTest {
     // build the expected values
     values.remove(uk);
     values.remove(uk2);
-    addRadio(values, p(uk, 1L), p(uk2, "hello field"));
+    addRadio(values, FineoTestUtil.p(uk, 1L), FineoTestUtil.p(uk2, "hello field"));
 
     Map<String, Object> values2 = new HashMap<>();
     values2.put(fieldname, false);
@@ -197,13 +197,9 @@ public class TestFineoRadio extends BaseFineoTest {
     bootstrap(f1, state.write(tmp, 2, values2));
 
     values2.remove(uk3);
-    addRadio(values2, p(uk3, true));
+    addRadio(values2, FineoTestUtil.p(uk3, true));
 
     verifySelectStar(withNext(values, values2));
-  }
-
-  private <T, V> Pair<T, V> p(T t, V v) {
-    return new ImmutablePair<>(t, v);
   }
 
   private void addRadio(Map<String, Object> map, Pair<String, Object>... values) {

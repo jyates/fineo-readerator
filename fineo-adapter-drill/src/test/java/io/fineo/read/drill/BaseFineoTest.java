@@ -4,7 +4,6 @@ import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.google.common.base.Joiner;
-import com.google.common.io.Files;
 import io.fineo.drill.rule.DrillClusterRule;
 import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.DynamoTableCreator;
@@ -14,13 +13,11 @@ import io.fineo.lambda.dynamo.Schema;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
-import io.fineo.schema.avro.SchemaTestUtils;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
-import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
+import io.fineo.schema.store.StoreManager;
 import io.fineo.test.rule.TestOutput;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -35,7 +32,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.String.format;
@@ -62,7 +58,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     void verify(T obj) throws SQLException;
   }
 
-  protected class QueryRunnable{
+  protected class QueryRunnable {
     List<String> wheres;
     Verify<ResultSet> verify;
     boolean withUnion = true;
@@ -78,13 +74,13 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     }
 
     public void prepare(Connection conn) throws SQLException {
-      if(withUnion){
+      if (withUnion) {
         conn.createStatement().execute("ALTER SESSION SET `exec.enable_union_type` = true");
       }
     }
 
     public String getStatement() {
-      if(statement == null){
+      if (statement == null) {
         String from = format(" FROM fineo.%s.%s", org, metrictype);
         String where = wheres == null ? "" : " WHERE " + AND.join(wheres);
         statement = "SELECT *" + from + where + " ORDER BY `timestamp` ASC";
@@ -113,7 +109,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     LOG.info("Attempting query: " + stmt);
     Connection conn = drill.getConnection();
     runnable.prepare(conn);
-    if(runnable.verify != null) {
+    if (runnable.verify != null) {
       runnable.verify.verify(conn.createStatement().executeQuery(stmt));
     }
   }
@@ -137,7 +133,8 @@ public class BaseFineoTest extends BaseDynamoTableTest {
                   .withCredentials(dynamo.getCredentials().getFakeProvider());
   }
 
-  protected TestState register() throws IOException, OldSchemaException {
+  protected TestState register(Pair<String, StoreManager.Type>... fields)
+    throws IOException, OldSchemaException {
     // setup the schema repository
     DynamoDBRepository repository =
       new DynamoDBRepository(ValidatorFactory.EMPTY, tables.getAsyncClient(),
@@ -145,10 +142,24 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     SchemaStore store = new SchemaStore(repository);
 
     // create a simple schema and store it
-    SchemaBuilder.Organization orgSchema =
-      SchemaTestUtils.addNewOrg(store, org, metrictype, fieldname);
-    Metric metric = (Metric) orgSchema.getSchemas().values().toArray()[0];
-    return new TestState(metric, store);
+    StoreManager manager = new StoreManager(store);
+    StoreManager.OrganizationBuilder builder = manager.newOrg(org);
+
+    StoreManager.MetricBuilder mb = builder.newMetric().setDisplayName(metrictype);
+    // default just creates a boolean field
+    if (fields == null || fields.length == 0) {
+      mb.newField().withName(fieldname).withType(StoreManager.Type.BOOLEAN).build();
+    } else {
+      for (Pair<String, StoreManager.Type> field : fields) {
+        mb.newField().withName(field.getKey()).withType(field.getValue()).build();
+      }
+    }
+
+    mb.build().commit();
+
+    StoreClerk clerk = new StoreClerk(store, org);
+    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
+    return new TestState(metric.getUnderlyingMetric(), store);
   }
 
   protected class TestState {
@@ -159,6 +170,11 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     public TestState(Metric metric, SchemaStore store) {
       this.metric = metric;
       this.store = store;
+    }
+
+    public FsSourceTable writeParquet(File dir, long ts, Map<String, Object>... values)
+      throws Exception {
+      return BaseFineoTest.this.writeParquet(this, dir, org, metrictype, ts, values).getKey();
     }
 
     public FsSourceTable write(File dir, long ts, Map<String, Object>... values)
@@ -202,43 +218,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
 
   protected Pair<FsSourceTable, File> writeParquet(TestState state, File dir, String orgid,
     String metricType, long ts, Map<String, Object>... rows) throws Exception {
-    // set the values in the row
-    StoreClerk clerk = new StoreClerk(state.store, org);
-    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metricType);
-    for (Map<String, Object> row : rows) {
-      FineoTestUtil.setValues(row, orgid, metric, ts);
-    }
-
-    // write to a tmp json file
-    File tmp = new File(dir, "tmp-json");
-    if (!tmp.exists()) {
-      assertTrue("Couldn't make the tmp directory: " + tmp, tmp.mkdirs());
-    }
-    File out = new File(tmp, format("%s-tmp-to-parquet.json", UUID.randomUUID()));
-    FineoTestUtil.writeJsonFile(out, rows);
-
-    // create a parquet table
-    String path = "dfs.`" + out + "`";
-    String table = "tmp_parquet";
-    String request = format("CREATE TABLE %s AS SELECT * from %s", table, path);
-    String alter = "alter session set `store.format`='parquet'";
-    String use = "use dfs.tmp";
-    Connection conn = drill.getConnection();
-    conn.createStatement().execute(alter);
-    conn.createStatement().execute(use);
-    conn.createStatement().execute(request);
-
-    //copy the contents to the actual output file that we want to use for ingest
-    FsSourceTable source = new FsSourceTable("parquet", dir.getPath());
-    File outputDir = FineoTestUtil.createOutputDir(source, metric, ts);
-    File from = new File("/tmp", table);
-    Files.move(from, outputDir);
-    for (File f : outputDir.listFiles()) {
-      if (!f.getName().endsWith(".crc")) {
-        return new ImmutablePair<>(source, f);
-      }
-    }
-    LOG.error("Could not find a valid parquet file in: " + outputDir);
-    return null;
+    return FineoTestUtil
+      .writeParquet(state, drill.getConnection(), dir, orgid, metricType, ts, rows);
   }
 }
