@@ -22,6 +22,18 @@
       <name>DynamoDB Local Release Repository</name>
       <url>http://dynamodb-local.s3-website-us-west-2.amazonaws.com/release</url>
     </repository>
+    <!-- Drill's Calcite Fork Repo -->
+    <repository>
+      <id>mapr-drill-optiq-snapshots</id>
+      <name>MapR Drill Optiq Snapshots</name>
+      <url>http://repository.mapr.com/nexus/content/repositories/drill-optiq/</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
   </repositories>
 
   <properties>
