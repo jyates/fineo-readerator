@@ -6,15 +6,12 @@ import io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoReadFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
-import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
 
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +63,7 @@ public class PlanValidator {
     private List<DynamoReadFilterSpec> getOrQuery;
 
     public DynamoValidator withColumns(String... columns) {
-      this.columns = Arrays.asList(columns).stream().map(BaseFineoTest::bt).collect(Collectors
+      this.columns = Arrays.asList(columns).stream().map(FineoTestUtil::bt).collect(Collectors
         .toList());
       return this;
     }

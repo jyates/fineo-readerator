@@ -5,6 +5,7 @@ import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
+import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.fixed.physical.FixedSchemaPrule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition
@@ -48,6 +49,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   private final DrillbitContext context;
   private final Multimap<PlannerPhase, RelOptRule> rules;
   private final DynamoStoragePluginConfig dynamo;
+  private final boolean enableRadio;
   private AmazonDynamoDBAsyncClient client;
   private DynamoDB dynamoClient;
 
@@ -57,7 +59,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
     this.dynamo = (DynamoStoragePluginConfig) c.getStorage().getPlugin("dynamo").getConfig();
     this.factory = getFactory(name);
     this.context = c;
-
+    this.enableRadio = FineoCommon.isRadioEnabled();
     this.rules = getRules();
   }
 
@@ -140,4 +142,10 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
     }
     return client;
   }
+
+
+  public boolean getEnableRadio() {
+    return enableRadio;
+  }
+
 }

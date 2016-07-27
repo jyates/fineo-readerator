@@ -2,6 +2,7 @@ package io.fineo.read.drill.fs;
 
 
 import io.fineo.read.drill.BaseFineoTest;
+import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.junit.Test;
@@ -29,7 +30,7 @@ public class TestFineoReadJsonAndParquet extends BaseFineoTest {
     // ensure that the fineo-test plugin is enabled
     bootstrap(parquet);
 
-    verifySelectStar(withNext(values));
+    verifySelectStar(FineoTestUtil.withNext(values));
   }
 
   @Test
@@ -47,7 +48,7 @@ public class TestFineoReadJsonAndParquet extends BaseFineoTest {
     // ensure that the fineo-test plugin is enabled
     bootstrap(json, parquet);
 
-    verifySelectStar(withNext(values, values2));
+    verifySelectStar(FineoTestUtil.withNext(values, values2));
   }
 
   @Test
@@ -69,6 +70,6 @@ public class TestFineoReadJsonAndParquet extends BaseFineoTest {
     Map<String, Object> radio = new HashMap<>();
     radio.put("uk", 1);
     result.put(FineoCommon.MAP_FIELD, radio);
-    verifySelectStar(withNext(result));
+    verifySelectStar(FineoTestUtil.withNext(result));
   }
 }

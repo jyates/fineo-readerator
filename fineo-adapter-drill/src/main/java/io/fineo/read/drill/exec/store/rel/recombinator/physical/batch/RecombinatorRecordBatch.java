@@ -2,6 +2,7 @@ package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 
 import com.google.common.base.Preconditions;
 import io.fineo.internal.customer.Metric;
+import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.Recombinator;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.drill.exec.ExecConstants;
@@ -15,6 +16,7 @@ import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.VectorWrapper;
+import org.apache.drill.exec.server.options.OptionManager;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.MapVector;
 import org.apache.drill.exec.vector.complex.impl.VectorContainerWriter;
@@ -38,6 +40,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
   private final AliasFieldNameManager aliasMap;
   private final VectorManager vectors;
+  private final boolean radio;
   private boolean builtSchema;
 
   private final Mutator mutator;
@@ -50,9 +53,11 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     // figure out how we should map the fields
     Metric metric = popConfig.getMetricObj();
     StoreClerk.Metric clerkMetric = new StoreClerk.Metric(null, metric, null);
+    OptionManager options = context.getOptions();
     String partitionDesignator =
-      context.getOptions().getOption(ExecConstants.FILESYSTEM_PARTITION_COLUMN_LABEL).string_val;
-    this.aliasMap = new AliasFieldNameManager(clerkMetric, partitionDesignator);
+      options.getOption(ExecConstants.FILESYSTEM_PARTITION_COLUMN_LABEL).string_val;
+    this.radio = FineoCommon.isRadioEnabled();
+    this.aliasMap = new AliasFieldNameManager(clerkMetric, partitionDesignator, radio);
     // handle doing the vector allocation
     this.vectors = new VectorManager(aliasMap, oContext, callBack, container);
     // mutator wrapper around the container for managing vectors
@@ -106,10 +111,12 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     // there it builds the actual mapping in the execution, so we don't need to keep the same order
     this.prefix = prefix;
 
-    // always create the radio field - necessary to avoid casting conflicts when using multiple
-    // sources, only some of which have a unknown fields see
-    // UnionAllRecordBatch$UnionAllInput#inferOutputFields
-    vectors.ensureRadio();
+    if (radio) {
+      // always create the radio field - necessary to avoid casting conflicts when using multiple
+      // sources, only some of which have a unknown fields see
+      // UnionAllRecordBatch$UnionAllInput#inferOutputFields
+      vectors.ensureRadio();
+    }
 
     // handle creating the other fields from the incoming schema; things like the alias and
     // unknown fields
@@ -123,34 +130,38 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
         continue;
       }
 
-      // its an unknown field - we aren't skipping it and its a dynamic field
-      if (dynamic) {
-        boolean isNewVector = vectors.addUnknownField(field, outputName);
-        // this is an 'update' to the schema
-        if (hadSchema && isNewVector && optionallyRefreshRadioVector) {
-          // "replace" the map so we get a new schema generated for the map
-          MapVector radio = vectors.clearRadio();
-          if (radio != null) {
-            container.remove(radio);
+      // only radio supports dynamic fields
+      if (radio) {
+        // its an unknown field - we aren't skipping it and its a dynamic field
+        if (dynamic) {
+          boolean isNewVector = vectors.addUnknownField(field, outputName);
+          // this is an 'update' to the schema
+          if (hadSchema && isNewVector && optionallyRefreshRadioVector) {
+            // "replace" the map so we get a new schema generated for the map
+            MapVector radio = vectors.clearRadio();
+            if (radio != null) {
+              container.remove(radio);
+            }
+            // rebuild the schema, but this time we will add back in the unknown fields into a new
+            // map vector. This ensures that we create a new schema with new MaterializedFields and
+            // don't muddy the upstream operator with changing fields in a schema. If we didn't do
+            // this, we would have a schema change (marked from the deep schema callback) but the
+            // schema we passed up would already have been changed b/c the Map's MF would have
+            // added the child and thus we would get a case where schema.equals(newSchema), but
+            // there was a schema change. Specifically, see ExternalSortBatch#innerNext
+            return createSchema(true, false);
           }
-          // rebuild the schema, but this time we will add back in the unknown fields into a new
-          // map vector. This ensures that we create a new schema with new MaterializedFields and
-          // don't muddy the upstream operator with changing fields in a schema. If we didn't do
-          // this, we would have a schema change (marked from the deep schema callback) but the
-          // schema we passed up would already have been changed b/c the Map's MF would have
-          // added the child and thus we would get a case where schema.equals(newSchema), but
-          // there was a schema change. Specifically, see ExternalSortBatch#innerNext
-          return createSchema(true, false);
-        }
-      } else {
-        outputName = aliasMap.getOutputName(outputName);
-        if (outputName == null) {
-          LOG.debug("Skipping: '{}' because not dynamic field, but no alias mapping found", name);
           continue;
         }
-        // handles alias mapping and required fields
-        vectors.addKnownField(field, outputName);
       }
+
+      outputName = aliasMap.getOutputName(outputName);
+      if (outputName == null) {
+        LOG.debug("Skipping: '{}' because not dynamic field, but no alias mapping found", name);
+        continue;
+      }
+      // handles alias mapping and required fields
+      vectors.addKnownField(field, outputName);
     }
 
     this.builtSchema = true;

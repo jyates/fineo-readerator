@@ -16,12 +16,12 @@ public class AliasFieldNameManager {
   private final Map<String, String> map;
   private final Pattern partitionPattern;
 
-  public AliasFieldNameManager(StoreClerk.Metric clerk, String partitionDesignator) {
-    this.map = getFieldMap(clerk);
+  public AliasFieldNameManager(StoreClerk.Metric clerk, String partitionDesignator, boolean radio) {
+    this.map = getFieldMap(clerk, radio);
     partitionPattern = Pattern.compile(String.format("%s[0-9]+", partitionDesignator));
   }
 
-  private Map<String, String> getFieldMap(StoreClerk.Metric metric) {
+  private static Map<String, String> getFieldMap(StoreClerk.Metric metric, boolean radioEnabled) {
     Map<String, String> map = new HashMap<>();
     // build list of fields that we need to add
     // required fields
@@ -29,7 +29,9 @@ public class AliasFieldNameManager {
       map.put(field, field);
     }
 
-    map.put(FineoCommon.MAP_FIELD, FineoCommon.MAP_FIELD);
+    if (radioEnabled) {
+      map.put(FineoCommon.MAP_FIELD, FineoCommon.MAP_FIELD);
+    }
 
     for (StoreClerk.Field field : metric.getUserVisibleFields()) {
       map.put(field.getName(), field.getName());

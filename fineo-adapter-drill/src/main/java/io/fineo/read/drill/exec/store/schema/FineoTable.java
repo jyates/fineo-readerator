@@ -1,16 +1,16 @@
 package io.fineo.read.drill.exec.store.schema;
 
+import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
+import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.avro.Schema;
-import org.apache.calcite.plan.Context;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.TranslatableTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.apache.calcite.tools.RelBuilder;
 import org.apache.drill.exec.planner.logical.DrillTable;
 
 import java.util.function.Function;
@@ -39,7 +39,6 @@ public class FineoTable extends DrillTable implements TranslatableTable {
   public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
     LogicalScanBuilder builder = new LogicalScanBuilder(context, relOptTable);
     scanner.scan(builder, metric.getMetricId());
-//    return builder.getFirstScan();
     return builder.buildMarker(this.metric);
   }
 
@@ -47,7 +46,12 @@ public class FineoTable extends DrillTable implements TranslatableTable {
   public RelDataType getRowType(RelDataTypeFactory typeFactory) {
     RelDataTypeFactory.FieldInfoBuilder builder = typeFactory.builder();
     // base fields
+    boolean radio = ((FineoStoragePlugin) this.getPlugin()).getEnableRadio();
     for (BaseField field : BaseField.values()) {
+      // skip the radio field if its not enabled at the system level
+      if (field.getName().equals(FineoCommon.MAP_FIELD) && !radio) {
+        continue;
+      }
       field.add(builder, typeFactory);
     }
 
@@ -81,8 +85,9 @@ public class FineoTable extends DrillTable implements TranslatableTable {
   }
 
   public enum BaseField {
-    TIMESTAMP("timestamp", tf -> tf.createSqlType(BIGINT)),
-    RADIO("_fm", tf -> tf.createMapType(tf.createSqlType(VARCHAR), tf.createSqlType(ANY)));
+    TIMESTAMP(AvroSchemaEncoder.TIMESTAMP_KEY, tf -> tf.createSqlType(BIGINT)),
+    RADIO(FineoCommon.MAP_FIELD,
+      tf -> tf.createMapType(tf.createSqlType(VARCHAR), tf.createSqlType(ANY)));
     private final String name;
     private final Function<RelDataTypeFactory, RelDataType> func;
 

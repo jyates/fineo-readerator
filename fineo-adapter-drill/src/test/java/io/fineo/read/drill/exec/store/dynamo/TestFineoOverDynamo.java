@@ -7,6 +7,7 @@ import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
+import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.StoreClerk;
@@ -29,7 +30,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
   @Test
   public void testReadSingleRow() throws Exception {
     TestState state = register();
-    long ts = get1980();
+    long ts = FineoTestUtil.get1980();
 
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
@@ -46,13 +47,13 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
     expected.put(TIMESTAMP_KEY, ts);
     expected.put("field1", true);
-    verifySelectStar(withNext(expected));
+    verifySelectStar(FineoTestUtil.withNext(expected));
   }
 
   @Test
   public void testFilterTableOnTimeRange() throws Exception {
     TestState state = register();
-    long ts = get1980();
+    long ts = FineoTestUtil.get1980();
 
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
@@ -76,7 +77,8 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     expected.put(TIMESTAMP_KEY, ts);
     expected.put("field1", true);
     String query =
-      verifySelectStar(of(bt(TIMESTAMP_KEY) + " <= " + (ts + 100)), withNext(expected));
+      verifySelectStar(of(FineoTestUtil.bt(TIMESTAMP_KEY) + " <= " + (ts + 100)), FineoTestUtil
+        .withNext(expected));
     new PlanValidator(query)
       .validateDynamoQuery(0)
       .withTable(table)

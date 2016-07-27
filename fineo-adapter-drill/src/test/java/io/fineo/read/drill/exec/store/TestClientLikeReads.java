@@ -5,10 +5,10 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
+import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.StoreClerk;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 
@@ -17,13 +17,10 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 import static org.apache.calcite.util.ImmutableNullableList.of;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Validate reads across all three sources with different varying time ranges. Things that need
@@ -34,54 +31,9 @@ import static org.junit.Assert.assertTrue;
 public class TestClientLikeReads extends BaseFineoTest {
 
   @Test
-  public void testChangingUnknownFieldsAcrossRows() throws Exception {
-    TestState state = register();
-
-    Map<String, Object> values = new HashMap<>();
-    values.put(fieldname, true);
-    String uk = "uk";
-    values.put(uk, 1L);
-    String uk2 = "uk2";
-    values.put(uk2, "hello field");
-
-    File tmp = folder.newFolder("drill");
-    FsSourceTable f1 = state.write(tmp, 1, values);
-    // build the expected values
-    values.remove(uk);
-    values.remove(uk2);
-    addRadio(values, p(uk, 1L), p(uk2, "hello field"));
-
-    Map<String, Object> values2 = new HashMap<>();
-    values2.put(fieldname, false);
-    String uk3 = "uk3";
-    values2.put(uk3, true);
-
-    bootstrap(f1, state.write(tmp, 2, values2));
-//    bootstrap(state.write(tmp, 2, values2));
-
-    values2.remove(uk3);
-    addRadio(values2, p(uk3, true));
-
-    verifySelectStar(withNext(values, values2));
-//      verifySelectStar(withNext(values2));
-  }
-
-  private <T, V> Pair<T, V> p(T t, V v) {
-    return new ImmutablePair<>(t, v);
-  }
-
-  private void addRadio(Map<String, Object> map, Pair<String, Object>... values) {
-    Map<String, Object> radio = new HashMap<>();
-    for (Pair<String, Object> p : values) {
-      radio.put(p.getKey(), p.getValue());
-    }
-    map.put(FineoCommon.MAP_FIELD, radio);
-  }
-
-  @Test
   public void testReadThreeSources() throws Exception {
     TestState state = register();
-    long ts = get1980();
+    long ts = FineoTestUtil.get1980();
 
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
@@ -105,7 +57,8 @@ public class TestClientLikeReads extends BaseFineoTest {
     String uk1 = "uk1";
     Map<String, Object> jsonRow = new HashMap<>();
     jsonRow.put(uk1, 1);
-    Pair<FsSourceTable, File> json = writeJsonAndGetOutputFile(state.getStore(), tmp, org,
+    Pair<FsSourceTable, File> json = FineoTestUtil
+      .writeJsonAndGetOutputFile(state.getStore(), tmp, org,
       metrictype, ts, of(jsonRow));
     BootstrapFineo bootstrap = new BootstrapFineo();
     BootstrapFineo.DrillConfigBuilder builder = basicBootstrap(bootstrap.builder())
@@ -129,7 +82,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     Map<String, Object> row2 = newHashMap(row1);
     row2.put(TIMESTAMP_KEY, ts);
     row2.remove(FineoCommon.MAP_FIELD);
-    verifySelectStar(withNext(row1, row2));
+    verifySelectStar(FineoTestUtil.withNext(row1, row2));
   }
 
   private void bootstrap(Table... tables) throws IOException {

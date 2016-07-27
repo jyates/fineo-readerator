@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.collect.ImmutableList;
 import io.fineo.read.drill.BaseFineoTest;
+import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.SchemaStore;
@@ -29,8 +30,6 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,19 +82,23 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
     values.put(fieldname, false);
     File tmp = folder.newFolder("drill");
     Map<String, Object> values2 = newHashMap(values);
-    long start = get1980();
-    Pair<FsSourceTable, File> j1 = writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
+    long start = FineoTestUtil.get1980();
+    Pair<FsSourceTable, File> j1 = FineoTestUtil
+      .writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
       start, newArrayList(values));
-    Pair<FsSourceTable, File> j2 = writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
+    Pair<FsSourceTable, File> j2 = FineoTestUtil
+      .writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
       start + (ONE_DAY_MILLIS * 2), newArrayList(values));
-    Pair<FsSourceTable, File> j3 = writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
+    Pair<FsSourceTable, File> j3 = FineoTestUtil
+      .writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
       start + (ONE_DAY_MILLIS * 3), newArrayList(values2));
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(j1.getKey(), j2.getKey(), j3.getKey());
 
     String query =
-      verifySelectStar(ImmutableList.of("`timestamp` > " + start), withNext(values, values2));
+      verifySelectStar(ImmutableList.of("`timestamp` > " + start), FineoTestUtil
+        .withNext(values, values2));
 
     // make sure that the base scan only uses 2 of the three possible files from the correct
     // partitions.
@@ -127,8 +130,9 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
     Map<String, Object> values = newHashMap();
     values.put(fieldname, false);
     File tmp = folder.newFolder("drill");
-    long start = get1980();
-    Pair<FsSourceTable, File> j1 = writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
+    long start = FineoTestUtil.get1980();
+    Pair<FsSourceTable, File> j1 = FineoTestUtil
+      .writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
       start, newArrayList(values));
 
     // ensure that the fineo-test plugin is enabled
@@ -193,10 +197,11 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
     values.put(fieldname, false);
     // filtering only appears to work if we have more than 1 partition, so create two json
     // partitions
-    long start = get1980();
+    long start = FineoTestUtil.get1980();
     Pair<FsSourceTable, File> json =
-      writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype, start, of(values));
-    Pair<FsSourceTable, File> json2 = writeJsonAndGetOutputFile(state.getStore(), tmp, org,
+      FineoTestUtil.writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype, start, of(values));
+    Pair<FsSourceTable, File> json2 = FineoTestUtil
+      .writeJsonAndGetOutputFile(state.getStore(), tmp, org,
       metrictype,
       start + (ONE_DAY_MILLIS * 2), of(values));
 
@@ -213,7 +218,8 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
     bootstrap(json.getKey(), parquet.getKey());
 
     String query =
-      verifySelectStar(ImmutableList.of("`timestamp` > " + start), withNext(values, values2));
+      verifySelectStar(ImmutableList.of("`timestamp` > " + start), FineoTestUtil
+        .withNext(values, values2));
     Connection conn = drill.getConnection();
     String explain = explain(query);
     ResultSet plan = conn.createStatement().executeQuery(explain);

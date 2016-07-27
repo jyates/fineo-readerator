@@ -27,6 +27,10 @@
   ii. Use the KeyMapper when building the filter condition so we can avoid referencing the 
   'actual' fields at all 
 
+3. Drill
+  a. Support _fm field by enabling merging schemas in ExternalSort/TopN. 
+    ii. Currently only supports 'union' logic and merging schemas for non-complex types. We enable the union logic, but only use the schema merging support. This same logic can be applied to complex types (map/list) so we can read those as well.
+
 1. Spark Reading
   0. integrate into drill.
   a. mapping canonical fields to query fields (canonical + aliases)
