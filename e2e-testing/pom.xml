@@ -21,7 +21,7 @@
     <dependency>
       <groupId>com.beust</groupId>
       <artifactId>jcommander</artifactId>
-      <version>1.48</version>
+      <version>1.30</version>
     </dependency>
     <dependency>
       <groupId>io.fineo.e2e</groupId>
@@ -32,6 +32,7 @@
       <groupId>io.fineo.read</groupId>
       <artifactId>fineo-adapter-drill</artifactId>
       <version>${project.version}</version>
+      <classifier>standalone</classifier>
     </dependency>
     <!-- Sources needed to run custom functions -->
     <dependency>
@@ -48,5 +49,67 @@
       <scope>compile</scope>
     </dependency>
   </dependencies>
-
+  <profiles>
+    <profile>
+      <id>deploy</id>
+      <activation>
+        <property>
+          <name>deploy</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <version>${maven.shade.version}</version>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <shadedArtifactAttached>true</shadedArtifactAttached>
+            </configuration>
+            <executions>
+              <execution>
+                <phase>package</phase>
+                <goals>
+                  <goal>shade</goal>
+                </goals>
+                <configuration>
+                  <shadedClassifierName>aws</shadedClassifierName>
+                  <artifactSet>
+                    <includes>
+                      <include>io.fineo.etl:drill-test</include>
+                      <include>io.fineo.read:fineo-adapter-drill:standalone</include>
+                      <include>io.fineo.read:fineo-adapter-drill:sources</include>
+                      <include>io.fineo.read:fineo-adapter-drill:tests</include>
+                      <include>io.fineo.e2e:e2e-parsing</include>
+                      <include>io.fineo.schema:schema-core:tests</include>
+                      <!--<include>com.fasterxml.jackson.core:jackson-core</include>-->
+                    </includes>
+                  </artifactSet>
+                  <filters>
+                    <filter>
+                      <artifact>*:*</artifact>
+                      <excludes>
+                        <exclude>META-INF/*.SF</exclude>
+                        <exclude>META-INF/*.DSA</exclude>
+                        <exclude>META-INF/*.RSA</exclude>
+                        <exclude>.gitkeep</exclude>
+                        <!-- Force classpath rescanning every time we start drill. Makes it so we
+                         can have a single deployable jar. LATER, when we want to roll out
+                         independent cluster, we can just build a fineo jars (dynamo and adapter)
+                          and there will be no prescanned file (or we can make one on build) -->
+                        <exclude>META-INF/drill-module-scan/registry.json</exclude>
+                        <!-- Executable producer - huge!... not needed since we use the java api -->
+                        <exclude>amazon-kinesis-producer-native-binaries/**</exclude>
+                      </excludes>
+                    </filter>
+                  </filters>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

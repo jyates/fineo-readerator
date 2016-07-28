@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static com.google.common.collect.ImmutableList.of;
+import static com.google.common.collect.Maps.newHashMap;
 import static io.fineo.read.drill.FineoTestUtil.withNext;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -200,6 +201,29 @@ public class TestFineoRadio extends BaseFineoTest {
     addRadio(values2, FineoTestUtil.p(uk3, true));
 
     verifySelectStar(withNext(values, values2));
+  }
+
+  @Test
+  @Ignore
+  public void testUnionKnownAndUnknownFields() throws Exception {
+    TestState state = register();
+
+    File tmp = folder.newFolder("drill");
+    Map<String, Object> values = new HashMap<>();
+    values.put("uk", 1);
+    FsSourceTable json = state.write(tmp, org, metrictype, 1, values);
+    Map<String, Object> values2 = new HashMap<>();
+    values2.put(fieldname, true);
+    FsSourceTable parquet = writeParquet(state, tmp, org, metrictype, 2, values2).getKey();
+
+    // ensure that the fineo-test plugin is enabled
+    bootstrap(json, parquet);
+
+    Map<String, Object> result = newHashMap(values2);
+    Map<String, Object> radio = new HashMap<>();
+    radio.put("uk", 1);
+    result.put(FineoCommon.MAP_FIELD, radio);
+    verifySelectStar(FineoTestUtil.withNext(result));
   }
 
   private void addRadio(Map<String, Object> map, Pair<String, Object>... values) {
