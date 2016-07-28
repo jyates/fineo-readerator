@@ -9,7 +9,9 @@ import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.fixed.physical.FixedSchemaPrule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition
-  .PushTimerangePastRecombinatorRule;
+  .ConvertFineoMarkerIntoFilteredInputTables.FilterRecombinatorTablesWithNoTimestampFilter;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition
+  .ConvertFineoMarkerIntoFilteredInputTables.PushTimerangeFilterPastRecombinator;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.FineoRecombinatorPrule;
 import io.fineo.read.drill.exec.store.schema.FineoSchemaFactory;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
@@ -79,8 +81,11 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
       }
     });
 
-    // Filter out tables/directories that are not included in requested time range
-    rules.put(PlannerPhase.DIRECTORY_PRUNING, PushTimerangePastRecombinatorRule.INSTANCE);
+    // Filter out tables/directories that are not included in requested time range AND add
+    // filters for the input sources to ensure that we don't read overlapping data
+    rules.put(PlannerPhase.DIRECTORY_PRUNING,
+      FilterRecombinatorTablesWithNoTimestampFilter.INSTANCE);
+    rules.put(PlannerPhase.DIRECTORY_PRUNING, PushTimerangeFilterPastRecombinator.INSTANCE);
 
     // transform FRMR -> FRR
     rules.put(PlannerPhase.LOGICAL, FineoRecombinatorRule.INSTANCE);

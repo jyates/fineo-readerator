@@ -31,6 +31,9 @@
   a. Support _fm field by enabling merging schemas in ExternalSort/TopN. 
     ii. Currently only supports 'union' logic and merging schemas for non-complex types. We enable the union logic, but only use the schema merging support. This same logic can be applied to complex types (map/list) so we can read those as well.
 
+4. Timerange pushdown
+ a. support tracking the last json -> parquet conversion time so we create several different plans (progressively removing dynamo tables and replacing them with parquet scans)
+
 1. Spark Reading
   0. integrate into drill.
   a. mapping canonical fields to query fields (canonical + aliases)

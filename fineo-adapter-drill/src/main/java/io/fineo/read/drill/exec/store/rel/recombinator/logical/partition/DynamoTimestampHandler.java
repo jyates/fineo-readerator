@@ -2,8 +2,8 @@ package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
 
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
 import io.fineo.lambda.dynamo.DynamoTableNameParts;
+import io.fineo.lambda.dynamo.Range;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
@@ -11,13 +11,13 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexVisitorImpl;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
-import org.apache.drill.exec.planner.logical.DrillLimitRel;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BinaryOperator;
 
-import static org.apache.calcite.sql.type.SqlTypeName.INTEGER;
+import static java.time.Instant.ofEpochMilli;
 
 public class DynamoTimestampHandler implements TimestampHandler {
 
@@ -39,6 +39,12 @@ public class DynamoTimestampHandler implements TimestampHandler {
       return null;
     }
     return scan;
+  }
+
+  @Override
+  public Range<Instant> getTableTimeRange(TableScan scan) {
+    DynamoTableNameParts parts = parseName(scan);
+    return new Range<>(ofEpochMilli(parts.getStart()), ofEpochMilli(parts.getEnd()));
   }
 
   private boolean evaluate(RexNode timestamps) {
@@ -66,6 +72,12 @@ public class DynamoTimestampHandler implements TimestampHandler {
     });
   }
 
+  private DynamoTableNameParts parseName(TableScan scan) {
+    List<String> name = scan.getTable().getQualifiedName();
+    String actual = name.get(name.size() - 1);
+    return DynamoTableNameParts.parse(actual);
+  }
+
   private class DynamoTableNameConditionBuilder
     implements TimestampExpressionBuilder.ConditionBuilder {
     private final DynamoTableNameParts parts;
@@ -73,16 +85,14 @@ public class DynamoTimestampHandler implements TimestampHandler {
 
     public DynamoTableNameConditionBuilder(
       TableScan scan, RexBuilder builder) {
-      List<String> name = scan.getTable().getQualifiedName();
-      String actual = name.get(name.size() - 1);
-      this.parts = DynamoTableNameParts.parse(actual);
+      this.parts = parseName(scan);
       this.builder = builder;
     }
 
 
     @Override
     public RexNode buildGreaterThan(SingleFunctionProcessor processor) {
-      long epoch = PushTimerangePastRecombinatorRule.asEpoch(processor);
+      long epoch = asEpoch(processor);
       return parts.getEnd() > epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);
@@ -96,7 +106,7 @@ public class DynamoTimestampHandler implements TimestampHandler {
 
     @Override
     public RexNode buildLessThan(SingleFunctionProcessor processor) {
-      long epoch = PushTimerangePastRecombinatorRule.asEpoch(processor);
+      long epoch = asEpoch(processor);
       return parts.getStart() < epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);
@@ -104,7 +114,7 @@ public class DynamoTimestampHandler implements TimestampHandler {
 
     @Override
     public RexNode buildLessThanOrEquals(SingleFunctionProcessor processor) {
-      long epoch = PushTimerangePastRecombinatorRule.asEpoch(processor);
+      long epoch = asEpoch(processor);
       return parts.getStart() <= epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);
@@ -112,7 +122,7 @@ public class DynamoTimestampHandler implements TimestampHandler {
 
     @Override
     public RexNode buildEquals(SingleFunctionProcessor processor) {
-      long epoch = PushTimerangePastRecombinatorRule.asEpoch(processor);
+      long epoch = asEpoch(processor);
       // interval CONTAINS
       return parts.getStart() >= epoch && parts.getEnd() < epoch ?
              builder.makeLiteral(true) :
@@ -120,4 +130,11 @@ public class DynamoTimestampHandler implements TimestampHandler {
     }
   }
 
+  private static long asEpoch(SingleFunctionProcessor processor) {
+    Object value = processor.getValue();
+    if (value instanceof Long) {
+      return (long) value;
+    }
+    return new Long(value.toString()) * 1000;
+  }
 }

@@ -3,6 +3,7 @@ package io.fineo.read.drill.exec.store.rel.recombinator.logical;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.exec.store.rel.fixed.logical.FixedSchemaProjection;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableSetMarker;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.RelOptCluster;
@@ -48,12 +49,15 @@ public class FineoRecombinatorRule extends RelOptRule {
   public static final FineoRecombinatorRule INSTANCE = new FineoRecombinatorRule();
 
   private FineoRecombinatorRule() {
-    super(operand(FineoRecombinatorMarkerRel.class, RelOptRule.any()), "FineoRecombinatorRule");
+    super(operand(FineoRecombinatorMarkerRel.class,
+      operand(TableSetMarker.class, RelOptRule.any())),
+      "Fineo::LogicalRecombinatorRule");
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
     FineoRecombinatorMarkerRel fmr = call.rel(0);
+    TableSetMarker tables = call.rel(1);
 
     // This is actually a marker for a set of logical unions between types
     RelOptCluster cluster = fmr.getCluster();
@@ -66,7 +70,7 @@ public class FineoRecombinatorRule extends RelOptRule {
     RexBuilder rexBuilder = cluster.getRexBuilder();
     int scanCount = 0;
     List<StoreClerk.Field> userFields = fmr.getMetric().getUserVisibleFields();
-    for (RelNode tableNode : fmr.getInputs()) {
+    for (RelNode tableNode : tables.getInputs()) {
       // cast table fields to the expected user-typed fields
       tableNode = cast(tableNode, userFields, rexBuilder, rowType);
 
@@ -79,14 +83,6 @@ public class FineoRecombinatorRule extends RelOptRule {
       FineoRecombinatorRel rel =
         new FineoRecombinatorRel(cluster, tableNode.getTraitSet().plus(DRILL_LOGICAL), filter,
           fmr.getMetric(), rowType);
-      // that is then wrapped in "fixed row type projection" so the union and downstream
-      // projections apply nicely. This is especially important as the StarColumnConverter only
-      // pushes down per-table projections when a parent * exists. Thus, the above rel, with the
-      // dynamic field, must exist before we project to the actual schema.
-//      FixedSchemaProjection fsp =
-//        new FixedSchemaProjection(cluster, rel.getTraitSet().plus(DRILL_LOGICAL),
-//          rel, getProjects(cluster.getRexBuilder(), rowType), rowType);
-//      builder.push(fsp);
       builder.push(rel);
       scanCount++;
     }
@@ -97,7 +93,7 @@ public class FineoRecombinatorRule extends RelOptRule {
     }
 
     // result needs to be sorted on the timestamp
-//    addSort(builder, cluster);
+    addSort(builder, cluster);
     call.transformTo(builder.build());
   }
 

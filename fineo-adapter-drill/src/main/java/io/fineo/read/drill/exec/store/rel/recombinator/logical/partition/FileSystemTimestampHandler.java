@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
 
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
+import io.fineo.lambda.dynamo.Range;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.logical.LogicalFilter;
@@ -10,6 +11,8 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.drill.exec.planner.sql.DrillSqlOperator;
+
+import java.time.Instant;
 
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.EQUALS;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.GREATER_THAN;
@@ -37,6 +40,11 @@ public class FileSystemTimestampHandler implements TimestampHandler {
     return LogicalFilter.create(scan, timestamps);
   }
 
+  @Override
+  public Range<Instant> getTableTimeRange(TableScan scan) {
+    return new Range<>(Instant.EPOCH, Instant.now());
+  }
+
   private class HierarchicalFsConditionBuilder
     implements TimestampExpressionBuilder.ConditionBuilder {
     private final RelDataTypeField to;
@@ -45,7 +53,7 @@ public class FileSystemTimestampHandler implements TimestampHandler {
 
     public HierarchicalFsConditionBuilder(TableScan scan, RexBuilder builder) {
       this.scan = scan;
-      this.to = scan.getRowType().getField("dir0", false, false);
+      this.to = getTimeDir(scan);
       this.builder = builder;
     }
 
@@ -75,15 +83,28 @@ public class FileSystemTimestampHandler implements TimestampHandler {
     }
 
     private RexNode makeCall(SingleFunctionProcessor processor, SqlOperator op) {
-      RexInputRef ref = builder.makeInputRef(scan, to.getIndex());
       RexNode value = asValueNode(processor, builder);
-      return builder.makeCall(op, ref, value);
+      return fileScanOpToRef(builder, scan, to, op, value);
     }
   }
 
-  static RexNode asValueNode(SingleFunctionProcessor processor, RexBuilder builder) {
-    RexNode literal = builder
-      .makeLiteral(processor.getValue(), builder.getTypeFactory().createSqlType(BIGINT), true);
+  static RexNode fileScanOpToRef(RexBuilder builder, RelNode scan, RelDataTypeField dirField,
+    SqlOperator op, RexNode value){
+    RexInputRef ref = builder.makeInputRef(scan, dirField.getIndex());
+    return builder.makeCall(op, ref, value);
+  }
+
+  static RelDataTypeField getTimeDir(RelNode scan){
+    return scan.getRowType().getField("dir0", false, false);
+  }
+
+  private static RexNode asValueNode(SingleFunctionProcessor processor, RexBuilder builder) {
+    return asValueNode(processor.getValue(), builder);
+  }
+
+  static RexNode asValueNode(Object value, RexBuilder builder) {
+    RexNode literal =
+      builder.makeLiteral(value, builder.getTypeFactory().createSqlType(BIGINT), true);
     DrillSqlOperator date = new DrillSqlOperator("TO_DATE", 1, true);
     return builder.makeCall(date, literal);
   }

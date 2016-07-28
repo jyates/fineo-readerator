@@ -2,25 +2,16 @@ package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
 
 import com.google.common.base.Preconditions;
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
-import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.drill.common.expression.BooleanOperator;
 import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.LogicalExpression;
-import org.apache.drill.common.expression.ValueExpressions;
 import org.apache.drill.common.expression.visitors.AbstractExprVisitor;
-import org.apache.drill.exec.planner.logical.DrillParseContext;
-import org.apache.drill.exec.planner.physical.ScanPrel;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.apache.drill.exec.planner.logical.DrillOptiq.toDrill;
-import static org.apache.drill.exec.planner.physical.PrelUtil.getPlannerSettings;
 
 /**
  *
@@ -30,14 +21,12 @@ public class TimestampExpressionBuilder {
   private static final String AND = "booleanAnd";
   private static final String OR = "booleanOr";
 
-  private final RelOptRuleCall call;
   private final String ts;
   private final ConditionBuilder cond;
   private boolean scanAll;
 
-  public TimestampExpressionBuilder(RelOptRuleCall call, String timestampFieldName,
+  public TimestampExpressionBuilder(String timestampFieldName,
     ConditionBuilder cond) {
-    this.call = call;
     this.ts = timestampFieldName;
     this.cond = cond;
   }
@@ -46,9 +35,7 @@ public class TimestampExpressionBuilder {
     return scanAll;
   }
 
-  public RexNode lift(RexNode condition, RelNode input, RexBuilder builder) {
-    final LogicalExpression conditionExp =
-      toDrill(new DrillParseContext(getPlannerSettings(call.getPlanner())), input, condition);
+  public RexNode lift(LogicalExpression conditionExp, RexBuilder builder) {
     return conditionExp.accept(
       new AbstractExprVisitor<RexNode, Object, RuntimeException>() {
         @Override
