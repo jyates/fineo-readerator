@@ -80,7 +80,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
       verifySelectStar(of(FineoTestUtil.bt(TIMESTAMP_KEY) + " <= " + (ts + 100)), FineoTestUtil
         .withNext(expected));
     new PlanValidator(query)
-      .validateDynamoQuery(0)
+      .validateDynamoQuery()
       .withTable(table)
       .withGetOrQueries(
         new DynamoQueryFilterSpec(DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,

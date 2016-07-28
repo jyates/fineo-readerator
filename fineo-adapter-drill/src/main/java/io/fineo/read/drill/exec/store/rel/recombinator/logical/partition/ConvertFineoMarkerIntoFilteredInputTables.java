@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN;
+import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN_OR_EQUAL;
 import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;
 import static org.apache.calcite.util.ImmutableNullableList.of;
 import static org.apache.drill.exec.planner.logical.DrillOptiq.toDrill;
@@ -72,11 +73,11 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
   @Override
   public void onMatch(RelOptRuleCall call) {
     FineoRecombinatorMarkerRel fmr = getRecombinator(call);
-    Multimap<String, RelAndRange> tables = getTables(call);
     RelOptCluster cluster = fmr.getCluster();
     RexBuilder rexer = cluster.getRexBuilder();
-    Collection<RelNode> nodes = partitionReads(rexer, tables, cluster,
-      fmr.getTraitSet());
+
+    Multimap<String, RelAndRange> tables = getTables(call);
+    Collection<RelNode> nodes = partitionReads(rexer, tables, cluster, fmr.getTraitSet());
     TableSetMarker marker =
       new TableSetMarker(fmr.getCluster(), fmr.getTraitSet(), fmr.getRowType());
     marker.setInputs(nodes);
@@ -133,7 +134,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
            RelDataTypeField dir = FileSystemTimestampHandler.getTimeDir(node);
            assert dir != null : "Didn't find a dir0 in fs scan type!";
            RexNode dirFilter = FileSystemTimestampHandler.fileScanOpToRef(rexer, node, dir,
-             LESS_THAN, startDate);
+             LESS_THAN_OR_EQUAL, startDate);
            RexNode condition = RexUtil.composeConjunction(rexer, of(limit, dirFilter), true);
 
            // build the filter
@@ -184,13 +185,18 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
         TimestampExpressionBuilder builder =
           new TimestampExpressionBuilder(ts, handler.getBuilder(scan));
         RexNode timestamps = builder.lift(conditionExp, rexer);
-        // we have to scan everything
-        RelNode translated = null;
+        Range<Instant> range = handler.getTableTimeRange(scan);
+        // we can make a pretty good guess about the scan
         if (!builder.isScanAll() && timestamps != null) {
-          translated = handler.translateScanFromGeneratedRex(scan, timestamps);
-        }
-        if (translated != null) {
-          translatedScans.put(type, new RelAndRange(translated, handler.getTableTimeRange(scan)));
+          RelNode translated = handler.translateScanFromGeneratedRex(scan, timestamps);
+          if (translated != null) {
+            translatedScans.put(type, new RelAndRange(translated, range));
+          }
+        } else {
+          // we have to scan everything b/c we didn't understand all the timestamp constraints
+          //    OR
+          // there is no timestamp constraint, in which case we need to scan everything
+          translatedScans.put(type, new RelAndRange(scan, range));
         }
       }
 

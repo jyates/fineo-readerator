@@ -23,7 +23,7 @@ public class TimestampExpressionBuilder {
 
   private final String ts;
   private final ConditionBuilder cond;
-  private boolean scanAll;
+  private boolean scanAll = false;
 
   public TimestampExpressionBuilder(String timestampFieldName,
     ConditionBuilder cond) {
