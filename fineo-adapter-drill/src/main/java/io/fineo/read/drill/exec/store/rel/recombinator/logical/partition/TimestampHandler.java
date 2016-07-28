@@ -9,9 +9,9 @@ import java.time.Instant;
 
 interface TimestampHandler {
 
-  TimestampExpressionBuilder.ConditionBuilder getBuilder(TableScan scan);
+  TableFilterBuilder getFilterBuilder(TableScan scan);
 
-  RelNode translateScanFromGeneratedRex(TableScan scan, RexNode timestamps);
+  TimestampExpressionBuilder.ConditionBuilder getShouldScanBuilder(TableScan scan);
 
   Range<Instant> getTableTimeRange(TableScan scan);
 }

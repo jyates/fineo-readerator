@@ -3,6 +3,7 @@ package io.fineo.read.drill.exec.store;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.BaseFineoTest;
@@ -23,6 +24,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+import static io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils.lte;
 import static io.fineo.read.drill.FineoTestUtil.bt;
 import static io.fineo.read.drill.FineoTestUtil.get1980;
 import static io.fineo.read.drill.FineoTestUtil.p;
@@ -136,13 +138,14 @@ public class TestClientLikeReads extends BaseFineoTest {
       (expected));
 
     // validate that we only read the single parquet that we expected and the dynamo table
+    DynamoFilterSpec keyFilter = DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
+      dynamo.getString(Schema.PARTITION_KEY_NAME)).and(lte(Schema.SORT_KEY_NAME, ts));
     new PlanValidator(query)
       // dynamo
       .validateDynamoQuery()
       .withTable(table)
       .withGetOrQueries(
-        new DynamoQueryFilterSpec(DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
-          dynamo.getString(Schema.PARTITION_KEY_NAME)), null)).done()
+        new DynamoQueryFilterSpec(keyFilter, null)).done()
       // parquet
       .validateParquetScan()
       .withFiles(of(source.getValue()))

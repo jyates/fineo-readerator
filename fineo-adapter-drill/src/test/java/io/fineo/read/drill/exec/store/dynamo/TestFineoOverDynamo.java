@@ -3,6 +3,7 @@ package io.fineo.read.drill.exec.store.dynamo;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils;
+import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.BaseFineoTest;
@@ -18,6 +19,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+import static io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils.lte;
 import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 import static org.apache.calcite.util.ImmutableNullableList.of;
 import static org.junit.Assert.assertNotEquals;
@@ -76,15 +78,19 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
     expected.put(TIMESTAMP_KEY, ts);
     expected.put("field1", true);
+    long tsLessThan = (ts + 100);
     String query =
-      verifySelectStar(of(FineoTestUtil.bt(TIMESTAMP_KEY) + " <= " + (ts + 100)), FineoTestUtil
+      verifySelectStar(of(FineoTestUtil.bt(TIMESTAMP_KEY) + " <= " + tsLessThan), FineoTestUtil
         .withNext(expected));
+    // take into account the push down timerange filter, which includes the TS in the output, but
+    // otherwise wouldn't be there.
+    DynamoFilterSpec keyFilter = DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
+      key).and(lte(Schema.SORT_KEY_NAME, tsLessThan));
     new PlanValidator(query)
       .validateDynamoQuery()
       .withTable(table)
       .withGetOrQueries(
-        new DynamoQueryFilterSpec(DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
-          key), null)).done()
+        new DynamoQueryFilterSpec(keyFilter, null)).done()
       .validate(drill.getConnection());
   }
 

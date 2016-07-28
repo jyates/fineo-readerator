@@ -30,6 +30,10 @@ public class DynamoPlanValidationUtils {
     return create("greater_than_or_equal_to", key, val);
   }
 
+  public static DynamoFilterSpec lte(String key, Object val) {
+    return create("less_than_or_equal_to", key, val);
+  }
+
   public static DynamoGroupScanSpec validatePlan(Map<String, Object> dynamo, List<String> columns,
     DynamoReadFilterSpec scan,
     List<DynamoReadFilterSpec> getOrQuery) throws IOException {

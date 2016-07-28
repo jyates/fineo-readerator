@@ -18,9 +18,13 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
+import org.apache.calcite.rex.RexVisitorImpl;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
 
@@ -29,7 +33,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
@@ -179,24 +185,51 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
         String type = getScanType(scan);
         TimestampHandler handler = handlers.get(type);
         TimestampExpressionBuilder builder =
-          new TimestampExpressionBuilder(ts, handler.getBuilder(scan));
-        RexNode timestamps = builder.lift(conditionExp, rexer);
+          new TimestampExpressionBuilder(ts, handler.getShouldScanBuilder(scan));
+        RexNode shouldScan = builder.lift(conditionExp, rexer);
         Range<Instant> range = handler.getTableTimeRange(scan);
-        // we can make a pretty good guess about the scan
-        if (!builder.isScanAll() && timestamps != null) {
-          RelNode translated = handler.translateScanFromGeneratedRex(scan, timestamps);
-          if (translated != null) {
-            translatedScans.put(type, new RelAndRange(translated, range));
-          }
-        } else {
+        if (builder.isScanAll() || shouldScan == null) {
           // we have to scan everything b/c we didn't understand all the timestamp constraints
           //    OR
           // there is no timestamp constraint, in which case we need to scan everything
           translatedScans.put(type, new RelAndRange(scan, range));
+        } else if (shouldScan != null && evaluate(shouldScan)) {
+          // we can make a pretty good guess about the scan
+          TableFilterBuilder filterBuilder = handler.getFilterBuilder(scan);
+          WrappingFilterBuilder wfb = new WrappingFilterBuilder(scan, filterBuilder, rexer);
+          RelNode translated = wfb.buildFilter(conditionExp, ts);
+          if (translated != null) {
+            translatedScans.put(type, new RelAndRange(translated, range));
+          }
         }
       }
 
       return translatedScans;
+    }
+
+    private boolean evaluate(RexNode timestamps) {
+      return timestamps.accept(new RexVisitorImpl<Boolean>(true) {
+        @Override
+        public Boolean visitCall(RexCall call) {
+          BinaryOperator<Boolean> op;
+          if (call.getOperator().equals(SqlStdOperatorTable.AND)) {
+            op = (a, b) -> a && b;
+          } else if (call.getOperator().equals(SqlStdOperatorTable.OR)) {
+            op = (a, b) -> a || b;
+          } else {
+            throw new IllegalArgumentException("Built a timestmap eval tree, but didn't use "
+                                               + "AND/OR. Used: " + call);
+          }
+          Optional<Boolean> results = call.getOperands().stream().map(node -> node.accept(this))
+                                          .reduce(op);
+          return results.isPresent() ? results.get() : true;
+        }
+
+        @Override
+        public Boolean visitLiteral(RexLiteral literal) {
+          return (Boolean) literal.getValue();
+        }
+      });
     }
 
     @Override

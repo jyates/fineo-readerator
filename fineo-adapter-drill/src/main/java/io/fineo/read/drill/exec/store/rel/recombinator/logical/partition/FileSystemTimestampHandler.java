@@ -4,7 +4,6 @@ import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
 import io.fineo.lambda.dynamo.Range;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
-import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexInputRef;
@@ -14,11 +13,6 @@ import org.apache.drill.exec.planner.sql.DrillSqlOperator;
 
 import java.time.Instant;
 
-import static org.apache.calcite.sql.fun.SqlStdOperatorTable.EQUALS;
-import static org.apache.calcite.sql.fun.SqlStdOperatorTable.GREATER_THAN;
-import static org.apache.calcite.sql.fun.SqlStdOperatorTable.GREATER_THAN_OR_EQUAL;
-import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN;
-import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN_OR_EQUAL;
 import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;
 
 public class FileSystemTimestampHandler implements TimestampHandler {
@@ -30,62 +24,56 @@ public class FileSystemTimestampHandler implements TimestampHandler {
   }
 
   @Override
-  public TimestampExpressionBuilder.ConditionBuilder getBuilder(TableScan scan) {
-    return new HierarchicalFsConditionBuilder(scan, rexer);
+  public TableFilterBuilder getFilterBuilder(TableScan scan) {
+    return new TableFilterBuilder() {
+      @Override
+      public RexNode replaceTimestamp(SingleFunctionProcessor processor) {
+        return asValueNode(processor, rexer);
+      }
+
+      @Override
+      public String getFilterFieldName() {
+        return "dir0";
+      }
+    };
   }
 
   @Override
-  public RelNode translateScanFromGeneratedRex(TableScan scan, RexNode timestamps) {
-    // create a new logical expression on top of the scan
-    return LogicalFilter.create(scan, timestamps);
+  public TimestampExpressionBuilder.ConditionBuilder getShouldScanBuilder(TableScan scan) {
+    // we need to include this scan no matter what - it has "all" the data. Maybe we will get to
+    // partition some of the data out later from the generated filter, but for now, we just do
+    // the scan, if there is a timestamp
+    return new TimestampExpressionBuilder.ConditionBuilder() {
+      @Override
+      public RexNode buildGreaterThan(SingleFunctionProcessor processor) {
+        return rexer.makeLiteral(true);
+      }
+
+      @Override
+      public RexNode buildGreaterThanOrEquals(SingleFunctionProcessor processor) {
+        return rexer.makeLiteral(true);
+      }
+
+      @Override
+      public RexNode buildLessThan(SingleFunctionProcessor processor) {
+        return rexer.makeLiteral(true);
+      }
+
+      @Override
+      public RexNode buildLessThanOrEquals(SingleFunctionProcessor processor) {
+        return rexer.makeLiteral(true);
+      }
+
+      @Override
+      public RexNode buildEquals(SingleFunctionProcessor processor) {
+        return rexer.makeLiteral(true);
+      }
+    };
   }
 
   @Override
   public Range<Instant> getTableTimeRange(TableScan scan) {
     return new Range<>(Instant.EPOCH, Instant.now());
-  }
-
-  private class HierarchicalFsConditionBuilder
-    implements TimestampExpressionBuilder.ConditionBuilder {
-    private final RelDataTypeField to;
-    private final RexBuilder builder;
-    private final TableScan scan;
-
-    public HierarchicalFsConditionBuilder(TableScan scan, RexBuilder builder) {
-      this.scan = scan;
-      this.to = getTimeDir(scan);
-      this.builder = builder;
-    }
-
-    @Override
-    public RexNode buildGreaterThan(SingleFunctionProcessor processor) {
-      return makeCall(processor, GREATER_THAN);
-    }
-
-    @Override
-    public RexNode buildGreaterThanOrEquals(SingleFunctionProcessor processor) {
-      return makeCall(processor, GREATER_THAN_OR_EQUAL);
-    }
-
-    @Override
-    public RexNode buildLessThan(SingleFunctionProcessor processor) {
-      return makeCall(processor, LESS_THAN);
-    }
-
-    @Override
-    public RexNode buildLessThanOrEquals(SingleFunctionProcessor processor) {
-      return makeCall(processor, LESS_THAN_OR_EQUAL);
-    }
-
-    @Override
-    public RexNode buildEquals(SingleFunctionProcessor processor) {
-      return makeCall(processor, EQUALS);
-    }
-
-    private RexNode makeCall(SingleFunctionProcessor processor, SqlOperator op) {
-      RexNode value = asValueNode(processor, builder);
-      return fileScanOpToRef(builder, scan, to, op, value);
-    }
   }
 
   static RexNode fileScanOpToRef(RexBuilder builder, RelNode scan, RelDataTypeField dirField,
