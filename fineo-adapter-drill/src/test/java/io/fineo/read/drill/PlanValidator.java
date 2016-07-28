@@ -162,7 +162,7 @@ public class PlanValidator {
     }
 
     public ParquetValidator withFiles(List<File> files) {
-      this.files = files.stream().map(f -> f.toString()).collect(Collectors.toList());
+      this.files = files.stream().map(File::toString).collect(Collectors.toList());
       return this;
     }
 

@@ -23,8 +23,6 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -46,13 +44,11 @@ import static org.apache.drill.exec.planner.physical.PrelUtil.getPlannerSettings
  * Rule that pushes a timerange filter (WHERE) past the recombinator and into the actual scan
  */
 public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRule {
-  private static final Logger LOG =
-    LoggerFactory.getLogger(ConvertFineoMarkerIntoFilteredInputTables.class);
 
   private static final String DYNAMO = "dynamo";
   private static final String DFS = "dfs";
 
-  protected ConvertFineoMarkerIntoFilteredInputTables(RelOptRuleOperand operand, String name) {
+  private ConvertFineoMarkerIntoFilteredInputTables(RelOptRuleOperand operand, String name) {
     super(operand, name);
   }
 
@@ -98,10 +94,10 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     Collection<RelAndRange> dynamo = translatedScans.get(DYNAMO);
     Collection<RelAndRange> dfs = translatedScans.get(DFS);
     if (dynamo == null || dynamo.size() == 0) {
-      return dfs.stream().map(rr -> rr.rel).collect(Collectors.toList());
+      return dfs.stream().map(RelAndRange::getRel).collect(Collectors.toList());
     } else if (dfs == null || dfs.size() == 0) {
       // this is really weird, but I guess it could come up...
-      return dynamo.stream().map(rr -> rr.rel).collect(Collectors.toList());
+      return dynamo.stream().map(RelAndRange::getRel).collect(Collectors.toList());
     }
 
     // TODO lookup the last 'convert' time from json -> parquet to see how far in the future we
@@ -122,7 +118,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
 
     List<RelNode> filteredDfs =
       dfs.stream()
-         .map(rr -> rr.rel)
+         .map(RelAndRange::getRel)
          .map(node -> {
            // timestamp is strictly less than the minimum dynamo time value
            RelDataTypeField field =
@@ -143,7 +139,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
          .collect(toList());
 
     // add the dynamo scans
-    dynamo.stream().map(rr -> rr.rel).forEach(filteredDfs::add);
+    dynamo.stream().map(RelAndRange::getRel).forEach(filteredDfs::add);
     return filteredDfs;
   }
 
@@ -267,6 +263,10 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     public RelAndRange(RelNode translated, Range<Instant> tableTimeRange) {
       this.rel = translated;
       this.start = tableTimeRange.getStart();
+    }
+
+    public RelNode getRel() {
+      return rel;
     }
   }
 }
