@@ -6,6 +6,11 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.lambda.dynamo.Range;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler
+  .DynamoTimestampHandler;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler
+  .FileSystemTimestampHandler;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler.TimestampHandler;
 import io.fineo.read.drill.exec.store.schema.FineoTable;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import org.apache.calcite.plan.RelOptCluster;
@@ -119,13 +124,13 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     RexNode startLiteral = rexer
       .makeLiteral(absoluteStart.toEpochMilli(), rexer.getTypeFactory().createSqlType(BIGINT),
         true);
-    RexNode startDate = FileSystemTimestampHandler.asValueNode(absoluteStart.toEpochMilli(),
-      rexer);
+    RexNode startDate = FileSystemTimestampHandler.asValueNode(absoluteStart.toEpochMilli(), rexer);
 
     List<RelNode> filteredDfs =
       dfs.stream()
          .map(RelAndRange::getRel)
          .map(node -> {
+           // TODO replace this with another instance of WrappingFilterBuilder + TimestampHandler
            // timestamp is strictly less than the minimum dynamo time value
            RelDataTypeField field =
              node.getRowType().getField(AvroSchemaEncoder.TIMESTAMP_KEY, false, false);
@@ -180,13 +185,16 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
 
       RexBuilder rexer = filter.getCluster().getRexBuilder();
       Map<String, TimestampHandler> handlers = getHandlers(rexer);
+      TimestampExpressionBuilder builder = new TimestampExpressionBuilder(ts);
+      WrappingFilterBuilder wfb = new WrappingFilterBuilder(rexer);
       for (RelNode s : scans) {
+        builder.reset();
+
         TableScan scan = (TableScan) s;
         String type = getScanType(scan);
         TimestampHandler handler = handlers.get(type);
-        TimestampExpressionBuilder builder =
-          new TimestampExpressionBuilder(ts, handler.getShouldScanBuilder(scan));
-        RexNode shouldScan = builder.lift(conditionExp, rexer);
+
+        RexNode shouldScan = builder.lift(conditionExp, rexer, handler.getShouldScanBuilder(scan));
         Range<Instant> range = handler.getTableTimeRange(scan);
         if (builder.isScanAll() || shouldScan == null) {
           // we have to scan everything b/c we didn't understand all the timestamp constraints
@@ -195,9 +203,10 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
           translatedScans.put(type, new RelAndRange(scan, range));
         } else if (shouldScan != null && evaluate(shouldScan)) {
           // we can make a pretty good guess about the scan
+          builder.reset();
           TableFilterBuilder filterBuilder = handler.getFilterBuilder(scan);
-          WrappingFilterBuilder wfb = new WrappingFilterBuilder(scan, filterBuilder, rexer);
-          RelNode translated = wfb.buildFilter(conditionExp, ts);
+          wfb.setup(scan, filterBuilder);
+          RelNode translated = wfb.buildFilter(builder, conditionExp);
           if (translated != null) {
             translatedScans.put(type, new RelAndRange(translated, range));
           }

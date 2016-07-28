@@ -1,22 +1,17 @@
-package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
+package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler;
 
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
 import io.fineo.lambda.dynamo.DynamoTableNameParts;
 import io.fineo.lambda.dynamo.Range;
 import io.fineo.lambda.dynamo.Schema;
-import org.apache.calcite.rel.RelNode;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableFilterBuilder;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TimestampExpressionBuilder;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rex.RexBuilder;
-import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.rex.RexVisitorImpl;
-import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
-import java.util.function.BinaryOperator;
 
 import static java.time.Instant.ofEpochMilli;
 import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;

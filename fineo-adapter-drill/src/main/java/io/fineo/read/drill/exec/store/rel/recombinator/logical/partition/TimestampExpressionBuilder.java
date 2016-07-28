@@ -13,29 +13,27 @@ import org.apache.drill.common.expression.visitors.AbstractExprVisitor;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 public class TimestampExpressionBuilder {
 
   private static final String AND = "booleanAnd";
   private static final String OR = "booleanOr";
 
   private final String ts;
-  private final ConditionBuilder cond;
   private boolean scanAll = false;
 
-  public TimestampExpressionBuilder(String timestampFieldName,
-    ConditionBuilder cond) {
+  public TimestampExpressionBuilder(String timestampFieldName) {
     this.ts = timestampFieldName;
-    this.cond = cond;
   }
 
   public boolean isScanAll() {
     return scanAll;
   }
 
-  public RexNode lift(LogicalExpression conditionExp, RexBuilder builder) {
+  public void reset() {
+    this.scanAll = false;
+  }
+
+  public RexNode lift(LogicalExpression conditionExp, RexBuilder builder, ConditionBuilder cond) {
     return conditionExp.accept(
       new AbstractExprVisitor<RexNode, Object, RuntimeException>() {
         @Override

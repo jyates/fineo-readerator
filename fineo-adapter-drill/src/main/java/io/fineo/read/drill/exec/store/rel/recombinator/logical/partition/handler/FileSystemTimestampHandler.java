@@ -1,7 +1,9 @@
-package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
+package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler;
 
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
 import io.fineo.lambda.dynamo.Range;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableFilterBuilder;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TimestampExpressionBuilder;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -76,13 +78,13 @@ public class FileSystemTimestampHandler implements TimestampHandler {
     return new Range<>(Instant.EPOCH, Instant.now());
   }
 
-  static RexNode fileScanOpToRef(RexBuilder builder, RelNode scan, RelDataTypeField dirField,
+  public static RexNode fileScanOpToRef(RexBuilder builder, RelNode scan, RelDataTypeField dirField,
     SqlOperator op, RexNode value){
     RexInputRef ref = builder.makeInputRef(scan, dirField.getIndex());
     return builder.makeCall(op, ref, value);
   }
 
-  static RelDataTypeField getTimeDir(RelNode scan){
+  public static RelDataTypeField getTimeDir(RelNode scan){
     return scan.getRowType().getField("dir0", false, false);
   }
 
@@ -90,7 +92,7 @@ public class FileSystemTimestampHandler implements TimestampHandler {
     return asValueNode(processor.getValue(), builder);
   }
 
-  static RexNode asValueNode(Object value, RexBuilder builder) {
+  public static RexNode asValueNode(Object value, RexBuilder builder) {
     RexNode literal =
       builder.makeLiteral(value, builder.getTypeFactory().createSqlType(BIGINT), true);
     DrillSqlOperator date = new DrillSqlOperator("TO_DATE", 1, true);

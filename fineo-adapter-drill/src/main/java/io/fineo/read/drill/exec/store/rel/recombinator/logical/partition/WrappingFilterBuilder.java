@@ -22,21 +22,24 @@ import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN_OR_EQUAL;
  */
 public class WrappingFilterBuilder implements TimestampExpressionBuilder.ConditionBuilder {
 
-  private final TableScan scan;
-  private final TableFilterBuilder builder;
-  private final RelDataTypeField field;
   private final RexBuilder rexer;
 
-  public WrappingFilterBuilder(TableScan scan, TableFilterBuilder builder, RexBuilder rexer) {
-    this.scan = scan;
-    this.builder = builder;
-    this.field = scan.getRowType().getField(builder.getFilterFieldName(), true, true);
+  private TableScan scan;
+  private TableFilterBuilder builder;
+  private RelDataTypeField field;
+
+  public WrappingFilterBuilder(RexBuilder rexer) {
     this.rexer = rexer;
   }
 
-  public RelNode buildFilter(LogicalExpression condition, String timestampField) {
-    TimestampExpressionBuilder builder = new TimestampExpressionBuilder(timestampField, this);
-    RexNode rex = builder.lift(condition, rexer);
+  public void setup(TableScan scan, TableFilterBuilder builder) {
+    this.scan = scan;
+    this.builder = builder;
+    this.field = scan.getRowType().getField(builder.getFilterFieldName(), true, true);
+  }
+
+  public RelNode buildFilter(TimestampExpressionBuilder builder, LogicalExpression condition) {
+    RexNode rex = builder.lift(condition, rexer, this);
     return LogicalFilter.create(scan, rex);
   }
 

@@ -7,6 +7,7 @@
   d. Merge dynamo and fs reads into a single read path
   e. Better timestamp support - right now just UNIX epoch timestamp specification
     i. intervals
+      I. Especially important in Dynamo to make sure that we do reads 'well' and avoid too much overhead (e.g. smart when bounding conditions on ts)
     ii. natural timestamp
     iii. timezones
 
