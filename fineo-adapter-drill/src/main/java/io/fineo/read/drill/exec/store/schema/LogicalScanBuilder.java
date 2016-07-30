@@ -1,10 +1,8 @@
 package io.fineo.read.drill.exec.store.schema;
 
-import com.google.common.base.Preconditions;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import io.fineo.schema.store.StoreClerk;
-import org.apache.calcite.plan.Context;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
@@ -26,15 +24,11 @@ public class LogicalScanBuilder {
 
   private final RelOptTable relOptTable;
   private final RelOptCluster cluster;
-  private final RelBuilder relBuilder;
   private List<RelNode> tables = new ArrayList<>();
 
   public LogicalScanBuilder(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
     this.cluster = context.getCluster();
     this.relOptTable = relOptTable;
-    Context c = context.getCluster().getPlanner().getContext();
-    this.relBuilder = RelBuilder.proto(c)
-                                .create(context.getCluster(), relOptTable.getRelOptSchema());
   }
 
   /**
@@ -45,7 +39,6 @@ public class LogicalScanBuilder {
    * @return
    */
   public LogicalScanBuilder scan(String... schemaAndTable) {
-    // this is always a dynamic table
     LogicalTableScan scan = getTableScan(schemaAndTable);
     this.tables.add(scan);
     return this;
@@ -62,16 +55,12 @@ public class LogicalScanBuilder {
   }
 
   private void addFields(RelNode scan) {
-    // ensures that the "*" operator is added to the row type
+    // this is always a dynamic table - that the "*" operator is added to the row type
     scan.getRowType().getFieldList();
     // add the other fields that we are sure are in the table
     for (String field : FineoCommon.REQUIRED_FIELDS) {
       scan.getRowType().getField(field, false, false);
     }
-  }
-
-  public RelBuilder getRelBuilder() {
-    return relBuilder;
   }
 
   public FineoRecombinatorMarkerRel buildMarker(StoreClerk.Metric metric) {
@@ -86,8 +75,4 @@ public class LogicalScanBuilder {
   public void scan(RelNode relNode) {
     this.tables.add(relNode);
   }
-
-//  public RelNode getFirstScan() {
-//    return this.tables.get(0);
-//  }
 }

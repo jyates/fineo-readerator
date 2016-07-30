@@ -159,6 +159,31 @@ public class TestClientLikeReads extends BaseFineoTest {
       .validate(drill.getConnection());
   }
 
+  @Test
+  public void testReadCannonicalNamedField() throws Exception {
+    TestState state = register(p(fieldname, StoreManager.Type.INT));
+    StoreClerk clerk = new StoreClerk(state.getStore(), org);
+    StoreClerk.Metric metric = clerk.getMetrics().get(0);
+    StoreClerk.Field field = metric.getUserVisibleFields().get(0);
+    String cname = field.getCname();
+
+    long ts = get1980();
+    File drill = folder.newFolder("drill");
+    long tsFile = ts - Duration.ofDays(35).toMillis();
+    Map<String, Object> parquetRow = new HashMap<>();
+    parquetRow.put(cname, 1);
+    Pair<FsSourceTable, File> parquet = writeParquet(state, drill, org, metrictype, tsFile,
+      parquetRow);
+
+    bootstrapper()
+      // fs
+      .withLocalSource(parquet.getKey())
+      .bootstrap();
+
+    parquetRow.put(fieldname, parquetRow.remove(cname));
+    verifySelectStar(FineoTestUtil.withNext(parquetRow));
+  }
+
   private Item prepareItem(TestState state) throws SchemaNotFoundException {
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);

@@ -16,8 +16,9 @@ public class AliasFieldNameManager {
   private final Map<String, String> map;
   private final Pattern partitionPattern;
 
-  public AliasFieldNameManager(StoreClerk.Metric clerk, String partitionDesignator, boolean radio) {
-    this.map = getFieldMap(clerk, radio);
+  public AliasFieldNameManager(StoreClerk.Metric metric, String partitionDesignator,
+    boolean radio) {
+    this.map = getFieldMap(metric, radio);
     partitionPattern = Pattern.compile(String.format("%s[0-9]+", partitionDesignator));
   }
 
@@ -38,6 +39,8 @@ public class AliasFieldNameManager {
       for (String alias : field.getAliases()) {
         map.put(alias, field.getName());
       }
+      // canonical name mapping
+      map.put(field.getCname(), field.getName());
     }
 
     // directory names

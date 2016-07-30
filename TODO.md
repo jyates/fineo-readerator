@@ -1,10 +1,7 @@
 # TODO
 
 3. Reading
-  a. Verify timerange source filtering for dynamo reads (limit(0) support)
-  b. Compound key support for dynamo reads
-  c. Filter sources based on timerange (dynamo as much as possible, fs otherwise)
-  d. Merge dynamo and fs reads into a single read path
+  a. filter condition rewrite based on alias names
   e. Better timestamp support - right now just UNIX epoch timestamp specification
     i. intervals
       I. Especially important in Dynamo to make sure that we do reads 'well' and avoid too much overhead (e.g. smart when bounding conditions on ts)
