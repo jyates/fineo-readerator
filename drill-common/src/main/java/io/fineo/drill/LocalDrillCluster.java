@@ -58,11 +58,6 @@ public class LocalDrillCluster {
 
 
   public void shutdown() {
-    try {
-      DriverManager.deregisterDriver(DriverManager.getDriver(getUrl()));
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    }
     DrillMetrics.resetMetrics();
 
     if (servers != null) {

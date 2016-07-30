@@ -24,6 +24,13 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
           <version>${surefire.version}</version>
+          <configuration>
+            <redirectTestOutputToFile>${test.output.to.file}</redirectTestOutputToFile>
+          <argLine>-enableassertions -Djava.security.egd=file:/dev/./urandom
+            -Dsqlite4java.library.path=${project.build.directory}/dependencies
+            -Djava.net.preferIPv4Stack=true
+          </argLine>
+          </configuration>
           <executions>
             <execution>
               <id>local-tests</id>
@@ -49,7 +56,7 @@
                 <!-- Cluster tests run serially (drill cluster/zk always starts on same port) and
                 in different JVMs to support clean connection obtainment -->
                 <forkCount>1</forkCount>
-                <reuseForks>true</reuseForks>
+                <reuseForks>false</reuseForks>
               </configuration>
             </execution>
           </executions>
