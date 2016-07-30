@@ -54,7 +54,7 @@ public class DynamoTimestampHandler implements TimestampHandler {
   private DynamoTableNameParts parseName(TableScan scan) {
     List<String> name = scan.getTable().getQualifiedName();
     String actual = name.get(name.size() - 1);
-    return DynamoTableNameParts.parse(actual);
+    return DynamoTableNameParts.parse(actual, false);
   }
 
   private class DynamoTableNameIncludedConditionBuilder

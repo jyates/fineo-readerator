@@ -7,7 +7,7 @@
 <!-- For professional support please see                            -->
 <!--    http://www.qos.ch/shop/products/professionalSupport         -->
 <!--                                                                -->
-<configuration>
+<configuration debug="true">
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5p %c{3}[%L] - %m%n</pattern>
@@ -19,6 +19,7 @@
   <logger name="io.fineo.read.drill.BootstrapFineo" level="DEBUG"/>
   <logger name="org.reflections" level="ERROR"/>
   <logger name="org.apache.drill.common.config" level="DEBUG"/>
+  <logger name="org.apache.zookeeper.server" level="WARN"/>
   <logger name="org.apache.zookeeper.ZooKeeper" level="WARN"/>
   <logger name="org.apache.drill.common.scanner.persistence" level="WARN"/>
   <!--<logger name="io.fineo.read.drill.exec.store.rel.recombinator.physical.batch" level="DEBUG"/>-->

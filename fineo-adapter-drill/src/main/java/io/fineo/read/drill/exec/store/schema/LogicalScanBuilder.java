@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store.schema;
 
+import com.google.common.base.Preconditions;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import io.fineo.schema.store.StoreClerk;
@@ -32,7 +33,7 @@ public class LogicalScanBuilder {
     this.relOptTable = relOptTable;
     Context c = context.getCluster().getPlanner().getContext();
     this.relBuilder = RelBuilder.proto(c)
-                                      .create(context.getCluster(), relOptTable.getRelOptSchema());
+                                .create(context.getCluster(), relOptTable.getRelOptSchema());
   }
 
   /**
@@ -49,9 +50,10 @@ public class LogicalScanBuilder {
     return this;
   }
 
-  public LogicalTableScan getTableScan(String ...schemaAndTable){
+  public LogicalTableScan getTableScan(String... schemaAndTable) {
     RelOptTable table =
-      relOptTable.getRelOptSchema().getTableForMember(newArrayList(schemaAndTable));
+      Preconditions.checkNotNull(relOptTable.getRelOptSchema().getTableForMember(newArrayList
+        (schemaAndTable)), "Could not find any input table from %s", schemaAndTable);
     LogicalTableScan scan =
       new LogicalTableScan(cluster, cluster.traitSetOf(Convention.NONE), table);
     addFields(scan);

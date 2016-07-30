@@ -93,7 +93,7 @@ public class LocalReadCommand {
         .withDynamoKeyMapper();
     }
     if (opts.input.get() != null) {
-      builder.withLocalSource(new FsSourceTable("dfs", opts.input.get()));
+      builder.withLocalSource(new FsSourceTable("parquet", opts.input.get()));
     }
 
     // run the bootstrap

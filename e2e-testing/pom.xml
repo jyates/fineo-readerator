@@ -94,6 +94,8 @@
                         <exclude>META-INF/*.DSA</exclude>
                         <exclude>META-INF/*.RSA</exclude>
                         <exclude>.gitkeep</exclude>
+                        <!-- -test.xml overrides our logback.xml -->
+                        <exclude>logback-test.xml</exclude>
                         <!-- Force classpath rescanning every time we start drill. Makes it so we
                          can have a single deployable jar. LATER, when we want to roll out
                          independent cluster, we can just build a fineo jars (dynamo and adapter)
