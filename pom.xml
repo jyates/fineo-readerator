@@ -12,6 +12,7 @@
     <module>storage-dynamo</module>
     <module>fineo-adapter-drill</module>
     <module>e2e-testing</module>
+    <module>drill-common</module>
   </modules>
   <packaging>pom</packaging>
 
@@ -137,6 +138,21 @@
 
   <dependencyManagement>
     <dependencies>
+      <!-- intra-project -->
+      <dependency>
+        <groupId>io.fineo.read</groupId>
+        <artifactId>drill-common</artifactId>
+        <version>${project.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.fineo.read</groupId>
+        <artifactId>drill-common</artifactId>
+        <version>${project.version}</version>
+        <classifier>tests</classifier>
+        <scope>test</scope>
+      </dependency>
+
       <dependency>
         <groupId>org.apache.calcite.avatica</groupId>
         <artifactId>avatica</artifactId>
