@@ -13,14 +13,12 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Properties;
 
 import static java.lang.String.format;
 
-/**
- *
- */
 public class LocalDrillCluster {
   private static final Logger LOG = LoggerFactory.getLogger(LocalDrillCluster.class);
   private ZookeeperHelper zkHelper;
@@ -60,6 +58,11 @@ public class LocalDrillCluster {
 
 
   public void shutdown() {
+    try {
+      DriverManager.deregisterDriver(DriverManager.getDriver(getUrl()));
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
     DrillMetrics.resetMetrics();
 
     if (servers != null) {
@@ -75,9 +78,12 @@ public class LocalDrillCluster {
     zkHelper.stopZookeeper();
   }
 
-  public Connection getConnection() throws Exception {
+  private String getUrl() {
     String zkConnection = zkHelper.getConfig().getString("drill.exec.zk.connect");
-    String url = format("jdbc:drill:zk=%s", zkConnection);
-    return factory.getConnection(new ConnectionInfo(url, new Properties()));
+    return format("jdbc:drill:zk=%s", zkConnection);
+  }
+
+  public Connection getConnection() throws Exception {
+    return factory.getConnection(new ConnectionInfo(getUrl(), new Properties()));
   }
 }

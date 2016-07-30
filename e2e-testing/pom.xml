@@ -16,6 +16,7 @@
     <dependency>
       <groupId>io.fineo.read</groupId>
       <artifactId>drill-common</artifactId>
+      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>com.beust</groupId>

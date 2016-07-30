@@ -10,9 +10,9 @@ import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
-import oadd.org.apache.drill.exec.util.Text;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.drill.exec.util.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -112,12 +112,9 @@ public class FineoTestUtil {
           .get(mapKey));
       }
       return;
-    } else if (expected instanceof String) {
-      if (actual instanceof Text) {
-        assertSqlValuesEquals(key, result, expected, actual.toString());
-        return;
-      }
-      // fall through
+    } else if (expected instanceof String && actual instanceof Text) {
+      assertSqlValuesEquals(key, result, expected, actual.toString());
+      return;
     }
     assertEquals("Mismatch for column: " + key + "\nActual:" + toStringRow(result),
       expected, actual);

@@ -36,7 +36,6 @@ public class DrillClusterRule extends ExternalResource {
     drill.setup();
   }
 
-
   @Override
   protected void after() {
     drill.shutdown();
