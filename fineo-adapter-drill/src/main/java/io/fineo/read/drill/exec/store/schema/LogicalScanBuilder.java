@@ -16,6 +16,7 @@ import org.apache.calcite.tools.RelBuilder;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Lists.newArrayList;
 
 /**
@@ -52,8 +53,8 @@ public class LogicalScanBuilder {
 
   public LogicalTableScan getTableScan(String... schemaAndTable) {
     RelOptTable table =
-      Preconditions.checkNotNull(relOptTable.getRelOptSchema().getTableForMember(newArrayList
-        (schemaAndTable)), "Could not find any input table from %s", schemaAndTable);
+      checkNotNull(relOptTable.getRelOptSchema().getTableForMember(newArrayList(schemaAndTable)),
+        "Could not find any input table from %s", schemaAndTable);
     LogicalTableScan scan =
       new LogicalTableScan(cluster, cluster.traitSetOf(Convention.NONE), table);
     addFields(scan);
