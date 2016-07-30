@@ -11,12 +11,6 @@
 
   <artifactId>fineo-adapter-drill</artifactId>
 
-  <properties>
-    <surefire.cluster.tests>io.fineo.drill.ClusterTest</surefire.cluster.tests>
-    <surefire.skip.simple>false</surefire.skip.simple>
-    <surefire.skip.cluster>false</surefire.skip.cluster>
-  </properties>
-
   <build>
     <pluginManagement>
       <plugins>
@@ -24,13 +18,6 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
           <version>${surefire.version}</version>
-          <configuration>
-            <redirectTestOutputToFile>${test.output.to.file}</redirectTestOutputToFile>
-          <argLine>-enableassertions -Djava.security.egd=file:/dev/./urandom
-            -Dsqlite4java.library.path=${project.build.directory}/dependencies
-            -Djava.net.preferIPv4Stack=true
-          </argLine>
-          </configuration>
           <executions>
             <execution>
               <id>local-tests</id>
@@ -39,7 +26,7 @@
               </goals>
               <configuration>
                 <excludedGroups>${surefire.cluster.tests}</excludedGroups>
-                <skip>${surefire.skip.simple}</skip>
+                <skip>${test.skip.simple}</skip>
                 <!-- simple tests should have no interdependencies and can run highly parallel -->
                 <parallel>both</parallel>
                 <useUnlimitedThreads>true</useUnlimitedThreads>
@@ -340,6 +327,29 @@
             </executions>
           </plugin>
         </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>iso</id>
+      <properties>
+        <skip.default.tests>false</skip.default.tests>
+        <test.skip.simple>true</test.skip.simple>
+        <test.skip.cluster>true</test.skip.cluster>
+      </properties>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-surefire-plugin</artifactId>
+              <version>${surefire.version}</version>
+              <configuration>
+                <forkCount>1</forkCount>
+                <reuseForks>false</reuseForks>
+              </configuration>
+            </plugin>
+          </plugins>
+        </pluginManagement>
       </build>
     </profile>
   </profiles>
