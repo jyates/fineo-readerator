@@ -11,7 +11,51 @@
 
   <artifactId>fineo-adapter-drill</artifactId>
 
+  <properties>
+    <surefire.cluster.tests>io.fineo.drill.ClusterTest</surefire.cluster.tests>
+    <surefire.skip.simple>false</surefire.skip.simple>
+    <surefire.skip.cluster>false</surefire.skip.cluster>
+  </properties>
+
   <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>${surefire.version}</version>
+          <executions>
+            <execution>
+              <id>local-tests</id>
+              <goals>
+                <goal>test</goal>
+              </goals>
+              <configuration>
+                <excludedGroups>${surefire.cluster.tests}</excludedGroups>
+                <skip>${surefire.skip.simple}</skip>
+                <!-- simple tests should have no interdependencies and can run highly parallel -->
+                <parallel>both</parallel>
+                <useUnlimitedThreads>true</useUnlimitedThreads>
+              </configuration>
+            </execution>
+            <execution>
+              <id>cluster-tests</id>
+              <goals>
+                <goal>test</goal>
+              </goals>
+              <configuration>
+                <groups>${surefire.cluster.tests}</groups>
+                <skip>${surefire.skip.cluster}</skip>
+                <!-- Cluster tests run serially (drill cluster/zk always starts on same port) and
+                in different JVMs to support clean connection obtainment -->
+                <forkCount>1</forkCount>
+                <reuseForks>true</reuseForks>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
       <!-- Run local dynamo -->
       <plugin>
@@ -64,8 +108,11 @@
     <!-- Intra-project -->
     <dependency>
       <groupId>io.fineo.read</groupId>
+      <artifactId>test-util</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.read</groupId>
       <artifactId>drill-storage-dynamo</artifactId>
-      <version>${project.version}</version>
     </dependency>
 
     <dependency>

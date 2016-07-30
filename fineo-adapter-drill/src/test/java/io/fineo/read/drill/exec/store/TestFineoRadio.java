@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store;
 
+import io.fineo.drill.ClusterTest;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.FineoTestUtil;
@@ -12,6 +13,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.io.File;
 import java.util.HashMap;
@@ -31,6 +33,7 @@ import static org.junit.Assert.assertTrue;
  * the correct way that we can merge the schemas for the maps. This mostly goes to supporting
  * UNION and ExternalSort/TopN.
  */
+@Category(ClusterTest.class)
 public class TestFineoRadio extends BaseFineoTest {
 
   /**

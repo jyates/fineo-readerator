@@ -1,5 +1,6 @@
 package io.fineo.read.drill.exec.store;
 
+import io.fineo.drill.ClusterTest;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.FineoTestUtil;
@@ -12,6 +13,7 @@ import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreManager;
 import org.apache.avro.Schema;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.schemarepo.ValidatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +31,7 @@ import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
+@Category(ClusterTest.class)
 public class TestFineoReadTable extends BaseFineoTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestFineoReadTable.class);
 

@@ -1,11 +1,13 @@
 package io.fineo.read.drill.fs;
 
 
+import io.fineo.drill.ClusterTest;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.io.File;
 import java.util.HashMap;
@@ -16,6 +18,7 @@ import static com.google.common.collect.Maps.newHashMap;
 import static java.lang.String.format;
 import static org.junit.Assert.assertTrue;
 
+@Category(ClusterTest.class)
 public class TestFineoReadJsonAndParquet extends BaseFineoTest {
 
   @Test

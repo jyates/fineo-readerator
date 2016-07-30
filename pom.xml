@@ -13,6 +13,7 @@
     <module>fineo-adapter-drill</module>
     <module>e2e-testing</module>
     <module>drill-common</module>
+    <module>test-util</module>
   </modules>
   <packaging>pom</packaging>
 
@@ -121,10 +122,6 @@
         <!-- Generic testing configuration for all packages -->
         <configuration>
           <redirectTestOutputToFile>${test.output.to.file}</redirectTestOutputToFile>
-          <argLine>-enableassertions -Djava.security.egd=file:/dev/./urandom
-            -Dsqlite4java.library.path=${project.build.directory}/dependencies
-            -Djava.net.preferIPv4Stack=true
-          </argLine>
           <excludes>
             <!-- users can add -D option to skip particular test classes
            ex: mvn test -Dtest.exclude.pattern=**/TestFoo.java,**/TestBar.java
@@ -151,6 +148,16 @@
         <version>${project.version}</version>
         <classifier>tests</classifier>
         <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.fineo.read</groupId>
+        <artifactId>test-util</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.fineo.read</groupId>
+        <artifactId>drill-storage-dynamo</artifactId>
+        <version>${project.version}</version>
       </dependency>
 
       <dependency>

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.collect.ImmutableList;
+import io.fineo.drill.ClusterTest;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
@@ -25,6 +26,7 @@ import org.apache.drill.exec.store.easy.sequencefile.SequenceFileFormatConfig;
 import org.apache.drill.exec.store.easy.text.TextFormatPlugin;
 import org.apache.drill.exec.store.parquet.ParquetFormatConfig;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.io.File;
 import java.io.IOException;
@@ -45,6 +47,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * Ensure that we push the timerange down into the scan when applicable
  */
+@Category(ClusterTest.class)
 public class TestPushTimerangePastFMR extends BaseFineoTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();

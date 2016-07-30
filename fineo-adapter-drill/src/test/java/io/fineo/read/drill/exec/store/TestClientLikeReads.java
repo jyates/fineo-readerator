@@ -2,6 +2,7 @@ package io.fineo.read.drill.exec.store;
 
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import io.fineo.drill.ClusterTest;
 import io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
@@ -18,6 +19,7 @@ import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.drill.exec.store.parquet.ParquetFormatConfig;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.io.File;
 import java.time.Duration;
@@ -38,6 +40,7 @@ import static org.apache.calcite.util.ImmutableNullableList.of;
  * - ensuring that we don't have duplicate data when reading overlapping time ranges
  * - combining fields across json and parquet formats
  */
+@Category(ClusterTest.class)
 public class TestClientLikeReads extends BaseFineoTest {
 
   private static final long ONE_DAY_MILLIS = 24 * 60 * 60 * 1000;

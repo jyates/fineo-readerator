@@ -2,6 +2,7 @@ package io.fineo.read.drill.exec.store.dynamo;
 
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import io.fineo.drill.ClusterTest;
 import io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
@@ -13,6 +14,7 @@ import io.fineo.read.drill.PlanValidator;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.StoreClerk;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -27,6 +29,7 @@ import static org.junit.Assert.assertNotEquals;
 /**
  * Do Fineo-style reads over a dynamo table
  */
+@Category(ClusterTest.class)
 public class TestFineoOverDynamo extends BaseFineoTest {
 
   @Test
