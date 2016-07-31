@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.Recombinator;
+import io.fineo.schema.FineoStopWords;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.exception.OutOfMemoryException;
@@ -91,7 +92,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     String prefix = null;
     for (MaterializedField f : inschema) {
       String name = f.getName();
-      if (name.contains(StarColumnHelper.PREFIX_DELIMITER)) {
+      if(FineoStopWords.DRILL_STAR_PREFIX_PATTERN.matcher(name).matches()){
         prefix = name.substring(0, name.indexOf(StarColumnHelper.PREFIX_DELIMITER));
         break;
       }

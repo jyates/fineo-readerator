@@ -160,7 +160,7 @@ public class TestClientLikeReads extends BaseFineoTest {
   }
 
   @Test
-  public void testReadCannonicalNamedField() throws Exception {
+  public void testReadCanonicalNamedField() throws Exception {
     TestState state = register(p(fieldname, StoreManager.Type.INT));
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
     StoreClerk.Metric metric = clerk.getMetrics().get(0);
