@@ -3,6 +3,7 @@ package io.fineo.read.drill.exec.store.dynamo;
 import com.fasterxml.jackson.annotation.JacksonInject;
 import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapper;
 import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapperSpec;
+import io.fineo.schema.FineoStopWords;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 
 import java.util.HashMap;
@@ -19,7 +20,7 @@ public class DynamoFineoCompoundKeyMapper extends DynamoKeyMapper {
   @Override
   public Map<String, Object> mapHashKey(Object value) {
     String val = (String) value;
-    int metricStart = val.lastIndexOf('n');
+    int metricStart = val.indexOf(FineoStopWords.FIELD_PREFIX);
     String org = val.substring(0, metricStart);
     String metric = val.substring(metricStart);
     Map<String, Object> out = new HashMap<>();
