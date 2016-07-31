@@ -6,6 +6,7 @@ import io.fineo.drill.ClusterTest;
 import io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
+import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
@@ -13,7 +14,10 @@ import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.avro.AvroSchemaEncoder;
+import io.fineo.schema.avro.AvroSchemaManager;
 import io.fineo.schema.exception.SchemaNotFoundException;
+import io.fineo.schema.store.SchemaBuilder;
+import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.Pair;
@@ -157,6 +161,32 @@ public class TestClientLikeReads extends BaseFineoTest {
         PlanValidator.getSelectionRoot(state.getStore(), source.getKey(), org, metrictype))
       .done()
       .validate(drill.getConnection());
+  }
+
+  @Test
+  public void testStoringNonUserVisibleFieldName() throws Exception {
+    TestState state = register();
+    // create a new alias name for the field
+    String storeFieldName = "other-field-name";
+    SchemaStore store = state.getStore();
+    StoreManager manager = new StoreManager(store);
+    manager.updateOrg(org)
+           .updateMetric(metrictype).addFieldAlias(fieldname, storeFieldName).build()
+           .commit();
+
+    // write a file with the new field name
+    File drill = folder.newFolder("drill");
+    Map<String, Object> values = new HashMap<>();
+    values.put(storeFieldName, false);
+    FsSourceTable out = state.writeParquet(drill, 1, values);
+
+    bootstrap(out);
+
+    // we should read this as the client visible name
+    Boolean value = (Boolean) values.remove(storeFieldName);
+    values.put(fieldname, value);
+
+    verifySelectStar(FineoTestUtil.withNext(values));
   }
 
   @Test

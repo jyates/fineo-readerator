@@ -103,10 +103,14 @@ public class FineoRecombinatorRule extends RelOptRule {
     Map<RelDataTypeField, StoreClerk.Field> typeToField = new HashMap<>();
     // add the user fields + aliases - its a dynamic table!
     for (StoreClerk.Field field : userFields) {
+      // user visible field
       typeToField.put(tableType.getField(field.getName(), false, false), field);
+      // aliases
       for (String alias : field.getAliases()) {
         typeToField.put(tableType.getField(alias, false, false), field);
       }
+      // cname
+      typeToField.put(tableType.getField(field.getCname(), false, false), field);
     }
 
     // create proper casts for known fields + expansions.
