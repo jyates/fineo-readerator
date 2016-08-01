@@ -43,7 +43,8 @@ public class DynamoSchemaFactory implements SchemaFactory {
     public Set<String> getTableNames() {
       return StreamSupport.stream(plugin.getModel().listTables().pages().spliterator(), false)
                           .flatMap(page -> StreamSupport.stream(page.spliterator(), false))
-                          .map(table -> table.getDescription().getTableName())
+                          .filter(table -> table != null)
+                          .map(table -> table.getTableName())
                           .collect(Collectors.toSet());
     }
 

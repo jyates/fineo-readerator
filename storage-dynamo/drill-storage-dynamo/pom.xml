@@ -49,6 +49,16 @@
     </dependency>
     <dependency>
       <groupId>io.fineo.read</groupId>
+      <artifactId>drill-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>drill-common</artifactId>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.read</groupId>
       <artifactId>dynamo-common</artifactId>
       <version>${project.version}</version>
       <classifier>tests</classifier>

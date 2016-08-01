@@ -47,7 +47,7 @@
 
     <fineo.ingest.verison>1.0-SNAPSHOT</fineo.ingest.verison>
     <fineo.schema.version>2.0-SNAPSHOT</fineo.schema.version>
-    <avatica.version>1.7.1</avatica.version>
+    <avatica.version>1.8.0</avatica.version>
     <calcite.version>1.8.0-SNAPSHOT</calcite.version>
 
     <!-- Plugin versions -->
@@ -177,12 +177,19 @@
         <scope>test</scope>
       </dependency>
 
-      <!-- Calcite matching drill -->
+      <!-- Recent avatica release, not tied to existing drill/calcite -->
       <dependency>
         <groupId>org.apache.calcite.avatica</groupId>
-        <artifactId>avatica</artifactId>
+        <artifactId>avatica-server</artifactId>
         <version>${avatica.version}</version>
       </dependency>
+      <dependency>
+        <groupId>com.beust</groupId>
+        <artifactId>jcommander</artifactId>
+        <version>1.30</version>
+      </dependency>
+
+      <!-- Force Calcite dependencies to match drill -->
       <dependency>
         <groupId>org.apache.calcite</groupId>
         <artifactId>calcite-core</artifactId>
@@ -193,6 +200,16 @@
             <groupId>commons-logging</groupId>
           </exclusion>
         </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.calcite</groupId>
+        <artifactId>calcite-avatica</artifactId>
+        <version>${drill.calcite.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.calcite</groupId>
+        <artifactId>calcite-linq4j</artifactId>
+        <version>${drill.calcite.version}</version>
       </dependency>
       <!-- Drill -->
       <dependency>
