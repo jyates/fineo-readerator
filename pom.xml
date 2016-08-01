@@ -169,7 +169,15 @@
         <artifactId>drill-storage-dynamo</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <dependency>
+        <groupId>io.fineo.read</groupId>
+        <artifactId>drill-storage-dynamo</artifactId>
+        <version>${project.version}</version>
+        <classifier>tests</classifier>
+        <scope>test</scope>
+      </dependency>
 
+      <!-- Calcite matching drill -->
       <dependency>
         <groupId>org.apache.calcite.avatica</groupId>
         <artifactId>avatica</artifactId>
@@ -186,6 +194,7 @@
           </exclusion>
         </exclusions>
       </dependency>
+      <!-- Drill -->
       <dependency>
         <groupId>org.apache.drill.exec</groupId>
         <artifactId>drill-java-exec</artifactId>
@@ -198,6 +207,19 @@
         <classifier>tests</classifier>
         <scope>test</scope>
       </dependency>
+      <dependency>
+        <groupId>org.apache.drill</groupId>
+        <artifactId>drill-common</artifactId>
+        <version>${drill.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.drill</groupId>
+        <artifactId>drill-common</artifactId>
+        <version>${drill.version}</version>
+        <classifier>tests</classifier>
+        <scope>test</scope>
+      </dependency>
+       <!-- AWS -->
       <dependency>
         <groupId>com.amazonaws</groupId>
         <artifactId>aws-java-sdk</artifactId>
@@ -220,6 +242,7 @@
         <version>${aws.dynamodb.local.version}</version>
         <scope>test</scope>
       </dependency>
+      <!-- Fineo -->
       <dependency>
         <groupId>io.fineo.schema</groupId>
         <artifactId>schema-core</artifactId>

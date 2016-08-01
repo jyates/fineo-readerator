@@ -7,13 +7,11 @@ import org.apache.drill.exec.metrics.DrillMetrics;
 import org.apache.drill.exec.server.Drillbit;
 import org.apache.drill.jdbc.ConnectionFactory;
 import org.apache.drill.jdbc.ConnectionInfo;
-import org.apache.drill.jdbc.SingleConnectionCachingFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Properties;
 

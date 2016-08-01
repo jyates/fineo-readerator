@@ -23,9 +23,6 @@ import java.util.Map;
 
 import static java.lang.String.format;
 
-/**
- *
- */
 public class LocalReadCommand {
   private static final Logger LOG = LoggerFactory.getLogger(LocalReadCommand.class);
 
@@ -106,9 +103,5 @@ public class LocalReadCommand {
       throw new RuntimeException("Bootstrap step failed!");
     }
     LOG.info("Fineo adapter bootstrapped!");
-  }
-
-  private void shutdown() {
-    drill.shutdown();
   }
 }

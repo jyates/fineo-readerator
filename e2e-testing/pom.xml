@@ -19,6 +19,19 @@
       <scope>compile</scope>
     </dependency>
     <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>drill-common</artifactId>
+      <classifier>tests</classifier>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.drill</groupId>
+      <artifactId>drill-common</artifactId>
+      <classifier>tests</classifier>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
       <groupId>com.beust</groupId>
       <artifactId>jcommander</artifactId>
       <version>1.30</version>
@@ -83,10 +96,18 @@
                       <include>io.fineo.read:fineo-adapter-drill:tests</include>
                       <include>io.fineo.e2e:e2e-parsing</include>
                       <include>io.fineo.schema:schema-core:tests</include>
-                      <!--<include>com.fasterxml.jackson.core:jackson-core</include>-->
+                      <!-- Need DrillTest -->
+                      <include>org.apache.drill:drill-common:tests</include>
                     </includes>
                   </artifactSet>
                   <filters>
+                    <filter>
+                      <artifact>org.apache.drill:drill-common:tests</artifact>
+                      <excludes>
+                        <exclude>drill-default.conf</exclude>
+                        <exclude>drill-module.conf</exclude>
+                      </excludes>
+                    </filter>
                     <filter>
                       <artifact>*:*</artifact>
                       <excludes>
