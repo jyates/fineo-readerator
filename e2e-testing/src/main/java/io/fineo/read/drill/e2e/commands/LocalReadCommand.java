@@ -6,6 +6,7 @@ import io.fineo.drill.LocalDrillCluster;
 import io.fineo.e2e.module.FakeAwsCredentialsModule;
 import io.fineo.e2e.options.LocalSchemaStoreOptions;
 import io.fineo.read.drill.BootstrapFineo;
+import io.fineo.read.drill.FineoDrillStartupSetup;
 import io.fineo.read.drill.e2e.options.DrillArguments;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.slf4j.Logger;
@@ -75,6 +76,10 @@ public class LocalReadCommand {
     LOG.info("Starting drill cluster...");
     drill = new LocalDrillCluster(1);
     drill.setup();
+
+    Connection conn = drill.getConnection();
+    FineoDrillStartupSetup setup = new FineoDrillStartupSetup(conn);
+    setup.run();
 
     LOG.info("Cluster started!");
     LOG.info("Bootstrapping Fineo adapter...");

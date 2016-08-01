@@ -2,6 +2,7 @@ package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handle
 
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
 import io.fineo.lambda.dynamo.Range;
+import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableFilterBuilder;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TimestampExpressionBuilder;
 import org.apache.calcite.rel.RelNode;
@@ -19,6 +20,7 @@ import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;
 
 public class FileSystemTimestampHandler implements TimestampHandler {
 
+  private static final String TIME_DIR = FineoCommon.PARTITION_DESIGNATOR + "0";
   private final RexBuilder rexer;
 
   public FileSystemTimestampHandler(RexBuilder rexer) {
@@ -35,7 +37,7 @@ public class FileSystemTimestampHandler implements TimestampHandler {
 
       @Override
       public String getFilterFieldName() {
-        return "dir0";
+        return TIME_DIR;
       }
     };
   }
@@ -85,7 +87,7 @@ public class FileSystemTimestampHandler implements TimestampHandler {
   }
 
   public static RelDataTypeField getTimeDir(RelNode scan){
-    return scan.getRowType().getField("dir0", false, false);
+    return scan.getRowType().getField(TIME_DIR, false, false);
   }
 
   private static RexNode asValueNode(SingleFunctionProcessor processor, RexBuilder builder) {

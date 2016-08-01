@@ -10,12 +10,13 @@
 
 3. Server
   a. stand up
-  b. integration with dynamo + spark
+  b. filter per-tenant based on properties
   c. load testing
 
 --- Later ---
 0. RecombinatorRecordBatch
- a. Improve alias to known field mapping to avoid copying values and instead use transfer pairs
+ a. Improve alias to known field mapping to avoid copying values and instead use transfer pairs, 
+ but requires using some sort of splitting, which is not well defined in drill right now
 
 2. Dynamo Reading
  a. fix reading Decimal38 (now just reads strings)

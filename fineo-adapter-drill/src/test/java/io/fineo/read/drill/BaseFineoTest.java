@@ -19,6 +19,7 @@ import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import io.fineo.test.rule.TestOutput;
 import org.apache.commons.lang3.tuple.Pair;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.schemarepo.ValidatorFactory;
@@ -52,6 +53,12 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   protected final String org = "orgid1", metrictype = "metricid1", fieldname = "field1";
   private static final String DYNAMO_TABLE_PREFIX = "test-dynamo-client-";
   private static final Joiner AND = Joiner.on(" AND ");
+
+  @BeforeClass
+  public static void prepareCluster() throws Exception {
+    FineoDrillStartupSetup setup = new FineoDrillStartupSetup(drill.getConnection());
+    setup.run();
+  }
 
   @FunctionalInterface
   protected interface Verify<T> {

@@ -15,14 +15,16 @@ public class AliasFieldNameManager {
 
   private final Map<String, String> map;
   private final Pattern partitionPattern;
+  private final boolean radio;
 
   public AliasFieldNameManager(StoreClerk.Metric metric, String partitionDesignator,
     boolean radio) {
-    this.map = getFieldMap(metric, radio);
+    this.radio = radio;
+    this.map = getFieldMap(metric);
     partitionPattern = Pattern.compile(String.format("%s[0-9]+", partitionDesignator));
   }
 
-  private static Map<String, String> getFieldMap(StoreClerk.Metric metric, boolean radioEnabled) {
+  private Map<String, String> getFieldMap(StoreClerk.Metric metric) {
     Map<String, String> map = new HashMap<>();
     // build list of fields that we need to add
     // required fields
@@ -30,7 +32,7 @@ public class AliasFieldNameManager {
       map.put(field, field);
     }
 
-    if (radioEnabled) {
+    if (radio) {
       map.put(FineoCommon.MAP_FIELD, FineoCommon.MAP_FIELD);
     }
 
@@ -42,12 +44,6 @@ public class AliasFieldNameManager {
       // canonical name mapping
       map.put(field.getCname(), field.getName());
     }
-
-    // directory names
-    for (int i = 0; i < 20; i++) {
-      String name = "dir" + i;
-      map.put(name, name);
-    }
     return map;
   }
 
@@ -58,8 +54,14 @@ public class AliasFieldNameManager {
   public boolean shouldSkip(String outputName, boolean dynamic) {
     // dynamic fields should come first
     if (dynamic) {
-      return !outputName.equals(FineoCommon.MAP_FIELD) && getOutputName(outputName) != null;
+      // for fields we know about (have mappings) we will get them in the non-dynamic fields.
+      if (radio) {
+        // Otherwise, we should not skip it because its an unknown field and needs to go into _fm
+        return !outputName.equals(FineoCommon.MAP_FIELD) && getOutputName(outputName) != null;
+      }
+      return true;
     }
+
     return isDirectory(outputName);
   }
 
