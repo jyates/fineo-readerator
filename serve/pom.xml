@@ -25,6 +25,10 @@
       <groupId>com.beust</groupId>
       <artifactId>jcommander</artifactId>
     </dependency>
+    <dependency>
+      <groupId>org.apache.drill.exec</groupId>
+      <artifactId>drill-java-exec</artifactId>
+    </dependency>
     <!-- shaded packages - should have all necessary dependencies -->
     <dependency>
       <groupId>org.apache.drill.exec</groupId>

@@ -1,0 +1,52 @@
+{
+  # Generated parser implementation class package and name
+  package: "io.fineo.read.calcite.parser",
+  class: "FineoParseImpl",
+
+  # List of import statements.
+  imports: [
+    "org.apache.drill.exec.planner.sql.parser.*"
+  ]
+
+  # List of keywords.
+  keywords: [
+    "SCHEMAS",
+    "SHOW",
+    "TABLES",
+    "FILES",
+    "DATABASES",
+    "USE"
+  ]
+
+  # List of methods for parsing custom SQL statements.
+  statementParserMethods: [
+    "SqlShowTables()",
+    "SqlShowSchemas()",
+    "SqlDescribeTable()"
+  ]
+
+  # List of methods for parsing custom literals.
+  # Example: ParseJsonLiteral().
+  literalParserMethods: [
+  ]
+
+  # List of methods for parsing custom data types.
+  dataTypeParserMethods: [
+  ]
+
+  # List of files in @includes directory that have parser method
+  # implementations for custom SQL statements, literals or types
+  # given as part of "statementParserMethods", "literalParserMethods" or
+  # "dataTypeParserMethods".
+  implementationFiles: [
+    "parserImpls.ftl"
+  ]
+
+  includeAdditionalParserSettings: true
+  includeCompoundTableIdentifier: false
+  includeCompoundIdentifier: false
+  includeBraces: true
+  includeAdditionalDeclarations: false
+
+  identifierMaxLength: 1024
+}

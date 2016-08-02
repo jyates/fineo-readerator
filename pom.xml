@@ -14,6 +14,7 @@
     <module>e2e-testing</module>
     <module>drill-common</module>
     <module>test-util</module>
+    <module>fineo-common</module>
   </modules>
   <packaging>pom</packaging>
 

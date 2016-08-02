@@ -66,6 +66,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   }
 
   protected class QueryRunnable {
+    private FineoSqlRewriter rewriter = new FineoSqlRewriter(org);
     List<String> wheres;
     Verify<ResultSet> verify;
     boolean withUnion = true;
@@ -86,13 +87,14 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       }
     }
 
-    public String getStatement() {
+    public String getStatement() throws Exception {
       if (statement == null) {
-        String from = format(" FROM fineo.%s.%s", org, metrictype);
+        String from = format(" FROM %s", metrictype);
         String where = wheres == null ? "" : " WHERE " + AND.join(wheres);
         statement = "SELECT *" + from + where + " ORDER BY `timestamp` ASC";
       }
-      return statement;
+//      return statement;
+      return rewriter.rewrite(statement);
     }
   }
 

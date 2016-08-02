@@ -5,6 +5,7 @@ import io.fineo.read.drill.BootstrapFineo;
 import org.junit.Test;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 
 public class TestDynamoMeta extends BaseFineoTest {
 
@@ -16,6 +17,6 @@ public class TestDynamoMeta extends BaseFineoTest {
     BootstrapFineo.DrillConfigBuilder builder = basicBootstrap(bootstrap.builder());
     builder.bootstrap();
     Connection conn = drill.getConnection();
-    conn.getMetaData().getCatalogs();
+    ResultSet r = conn.getMetaData().getCatalogs();
   }
 }
