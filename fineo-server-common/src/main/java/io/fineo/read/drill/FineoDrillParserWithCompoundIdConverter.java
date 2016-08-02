@@ -21,10 +21,8 @@ package io.fineo.read.drill;
 
 import io.fineo.read.calcite.parser.FineoParseImpl;
 import org.apache.calcite.sql.SqlNode;
-import org.apache.calcite.sql.parser.SqlAbstractParserImpl;
 import org.apache.calcite.sql.parser.SqlParserImplFactory;
 import org.apache.calcite.sql.util.SqlVisitor;
-import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.drill.exec.planner.sql.parser.CompoundIdentifierConverter;
 
 import java.io.Reader;

@@ -6,7 +6,6 @@ import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.sql.parser.SqlParserImplFactory;
-import org.apache.drill.exec.planner.physical.PlannerSettings;
 
 /**
  * Rewrite SQL queries for a single org
@@ -32,7 +31,8 @@ public class FineoSqlRewriter {
   // Copied from Drill SqlConverter.ParserConfig
   private class ParserConfig implements SqlParser.Config {
 
-    final long identifierMaxLength = PlannerSettings.DEFAULT_IDENTIFIER_MAX_LENGTH;
+    // copied from org.apache.drill.exec.planner.physical.PlannerSettings, but skip the dep.
+    final long identifierMaxLength = 1024;
 
     private final SqlParserImplFactory factory;
 

@@ -9,8 +9,7 @@
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.fineo.read</groupId>
-  <artifactId>fineo-common</artifactId>
+  <artifactId>fineo-server-common</artifactId>
 
   <properties>
     <maven-dependency-plugin.version>2.1</maven-dependency-plugin.version>
@@ -18,6 +17,7 @@
 
   <build>
     <plugins>
+      <!-- Build the parser -->
       <plugin>
         <artifactId>maven-resources-plugin</artifactId>
         <executions>
@@ -88,6 +88,86 @@
           </execution>
         </executions>
       </plugin>
+
+      <!-- Bundle the parser + dependencies into their own packaging to avoid conflicts
+        with other versions of calcite/drill
+       -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>2.4.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <shadedArtifactAttached>false</shadedArtifactAttached>
+          <createDependencyReducedPom>true</createDependencyReducedPom>
+          <minimizeJar>false</minimizeJar>
+
+          <artifactSet>
+            <includes>
+              <include>org.apache.calcite:calcite-core</include>
+              <include>org.apache.calcite:calcite-avatica</include>
+              <include>org.apache.drill:drill-java-exec</include>
+            </includes>
+          </artifactSet>
+          <relocations>
+            <relocation>
+              <pattern>org.apache.drill.exec</pattern>
+              <shadedPattern>fineo.drill.exec</shadedPattern>
+            </relocation>
+            <relocation>
+              <pattern>org.apache.calcite</pattern>
+              <shadedPattern>fineo.calcite</shadedPattern>
+            </relocation>
+          </relocations>
+          <filters>
+            <filter>
+              <artifact>*:*</artifact>
+              <excludes>
+                <exclude>**/logback-test.xml</exclude>
+                <exclude>**/logback.xml</exclude>
+                <exclude>**/LICENSE.txt</exclude>
+                <exclude>**/*.java</exclude>
+                <exclude>**/META-INF/**</exclude>
+                <exclude>**/*.SF</exclude>
+                <exclude>**/*.RSA</exclude>
+                <exclude>**/*.DSA</exclude>
+                <exclude>javax/**</exclude>
+                <exclude>rest/**</exclude>
+                <exclude>*.tokens</exclude>
+                <exclude>**/org.codehaus.commons.compiler.properties</exclude>
+                <exclude>codegen/**</exclude>
+                <exclude>bootstrap-storage-plugins.json</exclude>
+                <exclude>org/apache/parquet</exclude>
+                <exclude>com/google/common/math</exclude>
+                <exclude>com/google/common/net</exclude>
+                <exclude>com/google/common/primitives</exclude>
+                <exclude>com/google/common/reflect</exclude>
+                <exclude>com/google/common/util</exclude>
+                <exclude>com/google/common/cache</exclude>
+                <exclude>com/google/common/collect/Tree*</exclude>
+                <exclude>com/google/common/collect/Standard*</exclude>
+                <exclude>org/apache/drill/exec/expr/annotations/**</exclude>
+                <exclude>org/apache/drill/exec/expr/fn/**</exclude>
+                <exclude>org/apache/drill/exec/proto/beans/**</exclude>
+                <exclude>org/apache/drill/exec/compile/**</exclude>
+                <exclude>org/apache/drill/exec/planner/**</exclude>
+                <exclude>org/apache/drill/exec/physical/**</exclude>
+                <exclude>org/apache/drill/exec/store/**</exclude>
+                <exclude>org/apache/drill/exec/server/rest/**</exclude>
+                <exclude>org/apache/drill/exec/rpc/data/**</exclude>
+                <exclude>org/apache/drill/exec/rpc/control/**</exclude>
+              </excludes>
+            </filter>
+          </filters>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 
@@ -98,16 +178,7 @@
     </dependency>
     <dependency>
       <groupId>org.apache.calcite</groupId>
-      <artifactId>calcite-linq4j</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.calcite</groupId>
       <artifactId>calcite-avatica</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.google.guava</groupId>
-      <artifactId>guava</artifactId>
-      <version>18.0</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>

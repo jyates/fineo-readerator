@@ -13,6 +13,21 @@
 
   <dependencies>
     <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>fineo-server-common</artifactId>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.calcite.avatica</groupId>
+      <artifactId>avatica</artifactId>
+      <version>${avatica.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.calcite.avatica</groupId>
       <artifactId>avatica-server</artifactId>
     </dependency>
@@ -24,10 +39,6 @@
     <dependency>
       <groupId>com.beust</groupId>
       <artifactId>jcommander</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.drill.exec</groupId>
-      <artifactId>drill-java-exec</artifactId>
     </dependency>
     <!-- shaded packages - should have all necessary dependencies -->
     <dependency>

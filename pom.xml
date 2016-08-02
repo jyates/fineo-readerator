@@ -14,7 +14,7 @@
     <module>e2e-testing</module>
     <module>drill-common</module>
     <module>test-util</module>
-    <module>fineo-common</module>
+    <module>fineo-server-common</module>
   </modules>
   <packaging>pom</packaging>
 
@@ -176,6 +176,11 @@
         <version>${project.version}</version>
         <classifier>tests</classifier>
         <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.fineo.read</groupId>
+        <artifactId>fineo-server-common</artifactId>
+        <version>${project.version}</version>
       </dependency>
 
       <!-- Recent avatica release, not tied to existing drill/calcite -->

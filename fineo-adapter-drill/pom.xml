@@ -110,8 +110,7 @@
     </dependency>
     <dependency>
       <groupId>io.fineo.read</groupId>
-      <artifactId>fineo-common</artifactId>
-      <version>1.0-SNAPSHOT</version>
+      <artifactId>fineo-server-common</artifactId>
       <scope>test</scope>
     </dependency>
 
