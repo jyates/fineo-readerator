@@ -15,6 +15,7 @@
     <module>drill-common</module>
     <module>test-util</module>
     <module>fineo-server-common</module>
+    <module>drill-standalone</module>
   </modules>
   <packaging>pom</packaging>
 

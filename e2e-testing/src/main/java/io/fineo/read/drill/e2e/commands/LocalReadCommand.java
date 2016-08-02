@@ -2,11 +2,10 @@ package io.fineo.read.drill.e2e.commands;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Joiner;
-import io.fineo.drill.LocalDrillCluster;
 import io.fineo.e2e.module.FakeAwsCredentialsModule;
 import io.fineo.e2e.options.LocalSchemaStoreOptions;
 import io.fineo.read.drill.BootstrapFineo;
-import io.fineo.read.drill.FineoDrillStartupSetup;
+import io.fineo.read.drill.StandaloneCluster;
 import io.fineo.read.drill.e2e.options.DrillArguments;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.slf4j.Logger;
@@ -29,7 +28,7 @@ public class LocalReadCommand {
   private static final Joiner AND = Joiner.on(" AND ");
   private final DrillArguments opts;
   private final LocalSchemaStoreOptions store;
-  private LocalDrillCluster drill;
+  private StandaloneCluster cluster;
 
   public LocalReadCommand(DrillArguments opts, LocalSchemaStoreOptions storeOptions) {
     this.opts = opts;
@@ -45,7 +44,7 @@ public class LocalReadCommand {
       String where = wheres == null ? "" : " WHERE " + AND.join(wheres);
       String stmt = "SELECT *" + from + where + " ORDER BY `timestamp` ASC";
 
-      try (Connection conn = drill.getConnection();
+      try (Connection conn = cluster.getConnection();
            ResultSet results = conn.createStatement().executeQuery(stmt);
            FileOutputStream os = new FileOutputStream(opts.outputFile);
            BufferedOutputStream bos = new BufferedOutputStream(os)) {
@@ -63,20 +62,16 @@ public class LocalReadCommand {
       }
 
     } finally {
-      if (this.drill != null) {
-        drill.shutdown();
+      if (this.cluster != null) {
+        cluster.shutdown();
       }
     }
   }
 
   private void start() throws Throwable {
     LOG.info("Starting drill cluster...");
-    drill = new LocalDrillCluster(1);
-    drill.setup();
-
-    Connection conn = drill.getConnection();
-    FineoDrillStartupSetup setup = new FineoDrillStartupSetup(conn);
-    setup.run();
+    cluster = new StandaloneCluster();
+    cluster.runWithException();
 
     LOG.info("Cluster started!");
     LOG.info("Bootstrapping Fineo adapter...");

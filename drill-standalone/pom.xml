@@ -9,32 +9,47 @@
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <artifactId>e2e-testing</artifactId>
-  <description>Support for end-to-end testing drill reads of pipeline output</description>
-
+  <artifactId>drill-standalone</artifactId>
+  <description>Build a standalone version of Drill based on the mini-cluster. This
+    does not preserve state, since it leverages a local zk.</description>
   <dependencies>
     <dependency>
       <groupId>io.fineo.read</groupId>
-      <artifactId>drill-standalone</artifactId>
-      <version>${project.version}</version>
+      <artifactId>drill-common</artifactId>
       <scope>compile</scope>
-      <classifier>aws</classifier>
-      <!--<exclusions>-->
-        <!--<exclusion>-->
-          <!--<artifactId>*</artifactId>-->
-          <!--<groupId>*</groupId>-->
-        <!--</exclusion>-->
-      <!--</exclusions>-->
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>drill-common</artifactId>
+      <classifier>tests</classifier>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>fineo-adapter-drill</artifactId>
+      <version>${project.version}</version>
+      <classifier>standalone</classifier>
+    </dependency>
+    <!-- Need sources to run custom functions -->
+    <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>fineo-adapter-drill</artifactId>
+      <version>${project.version}</version>
+      <classifier>sources</classifier>
+    </dependency>
+    <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>fineo-adapter-drill</artifactId>
+      <version>${project.version}</version>
+      <classifier>tests</classifier>
+      <scope>compile</scope>
     </dependency>
 
     <dependency>
-      <groupId>com.beust</groupId>
-      <artifactId>jcommander</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.fineo.e2e</groupId>
-      <artifactId>e2e-parsing</artifactId>
-      <version>1.0-SNAPSHOT</version>
+      <groupId>org.apache.drill</groupId>
+      <artifactId>drill-common</artifactId>
+      <classifier>tests</classifier>
+      <scope>compile</scope>
     </dependency>
   </dependencies>
   <profiles>
@@ -65,8 +80,14 @@
                   <shadedClassifierName>aws</shadedClassifierName>
                   <artifactSet>
                     <includes>
-                      <include>io.fineo.read:drill-standalone:aws</include>
+                      <include>io.fineo.read:drill-common</include>
+                      <include>io.fineo.read:fineo-adapter-drill:standalone</include>
+                      <include>io.fineo.read:fineo-adapter-drill:sources</include>
+                      <include>io.fineo.read:fineo-adapter-drill:tests</include>
                       <include>io.fineo.e2e:e2e-parsing</include>
+                      <include>io.fineo.schema:schema-core:tests</include>
+                      <!-- Need DrillTest -->
+                      <include>org.apache.drill:drill-common:tests</include>
                     </includes>
                   </artifactSet>
                   <filters>
