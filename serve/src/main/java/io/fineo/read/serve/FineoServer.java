@@ -21,7 +21,9 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.codahale.metrics.MetricRegistry;
 import org.apache.calcite.avatica.jdbc.FineoJdbcMeta;
+import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.apache.calcite.avatica.metrics.dropwizard3.DropwizardMetricsSystemConfiguration;
+import org.apache.calcite.avatica.metrics.dropwizard3.DropwizardMetricsSystemFactory;
 import org.apache.calcite.avatica.remote.Driver.Serialization;
 import org.apache.calcite.avatica.remote.LocalService;
 import org.apache.calcite.avatica.server.HttpServer;
@@ -56,13 +58,19 @@ public class FineoServer {
     }
 
     try {
-      // Set up Julian's ScottDB for HSQLDB
-      FineoJdbcMeta meta =
-        new FineoJdbcMeta(drill, new DropwizardMetricsSystemConfiguration(metrics));
-      LocalService service = new LocalService(meta);
+      // make sur we have the drill driver
+      Class.forName("org.apache.drill.jdbc.Driver");
+
+      // create our wrapping metadata
+      DropwizardMetricsSystemConfiguration metricsConf = new DropwizardMetricsSystemConfiguration
+        (metrics);
+      MetricsSystem system = new DropwizardMetricsSystemFactory().create(metricsConf);
+      FineoJdbcMeta meta = new FineoJdbcMeta(drill, system);
+      LocalService service = new LocalService(meta, system);
 
       // Construct the server
       this.server = new HttpServer.Builder()
+        .withMetricsConfiguration(metricsConf)
         .withHandler(service, SER)
         .withPort(port)
         .build();

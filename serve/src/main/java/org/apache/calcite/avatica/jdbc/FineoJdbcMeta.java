@@ -2,8 +2,7 @@ package org.apache.calcite.avatica.jdbc;
 
 import io.fineo.read.serve.util.IteratorResult;
 import org.apache.calcite.avatica.NoSuchStatementException;
-import org.apache.calcite.avatica.metrics.MetricsSystemConfiguration;
-import org.apache.calcite.avatica.metrics.dropwizard3.DropwizardMetricsSystemFactory;
+import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.apache.calcite.avatica.remote.TypedValue;
 
 import java.sql.ResultSet;
@@ -25,8 +24,8 @@ public class FineoJdbcMeta extends JdbcMeta {
   private static final String FINEO_SCHEMA = "FINEO_SCHEMA";
   private static final String FINEO_SCHEMA_TABLE = "FINEO_SCHEMA_TABLE";
 
-  public FineoJdbcMeta(String url, MetricsSystemConfiguration metrics) throws SQLException {
-    super(url, new Properties(), new DropwizardMetricsSystemFactory().create(metrics));
+  public FineoJdbcMeta(String url, MetricsSystem metrics) throws SQLException {
+    super(url, new Properties(), metrics);
   }
 
   @Override
