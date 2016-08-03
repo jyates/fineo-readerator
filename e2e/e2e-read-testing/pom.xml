@@ -3,78 +3,25 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <parent>
-    <artifactId>readerator-parent</artifactId>
-    <groupId>io.fineo.read</groupId>
+    <artifactId>e2e</artifactId>
+    <groupId>io.fineo.read.e2e</groupId>
     <version>1.0-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <artifactId>readerator-serve</artifactId>
+  <artifactId>e2e-read-testing</artifactId>
+  <description>Just tesing the avatica server read side in the e2e context</description>
 
   <dependencies>
     <dependency>
-      <groupId>ch.qos.logback</groupId>
-      <artifactId>logback-classic</artifactId>
-      <version>1.1.3</version>
+      <groupId>io.fineo.read.e2e</groupId>
+      <artifactId>e2e-common</artifactId>
     </dependency>
     <dependency>
       <groupId>io.fineo.read</groupId>
-      <artifactId>fineo-server-common</artifactId>
-      <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.calcite.avatica</groupId>
-      <artifactId>avatica</artifactId>
-      <version>${avatica.version}</version>
-      <!-- Avatica bundles everything it needs, but doesn't shade everything, so we have to catch
-       some below -->
-      <exclusions>
-        <exclusion>
-          <artifactId>*</artifactId>
-          <groupId>*</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.calcite.avatica</groupId>
-      <artifactId>avatica-server</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.calcite.avatica</groupId>
-      <artifactId>avatica-metrics-dropwizardmetrics3</artifactId>
-      <version>${avatica.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.beust</groupId>
-      <artifactId>jcommander</artifactId>
-    </dependency>
-    <!-- shaded packages - should have all necessary dependencies -->
-    <dependency>
-      <groupId>org.apache.drill.exec</groupId>
-      <artifactId>drill-jdbc-all</artifactId>
-      <version>${drill.version}</version>
-      <exclusions>
-        <exclusion>
-          <artifactId>*</artifactId>
-          <groupId>*</groupId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>jcl-over-slf4j</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>log4j-over-slf4j</artifactId>
+      <artifactId>fineo-client</artifactId>
     </dependency>
   </dependencies>
-
   <profiles>
     <profile>
       <id>deploy</id>
@@ -103,14 +50,25 @@
                   <shadedClassifierName>aws</shadedClassifierName>
                   <artifactSet>
                     <includes>
-                      <include>*:*</include>
+                      <include>io.fineo.read:fineo-client</include>
+                      <!-- Needed to bootstrap the plugin -->
+                      <include>io.fineo.read.e2e:e2e-common</include>
+                      <include>io.fineo.schema:schema-core</include>
+                      <include>io.fineo.read:fineo-adapter-drill</include>
+                      <include>io.fineo.read:fineo-adapter-drill:tests</include>
+                      <!-- Needed for parsing -->
+                      <include>com.beust:jcommander</include>
+                      <include>io.fineo.e2e:e2e-parsing</include>
                     </includes>
-                    <excludes>
-                      <exclude>commons-logging:commons-logging</exclude>
-                      <exclude>org.apache.calcite.avatica:avatica-metrics</exclude>
-                    </excludes>
                   </artifactSet>
                   <filters>
+                    <filter>
+                      <artifact>org.apache.drill:drill-common:tests</artifact>
+                      <excludes>
+                        <exclude>drill-default.conf</exclude>
+                        <exclude>drill-module.conf</exclude>
+                      </excludes>
+                    </filter>
                     <filter>
                       <artifact>*:*</artifact>
                       <excludes>
@@ -127,7 +85,6 @@
                         <exclude>META-INF/drill-module-scan/registry.json</exclude>
                         <!-- Executable producer - huge!... not needed since we use the java api -->
                         <exclude>amazon-kinesis-producer-native-binaries/**</exclude>
-                        <exclude>org/apache/commons/logging/**</exclude>
                       </excludes>
                     </filter>
                   </filters>
