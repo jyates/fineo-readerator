@@ -25,6 +25,11 @@
                 <goal>test</goal>
               </goals>
               <configuration>
+                <redirectTestOutputToFile>${test.output.to.file}</redirectTestOutputToFile>
+                <argLine>-enableassertions -Djava.security.egd=file:/dev/./urandom
+                  -Dsqlite4java.library.path=${project.build.directory}/dependencies
+                  -Djava.net.preferIPv4Stack=true
+                </argLine>
                 <excludedGroups>${surefire.cluster.tests}</excludedGroups>
                 <skip>${test.skip.simple}</skip>
                 <!-- simple tests should have no interdependencies and can run highly parallel -->
@@ -38,8 +43,13 @@
                 <goal>test</goal>
               </goals>
               <configuration>
+                <redirectTestOutputToFile>${test.output.to.file}</redirectTestOutputToFile>
+                <argLine>-enableassertions -Djava.security.egd=file:/dev/./urandom
+                  -Dsqlite4java.library.path=${project.build.directory}/dependencies
+                  -Djava.net.preferIPv4Stack=true
+                </argLine>
                 <groups>${surefire.cluster.tests}</groups>
-                <skip>${surefire.skip.cluster}</skip>
+                <skip>${test.skip.cluster}</skip>
                 <!-- Cluster tests run serially (drill cluster/zk always starts on same port) and
                 in different JVMs to support clean connection obtainment -->
                 <forkCount>1</forkCount>
