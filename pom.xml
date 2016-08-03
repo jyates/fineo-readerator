@@ -30,13 +30,7 @@
     <repository>
       <id>mapr-drill-optiq-snapshots</id>
       <name>MapR Drill Optiq Snapshots</name>
-      <url>http://repository.mapr.com/nexus/content/repositories/drill-optiq/</url>
-      <releases>
-        <enabled>false</enabled>
-      </releases>
-      <snapshots>
-        <enabled>true</enabled>
-      </snapshots>
+      <url>http://repository.mapr.com/nexus/content/repositories/drill/</url>
     </repository>
   </repositories>
 
@@ -67,7 +61,7 @@
     <skip.default.tests>true</skip.default.tests>
     <surefire.cluster.tests>io.fineo.drill.ClusterTest</surefire.cluster.tests>
     <test.skip.simple>false</test.skip.simple>
-    <surefire.skip.cluster>true</surefire.skip.cluster>
+    <surefire.skip.cluster>false</surefire.skip.cluster>
   </properties>
 
   <build>
