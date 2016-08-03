@@ -126,7 +126,6 @@
             -Dsqlite4java.library.path=${project.build.directory}/dependencies
             -Djava.net.preferIPv4Stack=true
           </argLine>
-          <skip>${skip.default.tests}</skip>
           <excludes>
             <!-- users can add -D option to skip particular test classes
            ex: mvn test -Dtest.exclude.pattern=**/TestFoo.java,**/TestBar.java

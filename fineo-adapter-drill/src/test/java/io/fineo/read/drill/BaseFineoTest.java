@@ -4,6 +4,7 @@ import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.google.common.base.Joiner;
+import io.fineo.drill.ClusterTest;
 import io.fineo.drill.rule.DrillClusterRule;
 import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.DynamoTableCreator;
@@ -22,6 +23,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
+import org.junit.experimental.categories.Category;
 import org.schemarepo.ValidatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,9 +40,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.String.format;
 import static org.junit.Assert.assertTrue;
 
-/**
- *
- */
+@Category(ClusterTest.class)
 public class BaseFineoTest extends BaseDynamoTableTest {
   private static final Logger LOG = LoggerFactory.getLogger(BaseFineoTest.class);
 

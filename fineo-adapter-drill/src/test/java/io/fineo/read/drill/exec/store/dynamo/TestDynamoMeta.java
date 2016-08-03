@@ -1,12 +1,15 @@
 package io.fineo.read.drill.exec.store.dynamo;
 
+import io.fineo.drill.ClusterTest;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 
+@Category(ClusterTest.class)
 public class TestDynamoMeta extends BaseFineoTest {
 
   @Test
