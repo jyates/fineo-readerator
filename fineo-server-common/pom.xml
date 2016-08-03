@@ -109,10 +109,10 @@
           <shadedArtifactAttached>false</shadedArtifactAttached>
           <createDependencyReducedPom>true</createDependencyReducedPom>
           <minimizeJar>false</minimizeJar>
-
           <artifactSet>
             <includes>
               <include>org.apache.calcite:calcite-core</include>
+              <include>org.apache.calcite:calcite-linq4j</include>
               <include>org.apache.calcite:calcite-avatica</include>
               <include>org.apache.drill.exec:drill-java-exec</include>
             </includes>
