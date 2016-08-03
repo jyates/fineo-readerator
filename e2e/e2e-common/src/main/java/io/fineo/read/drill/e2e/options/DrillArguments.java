@@ -3,9 +3,6 @@ package io.fineo.read.drill.e2e.options;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParametersDelegate;
 
-/**
- *
- */
 public class DrillArguments {
   @Parameter(names = "--output")
   public String outputFile;

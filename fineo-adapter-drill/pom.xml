@@ -124,6 +124,7 @@
     <dependency>
       <groupId>io.fineo.read</groupId>
       <artifactId>fineo-server-common</artifactId>
+      <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
 
