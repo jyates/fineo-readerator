@@ -13,7 +13,7 @@
     <module>fineo-adapter-drill</module>
     <module>drill-common</module>
     <module>test-util</module>
-    <module>fineo-server-common</module>
+    <module>fineo-reparser</module>
     <module>drill-standalone</module>
     <module>e2e</module>
     <module>fineo-client</module>
@@ -173,7 +173,7 @@
       </dependency>
       <dependency>
         <groupId>io.fineo.read</groupId>
-        <artifactId>fineo-server-common</artifactId>
+        <artifactId>fineo-reparser</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

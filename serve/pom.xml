@@ -19,7 +19,7 @@
     </dependency>
     <dependency>
       <groupId>io.fineo.read</groupId>
-      <artifactId>fineo-server-common</artifactId>
+      <artifactId>fineo-reparser</artifactId>
       <exclusions>
         <exclusion>
           <groupId>*</groupId>
