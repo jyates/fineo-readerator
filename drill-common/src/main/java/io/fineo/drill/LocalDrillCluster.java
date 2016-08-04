@@ -71,7 +71,7 @@ public class LocalDrillCluster {
     zkHelper.stopZookeeper();
   }
 
-  private String getUrl() {
+  public String getUrl() {
     String zkConnection = zkHelper.getConfig().getString("drill.exec.zk.connect");
     return format("jdbc:drill:zk=%s", zkConnection);
   }

@@ -31,6 +31,8 @@ public abstract class Command {
   }
 
   protected void runQuery(String stmt) throws Exception {
+    bootstrap();
+
     try (Connection conn = getConnection();
          ResultSet results = conn.createStatement().executeQuery(stmt);
          FileOutputStream os = new FileOutputStream(opts.outputFile);
@@ -49,11 +51,11 @@ public abstract class Command {
     }
   }
 
-  public abstract void run() throws Exception, Throwable;
+  public abstract void run() throws Throwable;
 
   protected abstract Connection getConnection() throws Exception;
 
-  protected void bootstrap() throws IOException {
+  private void bootstrap() throws IOException {
     LOG.info("Bootstrapping Fineo adapter...");
 
     // ensure the fineo plugin is setup

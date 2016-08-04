@@ -120,14 +120,17 @@
                         <exclude>.gitkeep</exclude>
                         <!-- -test.xml overrides our logback.xml -->
                         <exclude>logback-test.xml</exclude>
-                        <!-- Force classpath rescanning every time we start drill. Makes it so we
-                         can have a single deployable jar. LATER, when we want to roll out
-                         independent cluster, we can just build a fineo jars (dynamo and adapter)
-                          and there will be no prescanned file (or we can make one on build) -->
-                        <exclude>META-INF/drill-module-scan/registry.json</exclude>
                         <!-- Executable producer - huge!... not needed since we use the java api -->
                         <exclude>amazon-kinesis-producer-native-binaries/**</exclude>
+                        <!-- commons logging is bad, and should feel bad -->
                         <exclude>org/apache/commons/logging/**</exclude>
+                      </excludes>
+                    </filter>
+                    <filter>
+                      <artifact>org.apache.drill.exec:drill-jdbc-all</artifact>
+                      <excludes>
+                        <!-- We create our own -->
+                        <exclude>drill-module.conf</exclude>
                       </excludes>
                     </filter>
                   </filters>

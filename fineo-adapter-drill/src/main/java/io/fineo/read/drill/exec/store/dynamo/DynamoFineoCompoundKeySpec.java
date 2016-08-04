@@ -6,15 +6,15 @@ import io.fineo.schema.avro.AvroSchemaEncoder;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.apache.calcite.util.ImmutableNullableList.of;
+import static java.util.Arrays.asList;
 
 /**
  * Helper spec for the standard fineo compound key specification
  */
 public class DynamoFineoCompoundKeySpec extends DynamoKeyMapperSpec {
   public DynamoFineoCompoundKeySpec() {
-    super(of(AvroSchemaEncoder.ORG_ID_KEY, AvroSchemaEncoder.ORG_METRIC_TYPE_KEY,
-      AvroSchemaEncoder.TIMESTAMP_KEY), of("S", "S", "N"),
+    super(asList(AvroSchemaEncoder.ORG_ID_KEY, AvroSchemaEncoder.ORG_METRIC_TYPE_KEY,
+      AvroSchemaEncoder.TIMESTAMP_KEY), asList("S", "S", "N"),
       args());
   }
 

@@ -48,8 +48,6 @@ public class LocalReadCommand extends Command {
     LOG.info("Starting drill cluster...");
     cluster = new StandaloneCluster();
     cluster.runWithException();
-
     LOG.info("Cluster started!");
-    bootstrap();
   }
 }

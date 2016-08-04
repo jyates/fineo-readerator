@@ -46,7 +46,7 @@ public class StandaloneCluster extends Thread {
     FineoDrillStartupSetup setup = new FineoDrillStartupSetup(conn);
     setup.run();
 
-    LOG.info("Cluster started!");
+    LOG.info("Cluster started! JDBC Url: "+drill.getUrl());
   }
 
   public Connection getConnection() throws Exception {

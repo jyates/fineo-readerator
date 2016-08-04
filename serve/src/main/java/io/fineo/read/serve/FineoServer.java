@@ -38,7 +38,11 @@ public class FineoServer {
 
   private static final Serialization SER = Serialization.PROTOBUF;
 
-  @Parameter(names = {"-p", "--port"}, required = false,
+  @Parameter(names = "--org-id", required = true,
+             description = "Org ID served by this server. Only 1 org per server allowed.")
+  private String org;
+
+  @Parameter(names = {"-p", "--port"},
              description = "Port the server should bind")
   private int port = 0;
 
@@ -65,7 +69,7 @@ public class FineoServer {
       DropwizardMetricsSystemConfiguration metricsConf = new DropwizardMetricsSystemConfiguration
         (metrics);
       MetricsSystem system = new DropwizardMetricsSystemFactory().create(metricsConf);
-      FineoJdbcMeta meta = new FineoJdbcMeta(drill, system);
+      FineoJdbcMeta meta = new FineoJdbcMeta(drill, system, org);
       LocalService service = new LocalService(meta, system);
 
       // Construct the server

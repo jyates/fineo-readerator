@@ -6,6 +6,7 @@ import io.fineo.read.drill.e2e.options.DrillArguments;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.Properties;
 
 import static java.lang.String.format;
 
@@ -29,6 +30,8 @@ public class RemoteReadCommand extends Command {
   @Override
   protected Connection getConnection() throws Exception {
     Class.forName("org.apache.calcite.avatica.remote.Driver");
-    return DriverManager.getConnection(jdbc.getUrl());
+    Properties props = new Properties();
+    props.put("COMPANY_KEY", opts.org.get());
+    return DriverManager.getConnection(jdbc.getUrl(), props);
   }
 }
