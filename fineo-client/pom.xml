@@ -10,6 +10,17 @@
   <modelVersion>4.0.0</modelVersion>
   <artifactId>fineo-client</artifactId>
 
+  <properties>
+    <build.timestamp>${maven.build.timestamp}</build.timestamp>
+    <version.major>1</version.major>
+    <version.minor>0</version.minor>
+  </properties>
+
+  <build>
+    <plugins>
+    </plugins>
+  </build>
+
   <dependencies>
     <dependency>
       <groupId>org.apache.calcite.avatica</groupId>
@@ -25,7 +36,24 @@
       <groupId>org.slf4j</groupId>
       <artifactId>jcl-over-slf4j</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-android-sdk-apigateway-core</artifactId>
+      <version>${aws.android.sdk.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
   </dependencies>
+
+
   <profiles>
     <profile>
       <id>deploy</id>

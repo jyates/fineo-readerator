@@ -41,6 +41,7 @@
 
     <aws.java.sdk.version>1.10.72</aws.java.sdk.version>
     <aws.dynamodb.local.version>1.10.5.1</aws.dynamodb.local.version>
+    <aws.android.sdk.version>2.3.0</aws.android.sdk.version>
 
     <fineo.ingest.verison>1.0-SNAPSHOT</fineo.ingest.verison>
     <fineo.schema.version>2.0-SNAPSHOT</fineo.schema.version>
@@ -250,6 +251,11 @@
       <dependency>
         <groupId>com.amazonaws</groupId>
         <artifactId>aws-java-sdk</artifactId>
+        <version>${aws.java.sdk.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.amazonaws</groupId>
+        <artifactId>aws-java-sdk-core</artifactId>
         <version>${aws.java.sdk.version}</version>
       </dependency>
       <dependency>
