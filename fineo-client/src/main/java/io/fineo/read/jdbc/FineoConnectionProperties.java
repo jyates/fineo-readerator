@@ -1,23 +1,45 @@
 package io.fineo.read.jdbc;
 
-import org.apache.calcite.avatica.BuiltInConnectionProperty;
 import org.apache.calcite.avatica.ConnectionConfigImpl;
 import org.apache.calcite.avatica.ConnectionProperty;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
 import static org.apache.calcite.avatica.ConnectionConfigImpl.parse;
 
-/**
- *
- */
-public enum FineoConnectionProperties implements ConnectionProperty{
+public enum FineoConnectionProperties implements ConnectionProperty {
 
-  AUTHENTICATION("authentication", Type.STRING, null, false);
+  API_KEY("api_key", Type.STRING, null, true),
+  AUTHENTICATION("authentication", Type.STRING, "default", false),
+  /**
+   * Static credential config
+   */
+  AWS_KEY("aws_key", Type.STRING, null, false),
+  AWS_SECRET("aws_secret", Type.STRING, null, false),
+
+
+  /**
+   * Profile credential config
+   */
+  PROFILE_CREDENTIAL_NAME("profile_name", Type.STRING, null, false),
+
+  /**
+   * Client connection configs
+   */
+  // time to allow the client to complete the execution of an API call.
+  CLIENT_EXEC_TIMEOUT("client_exec_timeout_millis"),
+  // time an idle connection may sit in the connection pool and still be eligible for reuse.
+  CLIENT_MAX_IDLE("client_idle_millis"),
+  // time initially establishing a connection before giving up and timing out.
+  CLIENT_INIT_TIMEOUT("client_init_connection_timeout_millis"),
+  // expiration time (in milliseconds) for a connection in the connection pool.
+  CLIENT_TTL("client_ttl_millis"),
+  // maximum number of allowed open HTTP connections
+  CLIENT_MAX_CONNECTIONS("client_max_connections"),
+  // time for the request to complete before giving up and timing out.
+  CLIENT_REQUEST_TIMEOUT("client_request_timeout_millis");
 
   private final String camelName;
   private final Type type;
@@ -32,6 +54,15 @@ public enum FineoConnectionProperties implements ConnectionProperty{
       NAME_TO_PROPS.put(p.camelName.toUpperCase(), p);
       NAME_TO_PROPS.put(p.name(), p);
     }
+  }
+
+  /**
+   * Helper for number constructor
+   *
+   * @param name
+   */
+  FineoConnectionProperties(String name) {
+    this(name, Type.NUMBER, -1, false);
   }
 
   FineoConnectionProperties(String camelName, Type type, Object defaultValue,
@@ -67,4 +98,6 @@ public enum FineoConnectionProperties implements ConnectionProperty{
   public boolean required() {
     return required;
   }
+
+
 }
