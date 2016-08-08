@@ -113,11 +113,9 @@ public class Driver extends org.apache.calcite.avatica.remote.Driver {
    * of the properties in the client proper... yeah, come on avatica
    */
   private void setupClientProperties(Properties info, ConnectionStringBuilder sb) {
-    sb.withInt(FineoConnectionProperties.CLIENT_EXEC_TIMEOUT, info)
+    sb.withInt(FineoConnectionProperties.CLIENT_INIT_TIMEOUT, info)
       .withInt(FineoConnectionProperties.CLIENT_MAX_CONNECTIONS, info)
-      .withInt(FineoConnectionProperties.CLIENT_MAX_IDLE, info)
       .withInt(FineoConnectionProperties.CLIENT_REQUEST_TIMEOUT, info)
-      .withInt(FineoConnectionProperties.CLIENT_INIT_TIMEOUT, info)
-      .withInt(FineoConnectionProperties.CLIENT_TTL, info);
+      .withInt(FineoConnectionProperties.CLIENT_MAX_ERROR_RETRY, info);
   }
 }

@@ -4,7 +4,6 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.mobileconnectors.apigateway.ApiClientFactory;
-import io.fineo.read.jdbc.ConnectionPropertyUtil;
 import io.fineo.read.jdbc.ConnectionStringBuilder;
 import io.fineo.read.jdbc.FineoConnectionProperties;
 import org.apache.calcite.avatica.remote.AuthenticationType;
@@ -61,7 +60,7 @@ public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
       .apiKey(properties.get(FineoConnectionProperties.API_KEY))
       .endpoint(url.toString());
     // not having credentials allows us to not generate a signer, which allows us to connect to
-    // any URL, not just an AWS endpoitn
+    // any URL, not just an AWS endpoint
     if (this.credentials != null) {
       factory.credentialsProvider(this.credentials);
     }
@@ -70,23 +69,14 @@ public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
 
   private ClientConfiguration getClientConfiguration() {
     ClientConfiguration client = new ClientConfiguration();
-    setInt(properties, FineoConnectionProperties.CLIENT_EXEC_TIMEOUT,
-      prop -> client.withClientExecutionTimeout(prop));
     setInt(properties, FineoConnectionProperties.CLIENT_MAX_CONNECTIONS,
       prop -> client.withMaxConnections(prop));
-    setInt(properties, FineoConnectionProperties.CLIENT_MAX_IDLE,
-      prop -> client.withConnectionMaxIdleMillis(prop));
     setInt(properties, FineoConnectionProperties.CLIENT_REQUEST_TIMEOUT,
-      prop -> client.withRequestTimeout(prop));
+      prop -> client.withSocketTimeout(prop));
     setInt(properties, FineoConnectionProperties.CLIENT_INIT_TIMEOUT,
       prop -> client.withConnectionTimeout(prop));
-    ConnectionPropertyUtil.set(properties, FineoConnectionProperties.CLIENT_TTL,
-      prop -> {
-        Long l = Long.parseLong(prop);
-        if (l >= 0) {
-          client.withConnectionTTL(l);
-        }
-      });
+    setInt(properties, FineoConnectionProperties.CLIENT_MAX_ERROR_RETRY,
+      prop -> client.withMaxErrorRetry(prop));
     return client;
   }
 

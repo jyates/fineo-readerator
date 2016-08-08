@@ -27,18 +27,14 @@ public enum FineoConnectionProperties implements ConnectionProperty {
   /**
    * Client connection configs
    */
-  // time to allow the client to complete the execution of an API call.
-  CLIENT_EXEC_TIMEOUT("client_exec_timeout_millis"),
-  // time an idle connection may sit in the connection pool and still be eligible for reuse.
-  CLIENT_MAX_IDLE("client_idle_millis"),
   // time initially establishing a connection before giving up and timing out.
   CLIENT_INIT_TIMEOUT("client_init_connection_timeout_millis"),
-  // expiration time (in milliseconds) for a connection in the connection pool.
-  CLIENT_TTL("client_ttl_millis"),
   // maximum number of allowed open HTTP connections
   CLIENT_MAX_CONNECTIONS("client_max_connections"),
   // time for the request to complete before giving up and timing out.
-  CLIENT_REQUEST_TIMEOUT("client_request_timeout_millis");
+  CLIENT_REQUEST_TIMEOUT("client_request_timeout_millis"),
+  // number of retries for a single http request before giving up
+  CLIENT_MAX_ERROR_RETRY("client_request_max_retries");
 
   private final String camelName;
   private final Type type;
