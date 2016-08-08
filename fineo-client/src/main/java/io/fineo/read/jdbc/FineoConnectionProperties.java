@@ -19,7 +19,6 @@ public enum FineoConnectionProperties implements ConnectionProperty {
   AWS_KEY("aws_key", Type.STRING, null, false),
   AWS_SECRET("aws_secret", Type.STRING, null, false),
 
-
   /**
    * Profile credential config
    */
@@ -98,6 +97,4 @@ public enum FineoConnectionProperties implements ConnectionProperty {
   public boolean required() {
     return required;
   }
-
-
 }

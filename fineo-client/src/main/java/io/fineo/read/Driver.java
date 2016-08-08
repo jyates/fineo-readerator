@@ -1,23 +1,15 @@
 package io.fineo.read;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSCredentialsProviderChain;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
-import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.internal.StaticCredentialsProvider;
+import com.google.common.base.Preconditions;
+import io.fineo.read.http.FineoAvaticaAwsHttpClient;
+import io.fineo.read.jdbc.ConnectionStringBuilder;
 import io.fineo.read.jdbc.FineoConnectionProperties;
-import io.fineo.read.jdbc.FineoHttpClientFactory;
-import io.fineo.read.jdbc.SystemPropertyPassThroughUtil;
 import org.apache.calcite.avatica.BuiltInConnectionProperty;
+import org.apache.calcite.avatica.ConnectStringParser;
 import org.apache.calcite.avatica.ConnectionProperty;
 import org.apache.calcite.avatica.DriverVersion;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -26,13 +18,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
-import static org.apache.calcite.avatica.BuiltInConnectionProperty.HTTP_CLIENT_FACTORY;
+import static io.fineo.read.jdbc.AuthenticationUtil.setupAuthentication;
+import static io.fineo.read.jdbc.FineoConnectionProperties.API_KEY;
+import static org.apache.calcite.avatica.BuiltInConnectionProperty.HTTP_CLIENT_IMPL;
 
 public class Driver extends org.apache.calcite.avatica.remote.Driver {
-  private static final Logger LOG = LoggerFactory.getLogger(Driver.class);
 
-  private static final String CONNECT_PREFIX = "jdbc:fineo:";
-  private static final String AUTH_TYPE_SEPARATOR = "_OR_";
+  public static final String CONNECT_PREFIX = "jdbc:fineo:";
+
+  private static final String URL = "https://53r0nhslih.execute-api.us-east-1.amazonaws.com/prod";
+  // duplicate property. better to combine into an avatica-common project, but for now this is
+  // the only one, so just duplicate it with the 'serve' project
+  static final String COMPANY_KEY_PROPERTY = "COMPANY_KEY";
 
   static {
     try {
@@ -72,94 +69,55 @@ public class Driver extends org.apache.calcite.avatica.remote.Driver {
 
   @Override
   public Connection connect(String url, Properties info) throws SQLException {
-    return super.connect(url, convertProperties(info));
+    if (!acceptsURL(url)) {
+      return null;
+    }
+    try {
+      // do the same parsing as in UnregisteredDriver#connect(...). We so this here so we can
+      // generate a URL that contains all the necessary properties, allowing them to get passed
+      // to our custom client. The alternative, right now, is to create a custom factory and have
+      // that create custom Avatica connections, which have our metadata info
+      final String prefix = getConnectStringPrefix();
+      assert url.startsWith(prefix);
+      final String urlSuffix = url.substring(prefix.length());
+      final Properties info2 = ConnectStringParser.parse(urlSuffix, info);
+      String updatedUrl = convertProperties(info2);
+      return super.connect(updatedUrl, info);
+    } catch (IOException e) {
+      throw new SQLException("Unexpected exception while obtaining connection!");
+    }
   }
 
-  private Properties convertProperties(Properties info) {
+  private String convertProperties(Properties info) throws IOException {
     // ensure we use our factory to create our client
-    info.put(HTTP_CLIENT_FACTORY.camelName(), FineoHttpClientFactory.class.getName());
+    info.put(HTTP_CLIENT_IMPL.camelName(), FineoAvaticaAwsHttpClient.class.getName());
     // yup, always use protobuf
-    info.put(BuiltInConnectionProperty.SERIALIZATION, "PROTOBUF");
+    info.put(BuiltInConnectionProperty.SERIALIZATION, Serialization.PROTOBUF.toString());
     setupAuthentication(info);
-    setupClientProperties(info);
-    return info;
+
+    // properties that are passed through the connection string
+    ConnectionStringBuilder sb = new ConnectionStringBuilder(getConnectStringPrefix(),
+      BuiltInConnectionProperty.URL.wrap(info).getString(URL));
+    String key = Preconditions
+      .checkNotNull(API_KEY.wrap(info).getString(), "Must specify the Fineo API Key via %s",
+        API_KEY.camelName());
+    sb.with(API_KEY, info);
+    // API KEY is also the company key, so set that too
+    info.put(COMPANY_KEY_PROPERTY, key);
+    setupClientProperties(info, sb);
+    return sb.build();
   }
 
   /**
    * pull out the client/connection properties into the system, since we can't get an instance
    * of the properties in the client proper... yeah, come on avatica
    */
-  private void setupClientProperties(Properties info) {
-    set(FineoConnectionProperties.CLIENT_EXEC_TIMEOUT, info);
-    set(FineoConnectionProperties.CLIENT_MAX_CONNECTIONS, info);
-    set(FineoConnectionProperties.CLIENT_MAX_IDLE, info);
-    set(FineoConnectionProperties.CLIENT_REQUEST_TIMEOUT, info);
-    set(FineoConnectionProperties.CLIENT_INIT_TIMEOUT, info);
-    set(FineoConnectionProperties.CLIENT_TTL, info);
-  }
-
-  private void set(FineoConnectionProperties prop, Properties info) {
-    String value;
-    switch (prop.type()) {
-      case STRING:
-        value = prop.wrap(info).getString();
-        break;
-      case BOOLEAN:
-        value = Boolean.toString(prop.wrap(info).getBoolean());
-        break;
-      case NUMBER:
-        value = Long.toString(prop.wrap(info).getLong());
-        break;
-      case ENUM:
-      default:
-        throw new UnsupportedOperationException(
-          "Cannot set an " + prop.type() + " client property!");
-    }
-    SystemPropertyPassThroughUtil.set(prop, value);
-  }
-
-  private void setupAuthentication(Properties info) {
-    // api key has to be specified
-    set(FineoConnectionProperties.API_KEY, info);
-    // load all the places the credentials could be stored
-    AWSCredentialsProviderChain chain = loadCredentialChain(info);
-    String user = chain.getCredentials().getAWSAccessKeyId();
-    String password = chain.getCredentials().getAWSSecretKey();
-    info.setProperty(BuiltInConnectionProperty.AVATICA_USER.camelName(), user);
-    info.setProperty(BuiltInConnectionProperty.AVATICA_PASSWORD.camelName(), password);
-  }
-
-  private AWSCredentialsProviderChain loadCredentialChain(Properties info) {
-    String authType = FineoConnectionProperties.AUTHENTICATION.wrap(info).getString();
-    String[] types = authType.split(AUTH_TYPE_SEPARATOR);
-    List<AWSCredentialsProvider> sources = new ArrayList<>();
-    for (String type : types) {
-      switch (type.toLowerCase()) {
-        case "default":
-          return new DefaultAWSCredentialsProviderChain();
-        case "static":
-          String key = FineoConnectionProperties.AWS_KEY.wrap(info).getString();
-          String secret = FineoConnectionProperties.AWS_KEY.wrap(info).getString();
-          sources.add(new StaticCredentialsProvider(new BasicAWSCredentials(key, secret)));
-          break;
-        case "system":
-          sources.add(new SystemPropertiesCredentialsProvider());
-          break;
-        case "env":
-          sources.add(new EnvironmentVariableCredentialsProvider());
-          break;
-        case "profile":
-          sources.add(new ProfileCredentialsProvider(FineoConnectionProperties
-            .PROFILE_CREDENTIAL_NAME.wrap(info).getString()));
-          break;
-        case "profile_inst":
-          sources.add(new InstanceProfileCredentialsProvider());
-          break;
-        default:
-          LOG.warn("No authentication provider of type {} supported!", type);
-      }
-    }
-
-    return new AWSCredentialsProviderChain(sources);
+  private void setupClientProperties(Properties info, ConnectionStringBuilder sb) {
+    sb.withInt(FineoConnectionProperties.CLIENT_EXEC_TIMEOUT, info)
+      .withInt(FineoConnectionProperties.CLIENT_MAX_CONNECTIONS, info)
+      .withInt(FineoConnectionProperties.CLIENT_MAX_IDLE, info)
+      .withInt(FineoConnectionProperties.CLIENT_REQUEST_TIMEOUT, info)
+      .withInt(FineoConnectionProperties.CLIENT_INIT_TIMEOUT, info)
+      .withInt(FineoConnectionProperties.CLIENT_TTL, info);
   }
 }

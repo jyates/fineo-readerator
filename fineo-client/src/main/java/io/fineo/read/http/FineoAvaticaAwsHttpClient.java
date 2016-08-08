@@ -4,14 +4,18 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.mobileconnectors.apigateway.ApiClientFactory;
+import io.fineo.read.jdbc.ConnectionPropertyUtil;
+import io.fineo.read.jdbc.ConnectionStringBuilder;
 import io.fineo.read.jdbc.FineoConnectionProperties;
-import io.fineo.read.jdbc.SystemPropertyPassThroughUtil;
-import org.apache.calcite.avatica.ConnectionConfig;
 import org.apache.calcite.avatica.remote.AuthenticationType;
 import org.apache.calcite.avatica.remote.AvaticaHttpClient;
 import org.apache.calcite.avatica.remote.UsernamePasswordAuthenticateable;
 
-import static io.fineo.read.jdbc.SystemPropertyPassThroughUtil.setInt;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Map;
+
+import static io.fineo.read.jdbc.ConnectionPropertyUtil.setInt;
 
 /**
  * An Avatica client that writes/reads a Fineo AWS endpoint
@@ -19,11 +23,14 @@ import static io.fineo.read.jdbc.SystemPropertyPassThroughUtil.setInt;
 public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
                                                   UsernamePasswordAuthenticateable {
   private final String url;
+  private final Map<String, String> properties;
   private StaticCredentialsProvider credentials;
   private volatile Api client;
 
-  public FineoAvaticaAwsHttpClient(String url, ConnectionConfig config) {
-    this.url = url;
+  public FineoAvaticaAwsHttpClient(URL url) throws MalformedURLException {
+    // simplify the url to just the bit we will actually send
+    this.url = new URL(url.getProtocol(), url.getAuthority(), url.getPath()).toExternalForm();
+    this.properties = ConnectionStringBuilder.parse(url);
   }
 
   @Override
@@ -32,10 +39,16 @@ public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
     return client.send(request).getBytes();
   }
 
+  /**
+   * Ensure client must come later as we may or may not be configured with credentials, so we
+   * always need to check to ensure that its created. Using double-checked locking so hopefully
+   * its not too bad. Ideally, we will be notified when creation is complete so we can initiate
+   * the connection/client creation, but that's not in avatica (yet).
+   */
   private void ensureClient() {
-    synchronized (client) {
-      if (client == null) {
-        synchronized (client) {
+    if (client == null) {
+      synchronized (this) {
+        if (client == null) {
           client = createClient();
         }
       }
@@ -44,26 +57,30 @@ public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
 
   private Api createClient() {
     ApiClientFactory factory = new ApiClientFactory()
-      .credentialsProvider(this.credentials)
       .clientConfiguration(getClientConfiguration())
-      .apiKey(SystemPropertyPassThroughUtil.get(FineoConnectionProperties.API_KEY))
+      .apiKey(properties.get(FineoConnectionProperties.API_KEY))
       .endpoint(url.toString());
+    // not having credentials allows us to not generate a signer, which allows us to connect to
+    // any URL, not just an AWS endpoitn
+    if (this.credentials != null) {
+      factory.credentialsProvider(this.credentials);
+    }
     return factory.build(Api.class);
   }
 
   private ClientConfiguration getClientConfiguration() {
     ClientConfiguration client = new ClientConfiguration();
-    setInt(FineoConnectionProperties.CLIENT_EXEC_TIMEOUT,
+    setInt(properties, FineoConnectionProperties.CLIENT_EXEC_TIMEOUT,
       prop -> client.withClientExecutionTimeout(prop));
-    setInt(FineoConnectionProperties.CLIENT_MAX_CONNECTIONS,
+    setInt(properties, FineoConnectionProperties.CLIENT_MAX_CONNECTIONS,
       prop -> client.withMaxConnections(prop));
-    setInt(FineoConnectionProperties.CLIENT_MAX_IDLE,
+    setInt(properties, FineoConnectionProperties.CLIENT_MAX_IDLE,
       prop -> client.withConnectionMaxIdleMillis(prop));
-    setInt(FineoConnectionProperties.CLIENT_REQUEST_TIMEOUT,
+    setInt(properties, FineoConnectionProperties.CLIENT_REQUEST_TIMEOUT,
       prop -> client.withRequestTimeout(prop));
-    setInt(FineoConnectionProperties.CLIENT_INIT_TIMEOUT,
+    setInt(properties, FineoConnectionProperties.CLIENT_INIT_TIMEOUT,
       prop -> client.withConnectionTimeout(prop));
-    SystemPropertyPassThroughUtil.set(FineoConnectionProperties.CLIENT_TTL,
+    ConnectionPropertyUtil.set(properties, FineoConnectionProperties.CLIENT_TTL,
       prop -> {
         Long l = Long.parseLong(prop);
         if (l >= 0) {

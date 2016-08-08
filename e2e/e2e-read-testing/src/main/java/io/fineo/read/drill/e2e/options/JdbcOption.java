@@ -1,4 +1,4 @@
-package io.fineo.read.drill.e2e;
+package io.fineo.read.drill.e2e.options;
 
 import com.beust.jcommander.Parameter;
 
@@ -15,6 +15,12 @@ public class JdbcOption {
   public String port;
 
   public String getUrl(){
-    return format("jdbc:avatica:remote:serialization=protobuf;url=http://%s:%s", host, port);
+    StringBuffer sb = new StringBuffer("url=https://");
+    sb.append(host);
+    if(port != null){
+      sb.append(":");
+      sb.append(port);
+    }
+    return sb.toString();
   }
 }
