@@ -8,7 +8,6 @@
   <artifactId>readerator-parent</artifactId>
   <version>1.0-SNAPSHOT</version>
   <modules>
-    <module>serve</module>
     <module>storage-dynamo</module>
     <module>fineo-adapter-drill</module>
     <module>drill-common</module>
@@ -16,7 +15,7 @@
     <module>fineo-reparser</module>
     <module>drill-standalone</module>
     <module>e2e</module>
-    <module>fineo-client</module>
+    <module>readerator</module>
   </modules>
   <packaging>pom</packaging>
 
