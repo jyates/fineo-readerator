@@ -44,7 +44,7 @@
 
     <fineo.ingest.verison>1.0-SNAPSHOT</fineo.ingest.verison>
     <fineo.schema.version>2.0-SNAPSHOT</fineo.schema.version>
-    <avatica.version>1.8.0</avatica.version>
+    <avatica.version>1.8.0-fineo-1.0-SNAPSHOT</avatica.version>
     <calcite.version>1.8.0-SNAPSHOT</calcite.version>
 
     <!-- Plugin versions -->

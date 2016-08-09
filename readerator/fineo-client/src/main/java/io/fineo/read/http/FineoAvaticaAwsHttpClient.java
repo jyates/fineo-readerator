@@ -8,7 +8,6 @@ import io.fineo.read.jdbc.FineoConnectionProperties;
 import org.apache.calcite.avatica.remote.AuthenticationType;
 import org.apache.calcite.avatica.remote.AvaticaHttpClient;
 import org.apache.calcite.avatica.remote.UsernamePasswordAuthenticateable;
-import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.BoundRequestBuilder;
 import org.asynchttpclient.DefaultAsyncHttpClient;
 
@@ -27,10 +26,8 @@ public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
                                                   UsernamePasswordAuthenticateable {
   private final URL url;
   private final Map<String, String> properties;
-  private final BoundRequestBuilder post;
-  private final RequestConverter converter;
+  private final DefaultAsyncHttpClient client;
   private StaticCredentialsProvider credentials;
-  private volatile Api client;
 
   public FineoAvaticaAwsHttpClient(URL url) throws MalformedURLException, URISyntaxException {
     // simplify the url to just the bit we will actually send
@@ -39,13 +36,18 @@ public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
       new URL(url.getProtocol(), url.getHost(), url.getPath()) :
       new URL(url.getProtocol(), url.getHost(), url.getPort(), url.getPath()));
     this.properties = ConnectionStringBuilder.parse(url);
-    AsyncHttpClient client = new DefaultAsyncHttpClient();
-    this.post = client.preparePost(this.url.toExternalForm());
-    this.converter = new RequestConverter(post, url.toURI());
+    this.client = new DefaultAsyncHttpClient();
   }
 
   @Override
   public byte[] send(byte[] request) {
+    BoundRequestBuilder post = client.preparePost(this.url.toExternalForm());
+    RequestConverter converter = null;
+    try {
+      converter = new RequestConverter(post, url.toURI());
+    } catch (URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
     return converter.request(request, credentials, properties.get(API_KEY));
   }
 
@@ -70,5 +72,9 @@ public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
         this.credentials =
           new StaticCredentialsProvider(new BasicAWSCredentials(username, password));
     }
+  }
+
+  public void close() {
+    this.client.close();
   }
 }

@@ -70,6 +70,11 @@
       </exclusions>
     </dependency>
     <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>19.0</version>
+    </dependency>
+    <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>jcl-over-slf4j</artifactId>
     </dependency>
@@ -135,6 +140,14 @@
                       <excludes>
                         <!-- We create our own -->
                         <exclude>drill-module.conf</exclude>
+                      </excludes>
+                    </filter>
+                    <!-- Only use the specified slf4j api -->
+                    <filter>
+                      <artifact>org.apache.drill.exec:drill-jdbc-all</artifact>
+                      <artifact>org.apache.calcite.avatica:avatica</artifact>
+                      <excludes>
+                        <exclude>org/slf4j/**</exclude>
                       </excludes>
                     </filter>
                   </filters>

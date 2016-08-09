@@ -12,6 +12,15 @@
   Fork of the Drill implementation to support specifying the table prefixed with "fineo" and the
   organization key.
   -->
+
+JAVACODE
+SqlIdentifier build_fineo_compound_ident(DrillCompoundIdentifier.Builder builder, SqlIdentifier s){
+  for(int i=0; i < s.names.size(); i++){
+    builder.addString(s.names.get(i), s.getComponentParserPosition(i));
+  }
+  return builder.build();
+}
+
 /**
  * Parses a Drill compound identifier.
  * Uses a varargs to support the existing implementations
@@ -25,10 +34,6 @@ SqlIdentifier CompoundIdentifier(boolean ... flag) :
 {
     p = Identifier()
     {
-        if(flag != null && flag.length > 0 && flag[0] == true) {
-            builder.addString("fineo", getPos());
-            builder.addString(this.org, getPos());
-        }
         builder.addString(p, getPos());
     }
     (
@@ -55,6 +60,17 @@ SqlIdentifier CompoundIdentifier(boolean ... flag) :
         )
     ) *
     {
-      return builder.build();
+      SqlIdentifier standard = builder.build();
+      // prepend the fineo parts, if we need to
+      if(flag != null && flag.length > 0 && flag[0] == true) {
+        if(standard.names.size() <= 2 ||
+           !(standard.names.get(0).equals("fineo") && standard.names.get(1).equals(this.org))){
+              builder = DrillCompoundIdentifier.newBuilder();
+              builder.addString("fineo", standard.getComponentParserPosition(0));
+              builder.addString(this.org, standard.getComponentParserPosition(0));
+              standard = build_fineo_compound_ident(builder, standard);
+          }
+      }
+      return standard;
     }
 }

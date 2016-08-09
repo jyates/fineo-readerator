@@ -9,6 +9,8 @@ import io.fineo.read.serve.util.IteratorResult;
 import org.apache.calcite.avatica.NoSuchStatementException;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.apache.calcite.avatica.remote.TypedValue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -27,6 +29,7 @@ import static com.google.common.collect.ImmutableList.of;
  */
 public class FineoJdbcMeta extends JdbcMeta {
 
+  private static final Logger LOG = LoggerFactory.getLogger(FineoJdbcMeta.class);
   public static final String ORG_PROPERTY_KEY = FineoProperties.COMPANY_KEY_PROPERTY;
   private static final String FINEO_CATALOG = "FINEO_CAT";
   private static final String FINEO_SCHEMA = "FINEO_SCHEMA";
@@ -43,6 +46,7 @@ public class FineoJdbcMeta extends JdbcMeta {
   public FineoJdbcMeta(String url, Properties info, MetricsSystem metrics, String org) throws
     SQLException {
     super(url, info, metrics);
+    LOG.info("Using org: {}", org);
     this.rewrite = new FineoSqlRewriter(org);
     this.org = org;
 
@@ -180,12 +184,14 @@ public class FineoJdbcMeta extends JdbcMeta {
     return super.prepare(ch, rewrite(sql, org), maxRowCount);
   }
 
-  @Override
-  public ExecuteResult prepareAndExecute(StatementHandle h, String sql, long maxRowCount,
-    PrepareCallback callback) throws NoSuchStatementException {
-    String org = getOrg(h.connectionId);
-    return super.prepareAndExecute(h, rewrite(sql, org), maxRowCount, callback);
-  }
+  // Superclass calls into the prepareAndExecute that we have implemented, so save the effort of
+  // rewriting here
+//  @Override
+//  public ExecuteResult prepareAndExecute(StatementHandle h, String sql, long maxRowCount,
+//    PrepareCallback callback) throws NoSuchStatementException {
+//    String org = getOrg(h.connectionId);
+//    return super.prepareAndExecute(h, rewrite(sql, org), maxRowCount, callback);
+//  }
 
   @Override
   public ExecuteResult prepareAndExecute(StatementHandle h, String sql, long maxRowCount,
@@ -199,7 +205,11 @@ public class FineoJdbcMeta extends JdbcMeta {
     Preconditions.checkArgument(this.org.equals(org),
       "Routing error! Customer got routed to the wrong JDBC server.");
     try {
-      return rewrite.rewrite(sql);
+      String wrote = rewrite.rewrite(sql);
+      Exception e = new Exception();
+      LOG.info("Rewrote query as: {}", wrote);
+      e.printStackTrace();
+      return wrote;
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

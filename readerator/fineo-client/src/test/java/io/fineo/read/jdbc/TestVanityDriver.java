@@ -13,6 +13,7 @@ import java.net.ConnectException;
 import java.net.Inet4Address;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.concurrent.ExecutionException;
 
 import static java.lang.String.format;
 import static junit.framework.TestCase.assertEquals;
@@ -33,8 +34,9 @@ public class TestVanityDriver {
     thrown.expectCause(new BaseMatcher<Throwable>() {
       @Override
       public boolean matches(Object item) {
-        if(item instanceof ConnectException){
-          return ((ConnectException) item).getMessage().equals("Connection refused");
+        if(item instanceof ExecutionException){
+          item = ((ExecutionException) item).getCause();
+          return ((ConnectException) item).getMessage().contains("Connection refused");
         }
         return false;
       }

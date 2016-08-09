@@ -4,10 +4,17 @@ import com.google.common.base.Preconditions;
 import io.fineo.read.http.FineoAvaticaAwsHttpClient;
 import io.fineo.read.jdbc.ConnectionStringBuilder;
 import io.fineo.read.jdbc.FineoConnectionProperties;
+import org.apache.calcite.avatica.AvaticaConnection;
 import org.apache.calcite.avatica.BuiltInConnectionProperty;
 import org.apache.calcite.avatica.ConnectStringParser;
+import org.apache.calcite.avatica.ConnectionConfig;
 import org.apache.calcite.avatica.ConnectionProperty;
 import org.apache.calcite.avatica.DriverVersion;
+import org.apache.calcite.avatica.Handler;
+import org.apache.calcite.avatica.HandlerImpl;
+import org.apache.calcite.avatica.remote.AvaticaHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -26,6 +33,7 @@ import static org.apache.calcite.avatica.remote.Driver.Serialization.PROTOBUF;
 
 public class Driver extends org.apache.calcite.avatica.remote.Driver {
 
+  private static final Logger LOG = LoggerFactory.getLogger(Driver.class);
   public static final String CONNECT_PREFIX = "jdbc:fineo:";
 
   private static final String URL = "https://53r0nhslih.execute-api.us-east-1.amazonaws.com/prod";
@@ -37,6 +45,8 @@ public class Driver extends org.apache.calcite.avatica.remote.Driver {
       throw new RuntimeException(e);
     }
   }
+
+  private final List<Pair> open = new ArrayList<>();
 
   public Driver() throws ClassNotFoundException {
     super();
@@ -88,6 +98,7 @@ public class Driver extends org.apache.calcite.avatica.remote.Driver {
   }
 
   private String convertProperties(Properties info) throws IOException {
+
     // ensure we use our factory to create our client
     info.put(HTTP_CLIENT_IMPL.camelName(), FineoAvaticaAwsHttpClient.class.getName());
     // yup, always use protobuf
@@ -116,5 +127,56 @@ public class Driver extends org.apache.calcite.avatica.remote.Driver {
       .withInt(FineoConnectionProperties.CLIENT_MAX_CONNECTIONS, info)
       .withInt(FineoConnectionProperties.CLIENT_REQUEST_TIMEOUT, info)
       .withInt(FineoConnectionProperties.CLIENT_MAX_ERROR_RETRY, info);
+  }
+
+  // on close we want to close thread-pool handle in the client, so we keep around a reference to
+  // all the connections we have open (assumed to be relatively small) and then try to find the
+  // connection when we get a closed notification
+
+  @Override
+  protected AvaticaHttpClient getHttpClient(AvaticaConnection connection, ConnectionConfig config) {
+    AvaticaHttpClient client = super.getHttpClient(connection, config);
+    open.add(new Pair(connection, (FineoAvaticaAwsHttpClient) client));
+    return client;
+  }
+
+  @Override
+  protected Handler createHandler() {
+    return new HandlerImpl() {
+      @Override
+      public void onConnectionClose(AvaticaConnection connection) {
+        boolean found = false;
+        for (int i = 0; i < open.size(); i++) {
+          Pair p = open.get(i);
+          if (p.isEqual(connection)) {
+            p.close();
+            open.remove(i);
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          LOG.error("Attempting to close connection on driver that didn't creat the connection!");
+        }
+      }
+    };
+  }
+
+  private static class Pair {
+    private final AvaticaConnection connection;
+    private final FineoAvaticaAwsHttpClient client;
+
+    private Pair(AvaticaConnection connection, FineoAvaticaAwsHttpClient client) {
+      this.connection = connection;
+      this.client = client;
+    }
+
+    public boolean isEqual(AvaticaConnection connection) {
+      return this.connection == connection;
+    }
+
+    public void close() {
+      client.close();
+    }
   }
 }

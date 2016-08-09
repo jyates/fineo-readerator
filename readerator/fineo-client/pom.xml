@@ -50,36 +50,9 @@
       <artifactId>aws-java-sdk-core</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-android-sdk-apigateway-core</artifactId>
-      <version>${aws.android.sdk.version}</version>
-      <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-android-sdk-core</artifactId>
-      <version>${aws.android.sdk.version}</version>
-      <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
       <groupId>org.asynchttpclient</groupId>
       <artifactId>async-http-client</artifactId>
       <version>2.0.11</version>
-    </dependency>
-    <dependency>
-      <groupId>com.google.code.gson</groupId>
-      <artifactId>gson</artifactId>
-      <version>2.2.4</version>
     </dependency>
     <dependency>
       <groupId>com.google.guava</groupId>
@@ -123,12 +96,19 @@
                     <includes>
                       <include>io.fineo.read:readerator-common</include>
                       <include>org.apache.calcite.avatica:avatica</include>
-                      <include>org.slf4j:jcl-over-slf4j</include>
-                      
-                      <include>com.amazonaws:aws-android-sdk-apigateway-core</include>
-                      <include>com.amazonaws:aws-android-sdk-core</include>
                       <include>com.google.guava:guava</include>
-                      <include>com.google.code.gson:gson</include>
+                      <!-- Logging -->
+                      <include>org.slf4j:jcl-over-slf4j</include>
+                      <include>org.slf4j:slf4j-api</include>
+
+                      <!-- Connections -->
+                      <include>org.asynchttpclient:*</include>
+                      <include>io.netty:*</include>
+                      <include>org.reactivestreams:reactive-streams</include>
+                      <include>com.typesafe.netty:netty-reactive-streams</include>
+                      <include>org.javassist:javassist</include>
+
+                      <include>com.amazonaws:aws-java-sdk-core</include>
                     </includes>
                   </artifactSet>
                   <relocations>
@@ -172,6 +152,12 @@
                         <exclude>.gitkeep</exclude>
                         <!-- -test.xml overrides our logback.xml -->
                         <exclude>logback-test.xml</exclude>
+                      </excludes>
+                    </filter>
+                    <filter>
+                      <artifact>org.apache.calcite.avatica:avatica</artifact>
+                      <excludes>
+                        <exclude>org/slf4j/*</exclude>
                       </excludes>
                     </filter>
                   </filters>

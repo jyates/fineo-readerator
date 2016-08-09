@@ -1,5 +1,6 @@
 package io.fineo.read.http;
 
+import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.DefaultRequest;
 import com.amazonaws.auth.AWS4Signer;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -44,13 +45,10 @@ public class RequestConverter {
   @VisibleForTesting
   void prepareRequest(byte[] data, AWSCredentialsProvider credentials,
     String apiKey) {
-    FineoJdbcWebServiceRequest request = new FineoJdbcWebServiceRequest();
     byte[] translated = translator.encode(data);
     post.setBody(translated);
     if (credentials != null) {
-      request.setRequestCredentials(credentials.getCredentials());
-      DefaultRequest<FineoJdbcWebServiceRequest> awsReq = new DefaultRequest
-        <FineoJdbcWebServiceRequest>(request, "execute-api");
+      DefaultRequest<AmazonWebServiceRequest> awsReq = new DefaultRequest( "execute-api");
       awsReq.setContent(new ByteArrayInputStream(translated));
       awsReq.addHeader("Content-Length", Integer.toString(translated.length));
       awsReq.addHeader("Content-Type", "application/json");
@@ -63,7 +61,7 @@ public class RequestConverter {
       AWS4Signer signer = new AWS4Signer();
       signer.setServiceName("execute-api");
       signer.setRegionName("us-east-1");
-      signer.sign(awsReq, request.getRequestCredentials());
+      signer.sign(awsReq, credentials.getCredentials());
 
       for (Map.Entry<String, String> header : awsReq.getHeaders().entrySet()) {
         post.addHeader(header.getKey(), header.getValue());
