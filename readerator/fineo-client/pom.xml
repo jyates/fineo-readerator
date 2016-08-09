@@ -47,6 +47,10 @@
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
       <artifactId>aws-android-sdk-apigateway-core</artifactId>
       <version>${aws.android.sdk.version}</version>
       <exclusions>
@@ -66,6 +70,11 @@
           <artifactId>*</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.asynchttpclient</groupId>
+      <artifactId>async-http-client</artifactId>
+      <version>2.0.11</version>
     </dependency>
     <dependency>
       <groupId>com.google.code.gson</groupId>
