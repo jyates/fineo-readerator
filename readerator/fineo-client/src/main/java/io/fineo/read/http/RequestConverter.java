@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 /**
- *
+ * Convert the request into something that can be sent to AWS API Gateway with optional credentials
  */
 public class RequestConverter {
 
@@ -45,12 +45,12 @@ public class RequestConverter {
   void prepareRequest(byte[] data, AWSCredentialsProvider credentials,
     String apiKey) {
     FineoJdbcWebServiceRequest request = new FineoJdbcWebServiceRequest();
-    post.setBody(data);
+    byte[] translated = translator.encode(data);
+    post.setBody(translated);
     if (credentials != null) {
       request.setRequestCredentials(credentials.getCredentials());
       DefaultRequest<FineoJdbcWebServiceRequest> awsReq = new DefaultRequest
         <FineoJdbcWebServiceRequest>(request, "execute-api");
-      byte[] translated = translator.encode(data);
       awsReq.setContent(new ByteArrayInputStream(translated));
       awsReq.addHeader("Content-Length", Integer.toString(translated.length));
       awsReq.addHeader("Content-Type", "application/json");

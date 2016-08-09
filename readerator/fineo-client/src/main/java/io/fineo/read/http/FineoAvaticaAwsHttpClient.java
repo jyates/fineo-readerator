@@ -3,8 +3,6 @@ package io.fineo.read.http;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.internal.StaticCredentialsProvider;
-import com.amazonaws.mobileconnectors.apigateway.ApiClientFactory;
-import io.fineo.read.AwsApiGatewayBytesTranslator;
 import io.fineo.read.jdbc.ConnectionStringBuilder;
 import io.fineo.read.jdbc.FineoConnectionProperties;
 import org.apache.calcite.avatica.remote.AuthenticationType;
@@ -49,31 +47,6 @@ public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
   @Override
   public byte[] send(byte[] request) {
     return converter.request(request, credentials, properties.get(API_KEY));
-  }
-
-  /**
-   * Ensure client must come later as we may or may not be configured with credentials, so we
-   * always need to check to ensure that its created. Using double-checked locking so hopefully
-   * its not too bad. Ideally, we will be notified when creation is complete so we can initiate
-   * the connection/client creation, but that's not in avatica (yet).
-   */
-  private void ensureClient() {
-    if (client == null) {
-      synchronized (this) {
-        if (client == null) {
-          client = createClient();
-        }
-      }
-    }
-  }
-
-  private Api createClient() {
-    ApiClientFactory factory = new ApiClientFactory()
-      .clientConfiguration(getClientConfiguration())
-      .credentialsProvider(this.credentials)
-      .apiKey(properties.get(API_KEY))
-      .endpoint(url.toString());
-    return factory.build(Api.class);
   }
 
   private ClientConfiguration getClientConfiguration() {

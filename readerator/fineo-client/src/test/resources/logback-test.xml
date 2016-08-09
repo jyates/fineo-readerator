@@ -1,0 +1,20 @@
+<configuration>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5p %c{3}[%L] - %m%n</pattern>
+    </encoder>
+  </appender>
+  <logger name="io.fineo.lambda.io.fineo.read.drill.e2e.resources.lambda" level="INFO"/>
+  <logger name="io.fineo.lambda" level="TRACE"/>
+  <logger name="org.apache.http" level="INFO"/>
+  <logger name="org.apache.spark.sql.hive.orc" level="TRACE"/>
+  <logger name="org.spark-project.jetty" level="INFO"/>
+  <logger name="com.amazonaws" level="INFO"/>
+  <logger name="org.apache.drill.exec.memory" level="INFO"/>
+  <logger name="io.netty.buffer" level="INFO"/>
+  <logger name="org.eclipse.jetty" level="INFO"/>
+  <logger name="com.amazonaws.auth" level="DEBUG"/>
+  <root level="DEBUG">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>
