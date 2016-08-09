@@ -21,6 +21,8 @@ import java.util.Properties;
 import static io.fineo.read.jdbc.AuthenticationUtil.setupAuthentication;
 import static io.fineo.read.jdbc.FineoConnectionProperties.API_KEY;
 import static org.apache.calcite.avatica.BuiltInConnectionProperty.HTTP_CLIENT_IMPL;
+import static org.apache.calcite.avatica.BuiltInConnectionProperty.SERIALIZATION;
+import static org.apache.calcite.avatica.remote.Driver.Serialization.PROTOBUF;
 
 public class Driver extends org.apache.calcite.avatica.remote.Driver {
 
@@ -92,7 +94,7 @@ public class Driver extends org.apache.calcite.avatica.remote.Driver {
     // ensure we use our factory to create our client
     info.put(HTTP_CLIENT_IMPL.camelName(), FineoAvaticaAwsHttpClient.class.getName());
     // yup, always use protobuf
-    info.put(BuiltInConnectionProperty.SERIALIZATION, Serialization.PROTOBUF.toString());
+    info.put(SERIALIZATION.camelName(), PROTOBUF.toString());
     setupAuthentication(info);
 
     // properties that are passed through the connection string

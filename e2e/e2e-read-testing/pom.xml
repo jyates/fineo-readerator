@@ -50,8 +50,53 @@
                 <goals>
                   <goal>shade</goal>
                 </goals>
+                <id>exec</id>
                 <configuration>
                   <shadedClassifierName>aws</shadedClassifierName>
+                  <artifactSet>
+                    <includes>
+                      <include>io.fineo.read:fineo-client</include>
+                      <include>ch.qos.logback:logback-classic</include>
+                      <include>ch.qos.logback:logback-core</include>
+                      <!-- Needed for parsing -->
+                      <include>com.beust:jcommander</include>
+                      <include>io.fineo.e2e:e2e-parsing</include>
+                      <include>io.fineo.read.e2e:e2e-common</include>
+                      <!-- writing results to file -->
+                      <include>com.fasterxml.jackson*:*</include>
+                    </includes>
+                  </artifactSet>
+                  <filters>
+                    <filter>
+                      <artifact>*:*</artifact>
+                      <excludes>
+                        <exclude>META-INF/*.SF</exclude>
+                        <exclude>META-INF/*.DSA</exclude>
+                        <exclude>META-INF/*.RSA</exclude>
+                        <exclude>.gitkeep</exclude>
+                        <!-- -test.xml overrides our logback.xml -->
+                        <exclude>logback-test.xml</exclude>
+                        <!-- Force classpath rescanning every time we start drill. Makes it so we
+                         can have a single deployable jar. LATER, when we want to roll out
+                         independent cluster, we can just build a fineo jars (dynamo and adapter)
+                          and there will be no prescanned file (or we can make one on build) -->
+                        <exclude>META-INF/drill-module-scan/registry.json</exclude>
+                        <!-- Executable producer - huge!... not needed since we use the java api -->
+                        <exclude>amazon-kinesis-producer-native-binaries/**</exclude>
+                      </excludes>
+                    </filter>
+                  </filters>
+                </configuration>
+              </execution>
+              <execution>
+                <!-- Just a jar for running the bootstrap cluster step -->
+                <phase>package</phase>
+                <goals>
+                  <goal>shade</goal>
+                </goals>
+                <id>bootstrap</id>
+                <configuration>
+                  <shadedClassifierName>bootstrap</shadedClassifierName>
                   <artifactSet>
                     <includes>
                       <include>io.fineo.read:fineo-client</include>
@@ -74,7 +119,6 @@
                       <include>io.fineo.read:drill-storage-dynamo</include>
                       <include>org.apache.drill:drill-logical</include>
                       <include>org.slf4j:jcl-over-slf4j</include>
-
                     </includes>
                   </artifactSet>
                   <filters>

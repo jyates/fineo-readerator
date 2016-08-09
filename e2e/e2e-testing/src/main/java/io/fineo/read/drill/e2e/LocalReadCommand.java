@@ -18,8 +18,11 @@ public class LocalReadCommand extends Command {
   private static final Joiner AND = Joiner.on(" AND ");
   private StandaloneCluster cluster;
 
+  private final LocalSchemaStoreOptions store;
+
   public LocalReadCommand(DrillArguments opts, LocalSchemaStoreOptions storeOptions) {
-    super(opts, storeOptions);
+    super(opts);
+    this.store = storeOptions;
   }
 
   @Override
@@ -49,5 +52,6 @@ public class LocalReadCommand extends Command {
     cluster = new StandaloneCluster();
     cluster.runWithException();
     LOG.info("Cluster started!");
+    new Bootstrap(opts, store).run();
   }
 }

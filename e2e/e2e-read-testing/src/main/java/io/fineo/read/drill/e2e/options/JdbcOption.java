@@ -14,8 +14,15 @@ public class JdbcOption {
   @Parameter(names = "--jdbc-port", description = "JDBC port string to Avatica server")
   public String port;
 
+  @Parameter(names = "--jdbc-secure", description = "Enable https mode")
+  public boolean secure;
+
   public String getUrl(){
-    StringBuffer sb = new StringBuffer("url=https://");
+    StringBuffer sb = new StringBuffer("url=http");
+    if(secure){
+      sb.append("s");
+    }
+    sb.append("://");
     sb.append(host);
     if(port != null){
       sb.append(":");

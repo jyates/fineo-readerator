@@ -76,6 +76,9 @@ public class ConnectionStringBuilder {
   public static Map<String, String> parse(java.net.URL url) {
     Map<String, String> map = new HashMap<>();
     String query = url.getQuery();
+    if(query == null){
+      return map;
+    }
     String[] parts = query.split("&");
     for (String part : parts) {
       String[] kv = part.split("=");

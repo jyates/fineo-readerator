@@ -1,7 +1,6 @@
 package io.fineo.read.drill.e2e.command;
 
 import com.beust.jcommander.ParametersDelegate;
-import io.fineo.e2e.options.LocalSchemaStoreOptions;
 import io.fineo.read.drill.e2e.commands.Command;
 import io.fineo.read.drill.e2e.options.DrillArguments;
 import io.fineo.read.drill.e2e.options.JdbcOption;
@@ -20,8 +19,8 @@ public class ReadCommand extends Command {
   private final JdbcOption jdbc = new JdbcOption();
   private Reader reader;
 
-  public ReadCommand(DrillArguments opts, LocalSchemaStoreOptions storeOptions) {
-    super(opts, storeOptions);
+  public ReadCommand(DrillArguments opts) {
+    super(opts);
   }
 
   public void setReader(Reader read) {

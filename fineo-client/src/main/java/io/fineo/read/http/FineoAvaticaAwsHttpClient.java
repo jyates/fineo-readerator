@@ -28,7 +28,9 @@ public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
 
   public FineoAvaticaAwsHttpClient(URL url) throws MalformedURLException {
     // simplify the url to just the bit we will actually send
-    this.url = new URL(url.getProtocol(), url.getAuthority(), url.getPath()).toExternalForm();
+    this.url = (url.getPort() == -1 ?
+          new URL(url.getProtocol(), url.getHost(), url.getPath()) :
+          new URL(url.getProtocol(), url.getHost(), url.getPort(), url.getPath())).toExternalForm();
     this.properties = ConnectionStringBuilder.parse(url);
   }
 
