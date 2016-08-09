@@ -11,5 +11,11 @@
 
   <groupId>io.fineo.read</groupId>
   <artifactId>readerator-common</artifactId>
+  <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+  </dependencies>
 
 </project>

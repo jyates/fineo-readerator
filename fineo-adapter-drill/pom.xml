@@ -121,6 +121,11 @@
       <groupId>io.fineo.read</groupId>
       <artifactId>drill-storage-dynamo</artifactId>
     </dependency>
+    <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>fineo-reparser</artifactId>
+      <scope>test</scope>
+    </dependency>
 
     <dependency>
       <groupId>com.amazonaws</groupId>

@@ -112,6 +112,7 @@
                 <configuration>
                   <artifactSet>
                     <includes>
+                      <include>io.fineo.read:readerator-common</include>
                       <include>org.apache.calcite.avatica:avatica</include>
                       <include>org.slf4j:jcl-over-slf4j</include>
                       <!--<include>org.slf4j:log4j-over-slf4j</include>-->

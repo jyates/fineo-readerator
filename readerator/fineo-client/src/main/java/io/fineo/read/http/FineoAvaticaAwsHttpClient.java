@@ -3,13 +3,17 @@ package io.fineo.read.http;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.internal.StaticCredentialsProvider;
+import com.amazonaws.mobileconnectors.apigateway.ApiClientException;
 import com.amazonaws.mobileconnectors.apigateway.ApiClientFactory;
+import com.amazonaws.util.IOUtils;
 import io.fineo.read.AwsApiGatewayBytesTranslator;
 import io.fineo.read.jdbc.ConnectionStringBuilder;
 import io.fineo.read.jdbc.FineoConnectionProperties;
 import org.apache.calcite.avatica.remote.AuthenticationType;
 import org.apache.calcite.avatica.remote.AvaticaHttpClient;
 import org.apache.calcite.avatica.remote.UsernamePasswordAuthenticateable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -23,6 +27,7 @@ import static io.fineo.read.jdbc.ConnectionPropertyUtil.setInt;
  */
 public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
                                                   UsernamePasswordAuthenticateable {
+  private static final Logger LOG = LoggerFactory.getLogger(FineoAvaticaAwsHttpClient.class);
   private final AwsApiGatewayBytesTranslator translator = new AwsApiGatewayBytesTranslator();
   private final String url;
   private final Map<String, String> properties;
@@ -42,7 +47,14 @@ public class FineoAvaticaAwsHttpClient implements AvaticaHttpClient,
   public byte[] send(byte[] request) {
     ensureClient();
     byte[] encoded = translator.encode(request);
-    return translator.decode(client.send(encoded).getBytes());
+    try {
+      return translator.decode(client.send(encoded).getBytes());
+    } catch (ApiClientException e) {
+      // not between [200, 300>
+      LOG.error("Failed request - {}  with request ID '{}'", e.getStatusCode(), e.getRequestId());
+      String content = e.getMessage();
+      return translator.decode(content);
+    }
   }
 
   /**
