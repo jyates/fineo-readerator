@@ -1,6 +1,5 @@
 package io.fineo.read.serve.driver;
 
-import io.fineo.read.serve.util.LoggingResultSet;
 import org.apache.calcite.avatica.AvaticaStatement;
 import org.apache.calcite.avatica.Meta;
 import org.apache.calcite.avatica.NoSuchStatementException;
@@ -59,9 +58,6 @@ public class FineoStatement extends AvaticaStatement {
   }
 
   public ResultSet setResult(ResultSet result) throws SQLException {
-    if(LOG.isDebugEnabled()){
-      result = new LoggingResultSet(result, LOG).withStatement(this);
-    }
     this.result = result;
     return result;
   }
