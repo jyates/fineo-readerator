@@ -7,6 +7,8 @@ import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.sql.parser.SqlParserImplFactory;
 
+import java.sql.SQLException;
+
 /**
  * Rewrite SQL queries for a single org
  */
@@ -18,14 +20,18 @@ public class FineoSqlRewriter {
     config = new ParserConfig(org);
   }
 
-  public String rewrite(String sql) throws SqlParseException {
+  public String rewrite(String sql) throws SQLException {
     SqlNode node = parse(sql);
     return node.toString();
   }
 
-  private SqlNode parse(String sql) throws SqlParseException {
+  private SqlNode parse(String sql) throws SQLException {
     SqlParser parser = SqlParser.create(sql, config);
-    return parser.parseStmt();
+    try {
+      return parser.parseStmt();
+    } catch (SqlParseException e) {
+      throw new SQLException(e);
+    }
   }
 
   // Copied from Drill SqlConverter.ParserConfig

@@ -1,54 +1,59 @@
 package org.apache.calcite.avatica.jdbc;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import io.fineo.read.FineoProperties;
+import io.fineo.read.FineoJdbcProperties;
 import io.fineo.read.drill.FineoSqlRewriter;
-import io.fineo.read.serve.util.IteratorResult;
+import org.apache.calcite.avatica.Meta;
 import org.apache.calcite.avatica.NoSuchStatementException;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.apache.calcite.avatica.remote.TypedValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.collect.ImmutableList.of;
 
 /**
  * An implementation of JDBC metadata that prevents readers from viewing data that is not present
- * in the specified connection properties
+ * in the specified connection properties.
+ * <p>
+ * This is used in conjunction with the {@link io.fineo.read.serve.driver.FineoServerDriver} and
+ * {@link io.fineo.read.serve.driver.FineoDatabaseMetaData} to prevent access. <tt>this</tt> handles
+ * the actual query wrapping and leaves the metadata lookup to the custom driver/metadata
+ * </p>
  */
 public class FineoJdbcMeta extends JdbcMeta {
 
   private static final Logger LOG = LoggerFactory.getLogger(FineoJdbcMeta.class);
-  public static final String ORG_PROPERTY_KEY = FineoProperties.COMPANY_KEY_PROPERTY;
+  public static final String ORG_PROPERTY_KEY = FineoJdbcProperties.COMPANY_KEY_PROPERTY;
   private static final String FINEO_CATALOG = "FINEO_CAT";
   private static final String FINEO_SCHEMA = "FINEO_SCHEMA";
   private static final String FINEO_SCHEMA_TABLE = "FINEO_SCHEMA_TABLE";
-  private final FineoSqlRewriter rewrite;
-  private final String org;
+  private FineoSqlRewriter rewrite;
+  private String org;
 
   private final Cache<String, Map<String, String>> connectionPropertyCache;
 
-  public FineoJdbcMeta(String url, MetricsSystem metrics, String org) throws SQLException {
-    this(url, new Properties(), metrics, org);
-  }
-
   public FineoJdbcMeta(String url, Properties info, MetricsSystem metrics, String org) throws
     SQLException {
+    this(url, info, metrics);
+    setRewriter(org);
+  }
+
+  public FineoJdbcMeta(String url, Properties info, MetricsSystem metrics) throws
+    SQLException {
     super(url, info, metrics);
-    LOG.info("Using org: {}", org);
-    this.rewrite = new FineoSqlRewriter(org);
-    this.org = org;
 
     int concurrencyLevel = Integer.parseInt(
       info.getProperty(ConnectionCacheSettings.CONCURRENCY_LEVEL.key(),
@@ -87,91 +92,9 @@ public class FineoJdbcMeta extends JdbcMeta {
 
   private String getOrg(String cid) {
     Map<String, String> props = checkNotNull(connectionPropertyCache.getIfPresent(cid),
-      "No connection key found for connection handle '{}'", cid);
+      "No connection key found for connection handle '%s'", cid);
 
     return props.get(ORG_PROPERTY_KEY);
-  }
-
-  @Override
-  public MetaResultSet getCatalogs(ConnectionHandle ch) {
-    try {
-      // only ever one catalog to return - FINEO
-      final ResultSet rs = new IteratorResult(FINEO_CATALOG, FINEO_SCHEMA, FINEO_SCHEMA_TABLE,
-        of("CATALOG"), of(new Object[]{FINEO_CATALOG}).iterator());
-      int stmtId = registerMetaStatement(rs);
-      return JdbcResultSet.create(ch.id, stmtId, rs);
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  private int registerMetaStatement(ResultSet rs) throws SQLException {
-    final int id = getStatementIdGenerator().getAndIncrement();
-    StatementInfo statementInfo = new StatementInfo(rs.getStatement());
-    statementInfo.setResultSet(rs);
-    getStatementCache().put(id, statementInfo);
-    return id;
-  }
-
-  @Override
-  public MetaResultSet getSchemas(ConnectionHandle ch, String catalog,
-    Pat schemaPattern) {
-    return super.getSchemas(ch, getCatalog(catalog), getSchema(schemaPattern));
-  }
-
-  @Override
-  public MetaResultSet getTables(ConnectionHandle ch, String catalog,
-    Pat schemaPattern, Pat tableNamePattern, List<String> typeList) {
-    String org = getOrg(ch);
-    return super.getTables(ch, getCatalog(catalog),
-      schemaPattern,
-      adjust(org, tableNamePattern),
-      typeList);
-  }
-
-  @Override
-  public MetaResultSet getColumns(ConnectionHandle ch, String catalog,
-    Pat schemaPattern, Pat tableNamePattern, Pat columnNamePattern) {
-    String org = getOrg(ch);
-    return super.getColumns(ch, getCatalog(catalog),
-      getSchema(schemaPattern),
-      adjust(org, tableNamePattern),
-      columnNamePattern);
-  }
-
-  @Override
-  public MetaResultSet getProcedures(ConnectionHandle ch, String catalog,
-    Pat schemaPattern, Pat procedureNamePattern) {
-    String org = getOrg(ch);
-    return super.getProcedures(ch, getCatalog(catalog), getSchema(schemaPattern),
-      adjust(org, procedureNamePattern));
-  }
-
-  @Override
-  public MetaResultSet getProcedureColumns(ConnectionHandle ch, String catalog,
-    Pat schemaPattern, Pat procedureNamePattern, Pat columnNamePattern) {
-    String org = getOrg(ch);
-    return super
-      .getProcedureColumns(ch, getCatalog(catalog), getSchema(schemaPattern), adjust(org,
-        procedureNamePattern),
-        columnNamePattern);
-  }
-
-  @Override
-  public MetaResultSet getTablePrivileges(ConnectionHandle ch, String catalog,
-    Pat schemaPattern, Pat tableNamePattern) {
-    String org = getOrg(ch);
-    return super.getTablePrivileges(ch, getCatalog(catalog), getSchema(schemaPattern), adjust(org,
-      tableNamePattern));
-  }
-
-  @Override
-  public MetaResultSet getColumnPrivileges(ConnectionHandle ch, String catalog,
-    String schema, String table, Pat columnNamePattern) {
-    String org = getOrg(ch);
-    return super
-      .getColumnPrivileges(ch, getCatalog(catalog), getSchema(schema), adjust(org, table),
-        columnNamePattern);
   }
 
   //
@@ -196,7 +119,7 @@ public class FineoJdbcMeta extends JdbcMeta {
   @Override
   public ExecuteResult prepareAndExecute(StatementHandle h, String sql, long maxRowCount,
     int maxRowsInFirstFrame, PrepareCallback callback) throws NoSuchStatementException {
-    String org = getOrg(h.connectionId);
+
     return super.prepareAndExecute(h, rewrite(sql, org), maxRowCount, maxRowsInFirstFrame,
       callback);
   }
@@ -206,43 +129,28 @@ public class FineoJdbcMeta extends JdbcMeta {
       "Routing error! Customer got routed to the wrong JDBC server.");
     try {
       String wrote = rewrite.rewrite(sql);
-      Exception e = new Exception();
-      LOG.info("Rewrote query as: {}", wrote);
-      e.printStackTrace();
       return wrote;
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
   }
 
-  private Pat adjust(String org, Pat pattern) {
-    return Pat.of(adjust(org, pattern.s));
-  }
-
-  private String adjust(String org, String pattern) {
-    return org + "." + pattern;
-  }
-
-  private final String getCatalog(String specified) {
-    if (specified.equals(FINEO_CATALOG)) {
-      return "DRILL";
+  public ResultSet prepareAndExecuteQuery(StatementHandle h, String sql, long maxRowCount) throws
+    NoSuchStatementException, SQLException {
+    final StatementInfo info = getStatementCache().getIfPresent(h.id);
+    if (info == null) {
+      throw new NoSuchStatementException(h);
     }
-    return "_NOT_A_CATALOG_FINEO_";
-  }
-
-  private final Pat getSchema(Pat specified) {
-    Pattern pat = Pattern.compile(specified.s);
-    if (pat.matcher(FINEO_SCHEMA).matches()) {
-      return Pat.of("");
-    }
-    return Pat.of("_NOT_A_VALID_SCHEMA_FINEO_");
-  }
-
-  private final String getSchema(String specified) {
-    if (specified.equals(FINEO_SCHEMA)) {
-      return "";
-    }
-    return "_NOT_A_VALID_SCHEMA_FINEO_";
+    final Statement statement = info.statement;
+    // Make sure that we limit the number of rows for the query
+    setMaxRows(statement, maxRowCount);
+    String org = getOrg(h.connectionId);
+    sql = rewrite(sql, org);
+    boolean out = statement.execute(sql);
+    info.setResultSet(statement.getResultSet());
+    // Either execute(sql) returned true or the resultSet was null
+    assert out || null == info.getResultSet();
+    return info.getResultSet();
   }
 
   //
@@ -260,5 +168,20 @@ public class FineoJdbcMeta extends JdbcMeta {
     throw new UnsupportedOperationException(
       "This adapter can only be used for READ operations, not write operations. See API at "
       + "http://api.fineo.io for how to write data.");
+  }
+
+  public Connection getConnection(ConnectionHandle handle) throws SQLException {
+    return super.getConnection(handle.id);
+  }
+
+  public void setRewriter(String org) {
+    LOG.info("Using org: {}", org);
+    this.rewrite = new FineoSqlRewriter(org);
+    this.org = org;
+  }
+
+  @VisibleForTesting
+  public void setRewriterForTesting(FineoSqlRewriter rewrite) {
+    this.rewrite = rewrite;
   }
 }

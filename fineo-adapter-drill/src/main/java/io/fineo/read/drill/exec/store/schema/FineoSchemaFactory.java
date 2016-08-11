@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.schema;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
+import io.fineo.read.drill.FineoInternalProperties;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
 import io.fineo.read.drill.exec.store.plugin.source.SourceTable;
@@ -39,13 +40,14 @@ public class FineoSchemaFactory implements SchemaFactory {
     FineoStoragePluginConfig config = (FineoStoragePluginConfig) this.plugin.getConfig();
     this.store = createSchemaStore(config);
     // we need a 'parent' schema, even if it doesn't have any sub-tables
-    parent = parent.add("fineo", new FineoBaseSchema(of(), "fineo") {
+    parent = parent.add(FineoInternalProperties.FINEO_DRILL_SCHEMA_NAME, new FineoBaseSchema(of(),
+      FineoInternalProperties.FINEO_DRILL_SCHEMA_NAME) {
     });
 
     Set<SourceTable> sources = new HashSet<>();
     sources.addAll(config.getFsSources());
     sources.addAll(config.getDynamoSources());
-    List<String> parentName = of("fineo");
+    List<String> parentName = of(FineoInternalProperties.FINEO_DRILL_SCHEMA_NAME);
     for (String org : orgs) {
       SubTableScanBuilder scanner = new SubTableScanBuilder(org, sources, plugin.getDynamo());
       parent.add(org, new FineoSchema(parentName, org, this.plugin, scanner, store));

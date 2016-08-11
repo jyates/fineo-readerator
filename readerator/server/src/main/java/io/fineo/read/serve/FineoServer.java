@@ -20,7 +20,9 @@ import com.beust.jcommander.IStringConverter;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.codahale.metrics.MetricRegistry;
-import org.apache.calcite.avatica.jdbc.FineoJdbcMeta;
+import io.fineo.read.FineoJdbcProperties;
+import io.fineo.read.serve.driver.FineoServerDriver;
+import org.apache.calcite.avatica.jdbc.JdbcMeta;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.apache.calcite.avatica.metrics.dropwizard3.DropwizardMetricsSystemConfiguration;
 import org.apache.calcite.avatica.metrics.dropwizard3.DropwizardMetricsSystemFactory;
@@ -31,6 +33,10 @@ import org.apache.calcite.avatica.server.HttpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Driver;
+import java.sql.DriverManager;
+import java.util.Properties;
+
 /**
  * An Avatica server for HSQLDB.
  */
@@ -38,6 +44,8 @@ public class FineoServer {
   private static final Logger LOG = LoggerFactory.getLogger(FineoServer.class);
 
   private static final Serialization SER = Serialization.PROTOBUF;
+  public static final String DRILL_CONNECTION_KEY = "drill-connection";
+  public static final String DRILL_CATALOG_KEY = "drill-catalog";
 
   @Parameter(names = "--org-id", required = true,
              description = "Org ID served by this server. Only 1 org per server allowed.")
@@ -47,9 +55,13 @@ public class FineoServer {
              description = "Port the server should bind")
   private int port = 0;
 
-  @Parameter(names = "--drill-connection", required = true,
+  @Parameter(names = "--"+DRILL_CONNECTION_KEY, required = true,
              description = "Connection string for the Drill JDBC driver")
   private String drill = "===UNSPECIFIED===";
+
+  @Parameter(names = "--"+DRILL_CATALOG_KEY,
+             description = "Override the catalog that the target jdbc connection will use")
+  private String catalog="DRILL";
 
   private HttpServer server;
   private final MetricRegistry metrics = new MetricRegistry();
@@ -63,20 +75,33 @@ public class FineoServer {
     }
 
     try {
-      // make sur we have the drill driver
-      Class.forName("org.apache.drill.jdbc.Driver");
-
       // create our wrapping metadata
       DropwizardMetricsSystemConfiguration metricsConf = new DropwizardMetricsSystemConfiguration
         (metrics);
-      MetricsSystem system = new DropwizardMetricsSystemFactory().create(metricsConf);
-      FineoJdbcMeta meta = new FineoJdbcMeta(drill, system, org);
-      LocalService service = new LocalService(meta, system);
+      MetricsSystem metrics = new DropwizardMetricsSystemFactory().create(metricsConf);
+
+      // replace the FineoServerDriver with one that has metrics
+      FineoServerDriver.load();
+      Driver existing = DriverManager.getDriver(FineoServerDriver.CONNECT_PREFIX);
+      DriverManager.deregisterDriver(existing);
+      DriverManager.registerDriver(new FineoServerDriver(metrics));
+
+      // setup the connection delegation properties
+      Properties props = new Properties();
+      props.setProperty(DRILL_CATALOG_KEY, catalog);
+      props.setProperty(DRILL_CONNECTION_KEY, drill);
+      props.setProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY, org);
+
+      // its "just" a jdbc connection... to a driver which creates its own jdbc connection the
+      // specified connection key. This ensures that we encapsulate the schema and tables from
+      // the wrong user
+      JdbcMeta meta = new JdbcMeta(FineoServerDriver.CONNECT_PREFIX, props, metrics);
+      LocalService service = new LocalService(meta, metrics);
 
       // custom translator so we can interop with AWS
       ProtobufTranslation translator = new AwsStringBytesDecodingTranslator();
       AvaticaProtobufHandler handler =
-        new AvaticaProtobufHandler(service, system, null, translator);
+        new AvaticaProtobufHandler(service, metrics, null, translator);
 
       // Construct the server
       this.server = new HttpServer.Builder()

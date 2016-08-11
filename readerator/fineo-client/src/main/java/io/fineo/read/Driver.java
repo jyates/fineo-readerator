@@ -46,6 +46,13 @@ public class Driver extends org.apache.calcite.avatica.remote.Driver {
     }
   }
 
+  /**
+   * A bit cleaner than calling Class.forName(...)
+   */
+  public static boolean load() {
+    return true;
+  }
+
   private final List<Pair> open = new ArrayList<>();
 
   public Driver() throws ClassNotFoundException {
@@ -113,7 +120,7 @@ public class Driver extends org.apache.calcite.avatica.remote.Driver {
         API_KEY.camelName());
     sb.with(API_KEY, info);
     // API KEY is also the company key, so set that too
-    info.put(FineoProperties.COMPANY_KEY_PROPERTY, key);
+    info.put(FineoJdbcProperties.COMPANY_KEY_PROPERTY, key);
     setupClientProperties(info, sb);
     return sb.build();
   }
