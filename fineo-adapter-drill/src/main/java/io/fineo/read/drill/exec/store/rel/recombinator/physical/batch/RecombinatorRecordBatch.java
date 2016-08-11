@@ -92,7 +92,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     String prefix = null;
     for (MaterializedField f : inschema) {
       String name = f.getName();
-      if(FineoStopWords.DRILL_STAR_PREFIX_PATTERN.matcher(name).matches()){
+      if (FineoStopWords.DRILL_STAR_PREFIX_PATTERN.matcher(name).matches()) {
         prefix = name.substring(0, name.indexOf(StarColumnHelper.PREFIX_DELIMITER));
         break;
       }
@@ -206,10 +206,9 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       // slice parts of a vector and then transferring the non-null bits from each alias
       LOG.debug("Manually copying fields for {}", name);
       for (int i = 0; i < incomingRecordCount; i++) {
-        writer.setPosition(i);
         // only write non-null values
         if (!wrapper.getValueVector().getAccessor().isNull(i)) {
-          write(name, wrapper, this.writer.rootAsMap());
+          write(name, wrapper, this.writer.rootAsMap(), i);
         }
       }
     }
@@ -223,10 +222,13 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     return IterOutcome.OK;
   }
 
-  private void write(String outputName, VectorWrapper wrapper, BaseWriter.MapWriter writer) {
+  private void write(String outputName, VectorWrapper wrapper, BaseWriter.MapWriter writer, int
+    index) {
     ValueVector vector = wrapper.getValueVector();
     FieldReader reader = vector.getReader();
-    LOG.trace("Mapping {} => {}", wrapper.getField(), outputName);
+    reader.setPosition(index);
+    writer.setPosition(index);
+    LOG.trace("Mapping {}[{}] => {}", wrapper.getField(), reader.readObject(), outputName);
     switch (wrapper.getField().getType().getMinorType()) {
       case VARCHAR:
       case FIXEDCHAR:

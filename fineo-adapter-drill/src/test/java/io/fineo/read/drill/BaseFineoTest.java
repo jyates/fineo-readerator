@@ -15,6 +15,7 @@ import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
+import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
@@ -229,5 +230,14 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     String metricType, long ts, Map<String, Object>... rows) throws Exception {
     return FineoTestUtil
       .writeParquet(state, drill.getConnection(), dir, orgid, metricType, ts, rows);
+  }
+
+  protected Item prepareItem(TestState state) throws SchemaNotFoundException {
+    StoreClerk clerk = new StoreClerk(state.getStore(), org);
+    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
+
+    Item wrote = new Item();
+    wrote.with(Schema.PARTITION_KEY_NAME, org + metric.getMetricId());
+    return wrote;
   }
 }

@@ -112,6 +112,8 @@ public class TestClientLikeReads extends BaseFineoTest {
     verifySelectStar(withNext(expected));
   }
 
+
+
   @Test
   public void testPruneFileDirectoryAndDynamo() throws Exception {
     TestState state = register(p(fieldname, StoreManager.Type.INT));
@@ -212,15 +214,6 @@ public class TestClientLikeReads extends BaseFineoTest {
 
     parquetRow.put(fieldname, parquetRow.remove(cname));
     verifySelectStar(FineoTestUtil.withNext(parquetRow));
-  }
-
-  private Item prepareItem(TestState state) throws SchemaNotFoundException {
-    StoreClerk clerk = new StoreClerk(state.getStore(), org);
-    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
-
-    Item wrote = new Item();
-    wrote.with(Schema.PARTITION_KEY_NAME, org + metric.getMetricId());
-    return wrote;
   }
 
   private BootstrapFineo.DrillConfigBuilder bootstrapper() {

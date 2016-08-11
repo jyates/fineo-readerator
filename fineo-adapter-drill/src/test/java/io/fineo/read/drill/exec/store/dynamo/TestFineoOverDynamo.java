@@ -11,17 +11,23 @@ import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
+import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.StoreClerk;
+import io.fineo.schema.store.StoreManager;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
 import static io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils.lte;
+import static io.fineo.read.drill.FineoTestUtil.get1980;
+import static io.fineo.read.drill.FineoTestUtil.p;
+import static io.fineo.read.drill.FineoTestUtil.withNext;
 import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 import static org.apache.calcite.util.ImmutableNullableList.of;
 import static org.junit.Assert.assertNotEquals;
@@ -95,6 +101,37 @@ public class TestFineoOverDynamo extends BaseFineoTest {
       .withGetOrQueries(
         new DynamoQueryFilterSpec(keyFilter, null)).done()
       .validate(drill.getConnection());
+  }
+
+  /**
+   * Basic test that we actually are copy the rows up correctly. This could be done for dynamo,
+   * json, or parquet, but dynamo was the easiest at the time.
+   */
+  @Test
+  public void testReadMultipleRows() throws Exception {
+    TestState state = register(p(fieldname, StoreManager.Type.INT));
+    long ts = get1980();
+    Item dynamo = prepareItem(state);
+    dynamo.with(Schema.SORT_KEY_NAME, ts);
+    dynamo.with(fieldname, 1);
+    Table table = state.write(dynamo);
+
+    // definitely a different row
+    table.putItem(dynamo.with(fieldname, 25).with(Schema.SORT_KEY_NAME, ts + 1));
+
+    bootstrap(table);
+    Map<String, Object> expected = new HashMap<>();
+    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
+    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(TIMESTAMP_KEY, ts);
+    expected.put(fieldname, 1);
+
+    Map<String, Object> expected2 = new HashMap<>();
+    expected2.put(AvroSchemaEncoder.ORG_ID_KEY, org);
+    expected2.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
+    expected2.put(TIMESTAMP_KEY, ts+1);
+    expected2.put(fieldname, 25);
+    verifySelectStar(withNext(expected, expected2));
   }
 
   private void bootstrap(Table... tables) throws IOException {
