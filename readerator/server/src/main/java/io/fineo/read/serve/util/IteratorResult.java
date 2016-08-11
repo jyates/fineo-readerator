@@ -34,10 +34,16 @@ public class IteratorResult implements ResultSet {
   private final ResultSetMetaData meta;
   private Object[] row;
   private int lastIndex = -1;
+  private Statement statement;
 
   public IteratorResult(ResultSetMetaData metaData, Iterator<Object[]> rows) {
     this.meta = metaData;
     this.rows = rows;
+  }
+
+  public IteratorResult withStatement(Statement statement) {
+    this.statement = statement;
+    return this;
   }
 
   @Override
@@ -57,6 +63,9 @@ public class IteratorResult implements ResultSet {
       } catch (IOException e) {
         throw new SQLException(e);
       }
+    }
+    if (this.statement.isCloseOnCompletion()) {
+      this.statement.close();
     }
   }
 
@@ -622,7 +631,7 @@ public class IteratorResult implements ResultSet {
 
   @Override
   public Statement getStatement() throws SQLException {
-    return null;
+    return this.statement;
   }
 
   @Override

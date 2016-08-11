@@ -24,7 +24,7 @@ import java.util.Properties;
 public class FineoConnection extends AvaticaConnection {
 
   private final String org;
-  private final String catalog;
+  private final String delegateCatalog;
 
   /**
    * Creates an AvaticaConnection.
@@ -41,18 +41,20 @@ public class FineoConnection extends AvaticaConnection {
     FineoJdbc41Factory factory, String url, Properties info) throws SQLException {
     //TODO why can't we copy the info here for HsqlDB?
     super(driver, factory, url, info);
-    this.org = Preconditions.checkNotNull(info.getProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY),
-      "No org specified when creating connection!");
-    // kind of an ugly hack - we want to pass in the catalog we are using in Drill. However, this
-    // is really should be the catalog of this connection, but its accessed from the external
-    // facing FineoDatabaseMetaData as the catalog that the real underlying connection should
-    // use... confusing, I know. See TestFineoServerDriver#testGetTables for how this works out
-    this.catalog = Preconditions.checkNotNull(info.getProperty(FineoServer.DRILL_CATALOG_KEY));
+    this.org =
+      Preconditions.checkNotNull(info.getProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY),
+        "No org specified when creating connection!");
 
+    // kind of an ugly hack - we want to pass in the delegateCatalog we are using in Drill. However, this
+    // is really should be the delegateCatalog of this connection, but its accessed from the external
+    // facing FineoDatabaseMetaData as the delegateCatalog that the real underlying connection should
+    // use... confusing, I know. See TestFineoServerDriver#testGetTables for how this works out
+    this.delegateCatalog = Preconditions.checkNotNull(info.getProperty(FineoServer.DRILL_CATALOG_KEY));
     Map<String, String> props = new HashMap<>();
     for (String name : info.stringPropertyNames()) {
       props.put(name, info.getProperty(name));
     }
+    // open the internal connection and leave it open
     this.meta.openConnection(this.handle, props);
   }
 
@@ -70,22 +72,12 @@ public class FineoConnection extends AvaticaConnection {
     return org;
   }
 
-  @Override
-  public String getCatalog() {
-    return catalog;
+  public String getDelegateCatalog() {
+    return delegateCatalog;
   }
 
   public Properties getInfo() {
     return info;
-  }
-
-  @Override
-  public String getSchema() {
-    return FineoDatabaseMetaData.FINEO_SCHEMA;
-  }
-
-  public Connection getMetaConnection() throws SQLException {
-    return ((FineoJdbcMeta) this.meta).getConnection(handle);
   }
 
   @Override
@@ -97,39 +89,43 @@ public class FineoConnection extends AvaticaConnection {
 
   ResultSet prepareAndExecute(FineoStatement statement, String sql, long maxRowCount)
     throws NoSuchStatementException, SQLException {
-    return ((FineoJdbcMeta)meta).prepareAndExecuteQuery(statement.handle, sql, maxRowCount);
+    return ((FineoJdbcMeta) meta).prepareAndExecuteQuery(statement.handle, sql, maxRowCount);
   }
 
-  //  @Override
-//  public void commit() throws SQLException {
-//    meta.commit(handle);
-//  }
-//
-//  @Override
-//  public void rollback() throws SQLException {
-//    meta.rollback(handle);
-//  }
-//
-//
-//  @Override
-//  public void close() throws SQLException {
-//    if (closed) {
-//      return;
-//    }
-//    delegate.close();
-//    closed = true;
-//
-//    // Per specification, if onConnectionClose throws, this method will throw
-//    // a SQLException, but statement will still be closed.
-//    try {
-//      driver.handler.onConnectionClose(this);
-//    } catch (RuntimeException e) {
-//      throw helper.createException("While closing connection", e);
-//    }
-//  }
+  // fixed properties
+  // ----------------
+
+  @Override
+  public String getCatalog() {
+    return FineoDatabaseMetaData.FINEO_CATALOG;
+  }
+
+  @Override
+  public String getSchema() {
+    return FineoDatabaseMetaData.FINEO_SCHEMA;
+  }
+
+  @Override
+  public boolean getAutoCommit() throws SQLException {
+    return true;
+  }
+
+  @Override
+  public boolean isReadOnly() throws SQLException {
+    return true;
+  }
+
+  @Override
+  public int getTransactionIsolation() throws SQLException {
+    return Connection.TRANSACTION_NONE;
+  }
+
+  public Connection getMetaConnection() throws SQLException {
+    return ((FineoJdbcMeta) this.meta).getConnection(handle);
+  }
 
   @VisibleForTesting
-  FineoJdbcMeta getMetaForTesting(){
+  FineoJdbcMeta getMetaForTesting() {
     return (FineoJdbcMeta) this.meta;
   }
 }

@@ -23,6 +23,7 @@ import java.sql.SQLSyntaxErrorException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.Callable;
 
 import static io.fineo.read.serve.driver.FineoDatabaseMetaData.FINEO_CATALOG;
 import static io.fineo.read.serve.driver.FineoDatabaseMetaData.FINEO_SCHEMA;
@@ -118,7 +119,17 @@ public class TestFineoServerDriver {
     }
     String table = "metrictype";
     createTable(table);
-    try (ResultSet tables = conn.getMetaData().getTables(FINEO_CATALOG, FINEO_SCHEMA, null, null)) {
+    assertOneTable(table,
+      () -> conn.getMetaData().getTables(null, null, null, null));
+    assertOneTable(table,
+      () -> conn.getMetaData().getTables(FINEO_CATALOG, null, null, null));
+    assertOneTable(table,
+      () -> conn.getMetaData().getTables(FINEO_CATALOG, FINEO_SCHEMA, null, null));
+  }
+
+  private static void assertOneTable(String table, Callable<ResultSet> supp)
+    throws Exception {
+    try (ResultSet tables = supp.call()) {
       assertTrue(tables.next());
       assertEquals(table.toUpperCase(), tables.getString("TABLE_NAME"));
       assertEquals(FINEO_CATALOG, tables.getString("TABLE_CAT"));
@@ -173,7 +184,7 @@ public class TestFineoServerDriver {
     Connection conn = getConnection(org2);
     String schema = getSchema(ORG);
     // strip the start/end quotes
-    conn.setSchema(schema.substring(1, schema.length() -1));
+    conn.setSchema(schema.substring(1, schema.length() - 1));
     thrown.expect(SQLSyntaxErrorException.class);
     conn.createStatement().executeQuery("SELECT * FROM " + table);
   }

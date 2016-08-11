@@ -75,16 +75,8 @@ public class FineoServer {
     }
 
     try {
-      // create our wrapping metadata
-      DropwizardMetricsSystemConfiguration metricsConf = new DropwizardMetricsSystemConfiguration
-        (metrics);
-      MetricsSystem metrics = new DropwizardMetricsSystemFactory().create(metricsConf);
-
-      // replace the FineoServerDriver with one that has metrics
+      // ensure our driver is loaded
       FineoServerDriver.load();
-      Driver existing = DriverManager.getDriver(FineoServerDriver.CONNECT_PREFIX);
-      DriverManager.deregisterDriver(existing);
-      DriverManager.registerDriver(new FineoServerDriver(metrics));
 
       // setup the connection delegation properties
       Properties props = new Properties();
@@ -95,6 +87,9 @@ public class FineoServer {
       // its "just" a jdbc connection... to a driver which creates its own jdbc connection the
       // specified connection key. This ensures that we encapsulate the schema and tables from
       // the wrong user
+      DropwizardMetricsSystemConfiguration metricsConf = new DropwizardMetricsSystemConfiguration
+        (metrics);
+      MetricsSystem metrics = new DropwizardMetricsSystemFactory().create(metricsConf);
       JdbcMeta meta = new JdbcMeta(FineoServerDriver.CONNECT_PREFIX, props, metrics);
       LocalService service = new LocalService(meta, metrics);
 
@@ -121,7 +116,7 @@ public class FineoServer {
   }
 
   public void stop() {
-    if (null != server) {
+    if (server != null) {
       server.stop();
       server = null;
     }
@@ -135,18 +130,15 @@ public class FineoServer {
     final FineoServer server = new FineoServer();
     new JCommander(server, args);
 
-    server.start();
-
     // Try to clean up when the server is stopped.
     Runtime.getRuntime().addShutdownHook(
-      new Thread(new Runnable() {
-        @Override
-        public void run() {
-          LOG.info("Stopping server");
-          server.stop();
-          LOG.info("Server stopped");
-        }
+      new Thread(() -> {
+        LOG.info("Stopping server");
+        server.stop();
+        LOG.info("Server stopped");
       }));
+
+    server.start();
 
     try {
       server.join();

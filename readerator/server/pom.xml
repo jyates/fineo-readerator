@@ -11,19 +11,6 @@
 
   <artifactId>server</artifactId>
 
-  <build>
-    <!-- Ensures that the resource get templated with maven properties -->
-    <resources>
-      <resource>
-        <excludes>
-          <exclude>drill-module.conf</exclude>
-        </excludes>
-        <directory>src/main/resources</directory>
-        <filtering>true</filtering>
-      </resource>
-    </resources>
-  </build>
-
   <dependencies>
     <dependency>
       <groupId>io.fineo.read</groupId>

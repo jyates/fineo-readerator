@@ -9,8 +9,24 @@
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.fineo.read</groupId>
   <artifactId>readerator-common</artifactId>
+
+  <properties>
+    <build.timestamp>${maven.build.timestamp}</build.timestamp>
+    <version.major>1</version.major>
+    <version.minor>0</version.minor>
+  </properties>
+
+  <build>
+    <!-- Ensures that the resource get templated with maven properties -->
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
+  </build>
+
   <dependencies>
     <dependency>
       <groupId>org.slf4j</groupId>
