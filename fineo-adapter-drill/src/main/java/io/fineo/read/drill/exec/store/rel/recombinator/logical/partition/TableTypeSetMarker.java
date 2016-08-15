@@ -14,7 +14,15 @@ import java.util.List;
 import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * Marker Rel for tracking the tables in a given set
+ * Marker Rel for tracking the tables in a given input set. It would be cleaner to have multiple
+ * inputs to the FMR, but VolcanoRulePlanner does not support "children" so we have to specify
+ * exactly the number of markers to expect, which quickly leads to a fragile proliferation of
+ * rules. Instead, we manage the tracking here, binding one 'type' to each input (rather than
+ * each marker having 1 type and multiple inputs).
+ * <p>This does lead to extra copies of the types.</p>
+ * <p>
+ * We rely only on the fact that when we replace an input, its with an equivalent type, so the
+ * {@link SourceType} <i>should</i> stay the same.
  */
 public class TableTypeSetMarker extends AbstractRelNode {
   private List<RelNode> inputs;
