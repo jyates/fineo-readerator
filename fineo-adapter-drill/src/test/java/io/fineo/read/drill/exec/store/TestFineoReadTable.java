@@ -42,7 +42,7 @@ public class TestFineoReadTable extends BaseFineoTest {
    * @throws Exception on failure
    */
   @Test
-  public void testStoringUserVisibleName() throws Exception {
+  public void testSimpleReadWrite() throws Exception {
     TestState state = register();
 
     File tmp = folder.newFolder("drill");

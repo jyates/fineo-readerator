@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.rel.MetricUtils;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType;
 import org.apache.drill.exec.physical.base.AbstractSingle;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.base.PhysicalVisitor;
@@ -19,21 +20,24 @@ import java.io.IOException;
 public class Recombinator extends AbstractSingle {
 
   private final Metric metric;
+  private final SourceType source;
 
   @JsonCreator
-  public Recombinator(@JsonProperty("child") PhysicalOperator child, String metricString)
+  public Recombinator(@JsonProperty("child") PhysicalOperator child,
+    @JsonProperty("metric") String metricString, @JsonProperty("source") String source)
     throws IOException {
-    this(child, MetricUtils.parseMetric(metricString));
+    this(child, MetricUtils.parseMetric(metricString), SourceType.valueOf(source));
   }
 
-  public Recombinator(PhysicalOperator child, Metric metric) {
+  public Recombinator(PhysicalOperator child, Metric metric, SourceType source) {
     super(child);
     this.metric = metric;
+    this.source = source;
   }
 
   @Override
   protected PhysicalOperator getNewWithChild(PhysicalOperator child) {
-    return new Recombinator(child, metric);
+    return new Recombinator(child, metric, source);
   }
 
   @Override
@@ -53,8 +57,18 @@ public class Recombinator extends AbstractSingle {
     return metric;
   }
 
+  @JsonIgnore
+  public SourceType getSourceType() {
+    return this.source;
+  }
+
   @JsonGetter("metric")
   public String getMetric() throws IOException {
     return MetricUtils.getMetricString(metric);
+  }
+
+  @JsonProperty("source")
+  public String getSource() {
+    return source.name();
   }
 }

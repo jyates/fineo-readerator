@@ -1,9 +1,8 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical;
 
 import io.fineo.lambda.dynamo.Schema;
-import io.fineo.read.drill.exec.store.rel.fixed.logical.FixedSchemaProjection;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
-import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableSetMarker;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableTypeSetMarker;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.RelOptCluster;
@@ -24,7 +23,6 @@ import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.tools.RelBuilder;
-import org.apache.drill.exec.planner.StarColumnHelper;
 import org.apache.drill.exec.planner.sql.DrillSqlOperator;
 
 import java.util.ArrayList;
@@ -36,7 +34,6 @@ import static com.google.common.collect.ImmutableList.of;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
 import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
-import static java.util.stream.Collectors.toList;
 import static org.apache.drill.exec.planner.logical.DrillRel.DRILL_LOGICAL;
 
 /**
@@ -50,14 +47,14 @@ public class FineoRecombinatorRule extends RelOptRule {
 
   private FineoRecombinatorRule() {
     super(operand(FineoRecombinatorMarkerRel.class,
-      operand(TableSetMarker.class, RelOptRule.any())),
+      operand(TableTypeSetMarker.class, RelOptRule.any())),
       "Fineo::LogicalRecombinatorRule");
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
     FineoRecombinatorMarkerRel fmr = call.rel(0);
-    TableSetMarker tables = call.rel(1);
+    TableTypeSetMarker marker = call.rel(1);
 
     // This is actually a marker for a set of logical unions between types
     RelOptCluster cluster = fmr.getCluster();
@@ -70,19 +67,20 @@ public class FineoRecombinatorRule extends RelOptRule {
     RexBuilder rexBuilder = cluster.getRexBuilder();
     int scanCount = 0;
     List<StoreClerk.Field> userFields = fmr.getMetric().getUserVisibleFields();
-    for (RelNode tableNode : tables.getInputs()) {
+    for (int i = 0; i < marker.getInputs().size(); i++) {
+      SourceType type = marker.getType(i);
       // cast table fields to the expected user-typed fields
-      tableNode = cast(tableNode, userFields, rexBuilder, rowType);
+      RelNode table = cast(marker.getInput(i), userFields, rexBuilder, rowType);
 
-      // wrap with a filter to limit the output to the correct org and metric
-      RexNode orgMetricCondition = getOrgAndMetricFilter(rexBuilder, fmr, tableNode);
-      RelNode filter = LogicalFilter.create(tableNode, orgMetricCondition);
+      // wrap with a filter to limit the output to the correct org and metrictableNode
+      RexNode orgMetricCondition = getOrgAndMetricFilter(rexBuilder, fmr, table, type);
+      RelNode filter = LogicalFilter.create(table, orgMetricCondition);
 
       // Child of this is the -logical- equivalent of the filter
-      filter = convert(filter, tableNode.getTraitSet().plus(DRILL_LOGICAL));
+      filter = convert(filter, table.getTraitSet().plus(DRILL_LOGICAL));
       FineoRecombinatorRel rel =
-        new FineoRecombinatorRel(cluster, tableNode.getTraitSet().plus(DRILL_LOGICAL), filter,
-          fmr.getMetric(), rowType);
+        new FineoRecombinatorRel(cluster, table.getTraitSet().plus(DRILL_LOGICAL), filter,
+          fmr.getMetric(), rowType, type);
       builder.push(rel);
       scanCount++;
     }
@@ -146,12 +144,11 @@ public class FineoRecombinatorRule extends RelOptRule {
   }
 
   private RexNode getOrgAndMetricFilter(RexBuilder builder, FineoRecombinatorMarkerRel fmr,
-    RelNode castProject) {
+    RelNode castProject, SourceType type) {
     RelDataType row = castProject.getRowType();
     StoreClerk.Metric userMetric = fmr.getMetric();
-    List<String> name = getSourceTableQualifiedName(castProject);
-    switch (name.get(0)) {
-      case "dfs":
+    switch (type) {
+      case DFS:
         RexInputRef org =
           builder.makeInputRef(castProject, row.getField(ORG_ID_KEY, false, false).getIndex());
         RexInputRef metric =
@@ -162,7 +159,7 @@ public class FineoRecombinatorRule extends RelOptRule {
         RexNode orgEq = builder.makeCall(SqlStdOperatorTable.EQUALS, org, orgId);
         RexNode metricEq = builder.makeCall(SqlStdOperatorTable.EQUALS, metric, metricType);
         return RexUtil.composeConjunction(builder, of(orgEq, metricEq), false);
-      case "dynamo":
+      case DYNAMO:
         String partitionKey = Schema.getPartitionKey(userMetric.getOrgId(), userMetric
           .getMetricId()).getS();
         RexInputRef pkRef =
@@ -171,7 +168,7 @@ public class FineoRecombinatorRule extends RelOptRule {
         RexLiteral pk = builder.makeLiteral(partitionKey);
         return builder.makeCall(SqlStdOperatorTable.EQUALS, pkRef, pk);
     }
-    throw new UnsupportedOperationException("Don't know how to support table: " + name);
+    throw new UnsupportedOperationException("Don't know how to support table type: " + type);
   }
 
   private List<String> getSourceTableQualifiedName(RelNode input) {
@@ -185,13 +182,6 @@ public class FineoRecombinatorRule extends RelOptRule {
       }
     }
     return table.getQualifiedName();
-  }
-
-  private List<RexNode> getProjects(RexBuilder rexBuilder, RelDataType rowType) {
-    return rowType.getFieldList().stream()
-                  .filter(field -> !StarColumnHelper.isStarColumn(field.getName()))
-                  .map(field -> rexBuilder.makeInputRef(field.getType(), field.getIndex()))
-                  .collect(toList());
   }
 
   private void addSort(RelBuilder builder, RelOptCluster cluster) {

@@ -17,6 +17,11 @@ public class RecombinatorRecordBatchCreator implements BatchCreator<Recombinator
   public RecombinatorRecordBatch getBatch(FragmentContext context, Recombinator config,
     List<RecordBatch> children)
     throws ExecutionSetupException {
-    return new RecombinatorRecordBatch(config, context, Iterables.getOnlyElement(children));
+    switch (config.getSourceType()) {
+      case DFS:
+      case DYNAMO:
+      default:
+        return new RecombinatorRecordBatch(config, context, Iterables.getOnlyElement(children));
+    }
   }
 }

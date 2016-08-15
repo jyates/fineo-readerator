@@ -20,27 +20,32 @@ import java.util.List;
 public class FineoRecombinatorRel extends SingleRel implements DrillRel {
 
   private final StoreClerk.Metric metric;
+  private final SourceType type;
 
   /**
    * Creates a <code>SingleRel</code>.
-   *  @param cluster Cluster this relational expression belongs to
+   *
+   * @param cluster Cluster this relational expression belongs to
    * @param traits
    * @param input   Input relational expression
    * @param metric
    * @param rowType
+   * @param type
    */
   protected FineoRecombinatorRel(RelOptCluster cluster,
-    RelTraitSet traits, RelNode input, StoreClerk.Metric metric, RelDataType rowType) {
+    RelTraitSet traits, RelNode input, StoreClerk.Metric metric, RelDataType rowType,
+    SourceType type) {
     super(cluster, traits, input);
     this.metric = metric;
     this.rowType = rowType;
+    this.type = type;
   }
 
   @Override
   public LogicalOperator implement(DrillImplementor implementor) {
     final LogicalOperator input = implementor.visitChild(this, 0, getInput());
     FineoRecombinatorLogicalOperator op =
-      new FineoRecombinatorLogicalOperator(metric.getUnderlyingMetric());
+      new FineoRecombinatorLogicalOperator(metric.getUnderlyingMetric(), type);
     op.setInput(input);
     return op;
   }
@@ -52,11 +57,15 @@ public class FineoRecombinatorRel extends SingleRel implements DrillRel {
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
     return new FineoRecombinatorRel(this.getCluster(), traitSet, SingleRel.sole(inputs), metric,
-      rowType);
+      rowType, type);
   }
 
   @Override
   public RelWriter explainTerms(RelWriter pw) {
     return super.explainTerms(pw).item("rowtype", this.getRowType());
+  }
+
+  public SourceType getSourceType() {
+    return type;
   }
 }

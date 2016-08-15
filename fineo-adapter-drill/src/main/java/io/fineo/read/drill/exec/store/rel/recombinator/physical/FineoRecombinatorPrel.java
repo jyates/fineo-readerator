@@ -1,6 +1,6 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.physical;
 
-import io.fineo.internal.customer.Metric;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
@@ -23,12 +23,14 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
 
   private final StoreClerk.Metric metric;
   private final RelDataType parentRowType;
+  private final SourceType source;
 
   public FineoRecombinatorPrel(RelOptCluster cluster, RelTraitSet traits, RelNode input,
-    StoreClerk.Metric metric, RelDataType rowType) {
+    RelDataType rowType, StoreClerk.Metric metric, SourceType sourceType) {
     super(cluster, traits, input);
     this.metric = metric;
     this.parentRowType = rowType;
+    this.source = sourceType;
   }
 
   @Override
@@ -41,7 +43,7 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
     Prel child = (Prel) this.getInput();
 
     PhysicalOperator childPOP = child.getPhysicalOperator(creator);
-    Recombinator op = new Recombinator(childPOP, metric.getUnderlyingMetric());
+    Recombinator op = new Recombinator(childPOP, metric.getUnderlyingMetric(), source);
     return creator.addMetadata(this, op);
   }
 
@@ -52,8 +54,9 @@ public class FineoRecombinatorPrel extends SinglePrel implements Prel {
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return new FineoRecombinatorPrel(getCluster(), traitSet, SinglePrel.sole(inputs), metric,
-      getRowType());
+    return new FineoRecombinatorPrel(getCluster(), traitSet, SinglePrel.sole(inputs), getRowType(),
+      metric,
+      source);
   }
 
   @Override

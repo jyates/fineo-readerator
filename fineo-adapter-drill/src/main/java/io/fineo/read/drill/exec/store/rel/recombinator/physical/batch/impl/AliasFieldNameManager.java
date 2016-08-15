@@ -1,4 +1,4 @@
-package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
+package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch.impl;
 
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.schema.store.StoreClerk;

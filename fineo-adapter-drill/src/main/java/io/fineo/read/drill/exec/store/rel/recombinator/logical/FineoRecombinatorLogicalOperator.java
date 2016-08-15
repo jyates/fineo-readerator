@@ -20,21 +20,27 @@ import java.io.IOException;
 public class FineoRecombinatorLogicalOperator extends SingleInputOperator {
 
   private final Metric metric;
+  private final SourceType type;
 
   @JsonCreator
-  public FineoRecombinatorLogicalOperator(
-    @JsonProperty("metric") String metric) throws IOException {
-    this(MetricUtils.parseMetric(metric));
+  public FineoRecombinatorLogicalOperator(@JsonProperty("metric") String metric,
+    @JsonProperty("type") String type) throws IOException {
+    this(MetricUtils.parseMetric(metric), SourceType.valueOf(type));
   }
 
-  public FineoRecombinatorLogicalOperator(Metric metric) {
-    this.metric = metric;
-    Preconditions.checkNotNull(metric, "No metric found for mapping!");
+  public FineoRecombinatorLogicalOperator(Metric metric, SourceType type) {
+    this.metric = Preconditions.checkNotNull(metric, "No metric found for mapping!");
+    this.type = type;
   }
 
   @JsonGetter("metric")
   public String getMetric() throws IOException {
     return MetricUtils.getMetricString(metric);
+  }
+
+  @JsonProperty("type")
+  public String getType() {
+    return type.toString();
   }
 
   @Override

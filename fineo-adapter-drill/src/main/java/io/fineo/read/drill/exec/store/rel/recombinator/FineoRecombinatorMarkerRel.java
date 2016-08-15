@@ -56,8 +56,7 @@ public class FineoRecombinatorMarkerRel extends AbstractRelNode {
 
   @Override
   public void replaceInput(int ordinalInParent, RelNode p) {
-    this.inputs.remove(ordinalInParent);
-    this.inputs.add(ordinalInParent, p);
+    this.inputs.set(ordinalInParent, p);
   }
 
   public RelOptSchema getRelSchema() {

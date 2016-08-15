@@ -6,6 +6,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.lambda.dynamo.Range;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
+import io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler
   .DynamoTimestampHandler;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler
@@ -43,6 +44,11 @@ import java.util.OptionalLong;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
+import static com.google.common.collect.Iterators.cycle;
+import static com.google.common.collect.Iterators.limit;
+import static com.google.common.collect.Lists.newArrayList;
+import static io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType.DFS;
+import static io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType.DYNAMO;
 import static java.util.stream.Collectors.toList;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN;
 import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN_OR_EQUAL;
@@ -55,9 +61,6 @@ import static org.apache.drill.exec.planner.physical.PrelUtil.getPlannerSettings
  * Rule that pushes a timerange filter (WHERE) past the recombinator and into the actual scan
  */
 public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRule {
-
-  private static final String DYNAMO = "dynamo";
-  private static final String DFS = "dfs";
 
   private ConvertFineoMarkerIntoFilteredInputTables(RelOptRuleOperand operand, String name) {
     super(operand, name);
@@ -83,32 +86,46 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     RelOptCluster cluster = fmr.getCluster();
     RexBuilder rexer = cluster.getRexBuilder();
 
-    Multimap<String, RelAndRange> tables = getTables(call);
-    Collection<RelNode> nodes = partitionReads(rexer, tables, cluster, fmr.getTraitSet());
-    TableSetMarker marker =
-      new TableSetMarker(fmr.getCluster(), fmr.getTraitSet(), fmr.getRowType());
-    marker.setInputs(nodes);
-    RelNode fineo = fmr.copy(fmr.getTraitSet(), of(marker));
+    Multimap<SourceType, RelAndRange> tables = getTables(call);
+    Multimap<SourceType, RelNode> nodes = partitionReads(rexer, tables, cluster, fmr.getTraitSet());
+    List<RelNode> markers = nodes.asMap().entrySet().stream()
+                                 .map(e -> {
+                                   TableTypeSetMarker
+                                     marker = new TableTypeSetMarker(fmr.getCluster(), fmr
+                                     .getTraitSet(), fmr.getRowType());
+                                   setInputs(marker, e);
+                                   return marker;
+                                 })
+                                 .collect(Collectors.toList());
+    RelNode fineo = fmr.copy(fmr.getTraitSet(), markers);
     call.transformTo(finalTransform(fineo, call));
+  }
+
+  private void setInputs(TableTypeSetMarker marker, Map.Entry<SourceType, Collection<RelNode>> e) {
+    List<SourceType> typeList = newArrayList(limit(cycle(e.getKey()), e.getValue().size()));
+    marker.setInputs(e.getValue(), typeList);
   }
 
   protected RelNode finalTransform(RelNode fineo, RelOptRuleCall call) {
     return fineo;
   }
 
-  protected Collection<RelNode> partitionReads(RexBuilder rexer, Multimap<String, RelAndRange>
-    translatedScans, RelOptCluster cluster, RelTraitSet traits) {
+  protected Multimap<SourceType, RelNode> partitionReads(RexBuilder rexer, Multimap<SourceType,
+    RelAndRange> translatedScans, RelOptCluster cluster, RelTraitSet traits) {
     Preconditions.checkState(translatedScans.size() > 0,
       "Couldn't find any tables that apply to the scan!");
 
+    Multimap<SourceType, RelNode> groups = ArrayListMultimap.create();
     // simple case, no dynamo tables
     Collection<RelAndRange> dynamo = translatedScans.get(DYNAMO);
     Collection<RelAndRange> dfs = translatedScans.get(DFS);
     if (dynamo == null || dynamo.size() == 0) {
-      return dfs.stream().map(RelAndRange::getRel).collect(Collectors.toList());
+      groups.putAll(DFS, dfs.stream().map(RelAndRange::getRel).collect(Collectors.toList()));
+      return groups;
     } else if (dfs == null || dfs.size() == 0) {
       // this is really weird, but I guess it could come up...
-      return dynamo.stream().map(RelAndRange::getRel).collect(Collectors.toList());
+      groups.putAll(DYNAMO, dynamo.stream().map(RelAndRange::getRel).collect(Collectors.toList()));
+      return groups;
     }
 
     // TODO lookup the last 'convert' time from json -> parquet to see how far in the future we
@@ -148,10 +165,10 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
            return new LogicalFilter(cluster, traits, node, condition);
          })
          .collect(toList());
+    groups.putAll(DFS, filteredDfs);
 
-    // add the dynamo scans
-    dynamo.stream().map(RelAndRange::getRel).forEach(filteredDfs::add);
-    return filteredDfs;
+    dynamo.stream().map(RelAndRange::getRel).forEach(rel -> groups.put(DYNAMO, rel));
+    return groups;
   }
 
   public static class PushTimerangeFilterPastRecombinator extends
@@ -172,11 +189,11 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     }
 
     @Override
-    public Multimap<String, RelAndRange> getTables(RelOptRuleCall call) {
+    public Multimap<SourceType, RelAndRange> getTables(RelOptRuleCall call) {
       LogicalFilter filter = call.rel(0);
       FineoRecombinatorMarkerRel fmr = getRecombinator(call);
       List<RelNode> scans = call.getChildRels(fmr);
-      Multimap<String, RelAndRange> translatedScans = ArrayListMultimap.create();
+      Multimap<SourceType, RelAndRange> translatedScans = ArrayListMultimap.create();
       String ts = FineoTable.BaseField.TIMESTAMP.getName();
 
       final LogicalExpression conditionExp =
@@ -184,14 +201,14 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
           .getCondition());
 
       RexBuilder rexer = filter.getCluster().getRexBuilder();
-      Map<String, TimestampHandler> handlers = getHandlers(rexer);
+      Map<SourceType, TimestampHandler> handlers = getHandlers(rexer);
       TimestampExpressionBuilder builder = new TimestampExpressionBuilder(ts);
       WrappingFilterBuilder wfb = new WrappingFilterBuilder(rexer);
       for (RelNode s : scans) {
         builder.reset();
 
         TableScan scan = (TableScan) s;
-        String type = getScanType(scan);
+        SourceType type = getScanType(scan);
         TimestampHandler handler = handlers.get(type);
 
         RexNode shouldScan = builder.lift(conditionExp, rexer, handler.getShouldScanBuilder(scan));
@@ -248,7 +265,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     }
   }
 
-  protected abstract Multimap<String, RelAndRange> getTables(RelOptRuleCall call);
+  protected abstract Multimap<SourceType, RelAndRange> getTables(RelOptRuleCall call);
 
   public static class FilterRecombinatorTablesWithNoTimestampFilter
     extends ConvertFineoMarkerIntoFilteredInputTables {
@@ -267,17 +284,17 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     }
 
     @Override
-    public Multimap<String, RelAndRange> getTables(RelOptRuleCall call) {
+    public Multimap<SourceType, RelAndRange> getTables(RelOptRuleCall call) {
       // similar to what we do above, but the table scans are completely inclusive, so we just
       // separate out the fields by type
-      Multimap<String, RelAndRange> types = ArrayListMultimap.create();
+      Multimap<SourceType, RelAndRange> types = ArrayListMultimap.create();
       FineoRecombinatorMarkerRel fmr = getRecombinator(call);
       RexBuilder rexer = fmr.getCluster().getRexBuilder();
-      Map<String, TimestampHandler> handlers = getHandlers(rexer);
+      Map<SourceType, TimestampHandler> handlers = getHandlers(rexer);
       List<RelNode> scans = call.getChildRels(fmr);
       for (RelNode node : scans) {
         TableScan scan = (TableScan) node;
-        String type = getScanType(scan);
+        SourceType type = getScanType(scan);
         TimestampHandler handler = handlers.get(type);
         types.put(type, new RelAndRange(node, handler.getTableTimeRange(scan)));
       }
@@ -286,13 +303,13 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     }
   }
 
-  protected static String getScanType(TableScan scan) {
+  protected static SourceType getScanType(TableScan scan) {
     List<String> name = scan.getTable().getQualifiedName();
-    return name.get(0);
+    return SourceType.valueOf(name.get(0).toUpperCase());
   }
 
-  protected static Map<String, TimestampHandler> getHandlers(RexBuilder rexer) {
-    Map<String, TimestampHandler> handlers = new HashMap<>();
+  protected static Map<SourceType, TimestampHandler> getHandlers(RexBuilder rexer) {
+    Map<SourceType, TimestampHandler> handlers = new HashMap<>();
     handlers.put(DFS, new FileSystemTimestampHandler(rexer));
     handlers.put(DYNAMO, new DynamoTimestampHandler(rexer));
     return handlers;
@@ -309,6 +326,14 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
 
     public RelNode getRel() {
       return rel;
+    }
+
+    @Override
+    public String toString() {
+      return "RelAndRange{" +
+             "start=" + start +
+             ", rel=" + rel +
+             '}';
     }
   }
 }
