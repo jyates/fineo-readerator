@@ -208,7 +208,7 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
       metrictype,
       start + (ONE_DAY_MILLIS * 2), of(values));
 
-    // write parquet that is different
+    // apply parquet that is different
     Map<String, Object> values2 = newHashMap(values);
     values2.put(fieldname, true);
     Pair<FsSourceTable, File> parquet =

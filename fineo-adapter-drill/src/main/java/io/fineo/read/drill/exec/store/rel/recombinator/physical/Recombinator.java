@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fineo.internal.customer.Metric;
+import io.fineo.read.drill.FineoInternalProperties;
 import io.fineo.read.drill.exec.store.rel.MetricUtils;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType;
 import org.apache.drill.exec.physical.base.AbstractSingle;
@@ -48,8 +49,7 @@ public class Recombinator extends AbstractSingle {
 
   @Override
   public int getOperatorType() {
-    // much beyond the core operator types
-    return 1001;
+    return FineoInternalProperties.OperatorIndex.RECOMBINATOR;
   }
 
   @JsonIgnore

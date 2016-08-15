@@ -24,7 +24,7 @@ public class VectorManager {
   private VectorHolder<MapVector> radio;
   private Map<String, VectorHolder> unknown = new HashMap<>();
 
-  public VectorManager(AliasFieldNameManager aliasMap, OperatorContext oContext,
+  public VectorManager(FieldNameManager aliasMap, OperatorContext oContext,
     SchemaChangeCallBack callBack, VectorContainer container) {
     for (String field : FineoCommon.REQUIRED_FIELDS) {
       required.put(field, new VectorHolder());

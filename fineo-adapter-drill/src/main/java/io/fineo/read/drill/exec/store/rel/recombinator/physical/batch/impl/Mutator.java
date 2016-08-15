@@ -17,7 +17,7 @@ import java.util.Map;
 
 public class Mutator implements OutputMutator {
   private final Map<String, ValueVector> fieldVectorMap;
-  private final AliasFieldNameManager aliasMap;
+  private final FieldNameManager aliasMap;
   private final OperatorContext oContext;
   private final SchemaChangeCallBack callBack;
   private final VectorContainer container;
@@ -27,7 +27,7 @@ public class Mutator implements OutputMutator {
    */
   private boolean schemaChanged = true;
 
-  Mutator(AliasFieldNameManager aliasMap, OperatorContext oContext, SchemaChangeCallBack callBack,
+  public Mutator(FieldNameManager aliasMap, OperatorContext oContext, SchemaChangeCallBack callBack,
     VectorContainer container, Map<String, ValueVector> fieldVectorMap) {
     this.aliasMap = aliasMap;
     this.oContext = oContext;

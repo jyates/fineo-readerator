@@ -73,7 +73,7 @@ public class TestFineoReadTable extends BaseFineoTest {
         .build();
     store.updateOrgMetric(org, metric);
 
-    // write a file with the new field name
+    // apply a file with the new field name
     File tmp = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(storeFieldName, false);
@@ -182,7 +182,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     Map<String, Object> contents = new HashMap<>();
     contents.put(fieldname, true);
 
-    // write two different files that occur on different days
+    // apply two different files that occur on different days
     File tmp = folder.newFolder("drill");
     List<FsSourceTable> files = new ArrayList<>();
     Instant now = Instant.now();
@@ -205,7 +205,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     Map<String, Object> contents = new HashMap<>();
     contents.put(fieldname, true);
 
-    // write two different files that occur on different days
+    // apply two different files that occur on different days
     File tmp = folder.newFolder("drill");
     List<FsSourceTable> files = new ArrayList<>();
     Instant now = Instant.now();
@@ -228,7 +228,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     Map<String, Object> contents = new HashMap<>();
     contents.put(fieldname, true);
 
-    // write two different files that occur on different days
+    // apply two different files that occur on different days
     File tmp = folder.newFolder("drill");
     List<FsSourceTable> files = new ArrayList<>();
     Instant now = Instant.now();
@@ -247,7 +247,7 @@ public class TestFineoReadTable extends BaseFineoTest {
     Map<String, Object> contents = new HashMap<>();
     contents.put(fieldname, true);
 
-    // write two different files that occur on different days
+    // apply two different files that occur on different days
     File tmp = folder.newFolder("drill");
     List<FsSourceTable> files = new ArrayList<>();
     Instant now = Instant.now();

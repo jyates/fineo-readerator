@@ -11,14 +11,12 @@ import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
-import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.avro.AvroSchemaEncoder;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
@@ -46,11 +44,12 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
 
-    Item wrote = new Item();
-    wrote.with(Schema.PARTITION_KEY_NAME, org + metric.getMetricId());
-    wrote.with(Schema.SORT_KEY_NAME, ts);
-    wrote.with("field1", true);
-    Table table = state.write(wrote);
+    DynamoTranslator trans = new DynamoTranslator();
+    Map<String, Object> wrote = new HashMap<>();
+    wrote.put(Schema.PARTITION_KEY_NAME, org + metric.getMetricId());
+    wrote.put(Schema.SORT_KEY_NAME, ts);
+    wrote.put("field1", true);
+    Table table = state.write(trans.apply(wrote));
     bootstrap(table);
 
     Map<String, Object> expected = new HashMap<>();
@@ -70,14 +69,15 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
 
     String key = org + metric.getMetricId();
-    Item wrote = new Item();
-    wrote.with(Schema.PARTITION_KEY_NAME, key);
-    wrote.with(Schema.SORT_KEY_NAME, ts);
-    wrote.with("field1", true);
-    Table table = state.write(wrote);
+    DynamoTranslator trans = new DynamoTranslator();
+    Map<String, Object> wrote = new HashMap<>();
+    wrote.put(Schema.PARTITION_KEY_NAME, key);
+    wrote.put(Schema.SORT_KEY_NAME, ts);
+    wrote.put("field1", true);
+    Table table = state.write(trans.apply(wrote));
 
-    wrote.with(Schema.SORT_KEY_NAME, ts + Duration.ofDays(30).toMillis());
-    Table table2 = state.write(wrote);
+    wrote.put(Schema.SORT_KEY_NAME, ts + Duration.ofDays(30).toMillis());
+    Table table2 = state.write(trans.apply(wrote));
     assertNotEquals("Write are to the same table, but checking reading across multiple tables! ",
       table.getTableName(), table2.getTableName());
     bootstrap(table, table2);
@@ -129,7 +129,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     Map<String, Object> expected2 = new HashMap<>();
     expected2.put(AvroSchemaEncoder.ORG_ID_KEY, org);
     expected2.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    expected2.put(TIMESTAMP_KEY, ts+1);
+    expected2.put(TIMESTAMP_KEY, ts + 1);
     expected2.put(fieldname, 25);
     verifySelectStar(withNext(expected, expected2));
   }

@@ -143,7 +143,7 @@ public class TestFineoRadio extends BaseFineoTest {
         .build();
     store.updateOrgMetric(org, metric);
 
-    // write a file with the new field name
+    // apply a file with the new field name
     File tmp = folder.newFolder("drill");
     Map<String, Object> v1 = new HashMap<>();
     v1.put(fieldname, true);

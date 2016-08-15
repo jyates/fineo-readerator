@@ -199,7 +199,7 @@ public class FineoTestUtil {
       setValues(json, org, metric, ts);
     }
 
-    // actually write the events
+    // actually apply the events
     File out = new File(outputDir, format("test-%s-%s.json", ts, UUID.randomUUID()));
     writeJsonFile(out, values);
     return new ImmutablePair<>(table, out);
@@ -244,7 +244,7 @@ public class FineoTestUtil {
       setValues(row, orgid, metric, ts);
     }
 
-    // write to a tmp json file
+    // apply to a tmp json file
     File tmp = new File(dir, "tmp-json");
     if (!tmp.exists()) {
       assertTrue("Couldn't make the tmp directory: " + tmp, tmp.mkdirs());

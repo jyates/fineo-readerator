@@ -42,7 +42,7 @@
     <aws.dynamodb.local.version>1.10.5.1</aws.dynamodb.local.version>
     <aws.android.sdk.version>2.3.0</aws.android.sdk.version>
 
-    <fineo.ingest.verison>2.0-SNAPSHOT</fineo.ingest.verison>
+    <fineo.ingest.version>2.0-SNAPSHOT</fineo.ingest.version>
     <fineo.schema.version>2.0-SNAPSHOT</fineo.schema.version>
     <avatica.version>1.8.0-fineo-1.0-SNAPSHOT</avatica.version>
     <calcite.version>1.8.0-SNAPSHOT</calcite.version>
@@ -286,6 +286,11 @@
         <version>${fineo.schema.version}</version>
         <scope>test</scope>
         <classifier>tests</classifier>
+      </dependency>
+      <dependency>
+        <groupId>io.fineo.etl.pipeline</groupId>
+        <artifactId>dynamo-access</artifactId>
+        <version>${fineo.ingest.version}</version>
       </dependency>
 
       <!-- Logging -->

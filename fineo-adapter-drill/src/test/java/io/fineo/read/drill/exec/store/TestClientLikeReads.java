@@ -131,7 +131,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     BootstrapFineo.DrillConfigBuilder builder = bootstrapper().withDynamoKeyMapper()
                                                               .withDynamoTable(table)
                                                               .withLocalSource(source.getKey());
-    // write some parquet data in the future
+    // apply some parquet data in the future
     Map<String, Object> parquet2 = new HashMap<>();
     parquet.put(fieldname, 3);
     state.writeParquet(drillDir, ts + ONE_DAY_MILLIS * 35, parquet2);
@@ -176,7 +176,7 @@ public class TestClientLikeReads extends BaseFineoTest {
            .updateMetric(metrictype).addFieldAlias(fieldname, storeFieldName).build()
            .commit();
 
-    // write a file with the new field name
+    // apply a file with the new field name
     File drill = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(storeFieldName, false);

@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
  * Manages the conversion of fields from upstream (e.g. actual drill tables) sources to the
  * actual field names.
  */
-public class AliasFieldNameManager {
+public class AliasFieldNameManager implements FieldNameManager {
 
   private final Map<String, String> map;
   private final Pattern partitionPattern;
@@ -47,6 +47,7 @@ public class AliasFieldNameManager {
     return map;
   }
 
+  @Override
   public String getOutputName(String upstreamFieldName) {
     return this.map.get(upstreamFieldName);
   }

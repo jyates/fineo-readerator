@@ -3,6 +3,7 @@ package io.fineo.read.drill.exec.store.rel.recombinator.physical.batch;
 import com.google.common.base.Preconditions;
 import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.exec.store.FineoCommon;
+import io.fineo.read.drill.exec.store.rel.VectorUtils;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.Recombinator;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.batch.impl.AliasFieldNameManager;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.batch.impl.Mutator;
@@ -24,8 +25,6 @@ import org.apache.drill.exec.server.options.OptionManager;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.MapVector;
 import org.apache.drill.exec.vector.complex.impl.VectorContainerWriter;
-import org.apache.drill.exec.vector.complex.reader.FieldReader;
-import org.apache.drill.exec.vector.complex.writer.BaseWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,14 +39,14 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
   // Use a VectorContainerWriter + a custom mutator to make it easier to maange vectors, rather than
   // trying to manage them each independently.
-  private final VectorContainerWriter writer;
+  protected final VectorContainerWriter writer;
 
   private final AliasFieldNameManager aliasMap;
-  private final VectorManager vectors;
+  protected final VectorManager vectors;
   private final boolean radio;
   private boolean builtSchema;
 
-  private final Mutator mutator;
+  protected final Mutator mutator;
   private String prefix;
 
   protected RecombinatorRecordBatch(final Recombinator popConfig, final FragmentContext context,
@@ -211,7 +210,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       for (int i = 0; i < incomingRecordCount; i++) {
         // only write non-null values
         if (!wrapper.getValueVector().getAccessor().isNull(i)) {
-          write(name, wrapper, this.writer.rootAsMap(), i);
+          VectorUtils.write(name, wrapper, this.writer.rootAsMap(), i);
         }
       }
     }
@@ -223,70 +222,6 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
     // parent manages returning the schema change if there was a schema change from the child
     return IterOutcome.OK;
-  }
-
-  private void write(String outputName, VectorWrapper wrapper, BaseWriter.MapWriter writer, int
-    index) {
-    ValueVector vector = wrapper.getValueVector();
-    FieldReader reader = vector.getReader();
-    reader.setPosition(index);
-    writer.setPosition(index);
-    LOG.trace("Mapping {}[{}] => {}", wrapper.getField(), reader.readObject(), outputName);
-    switch (wrapper.getField().getType().getMinorType()) {
-      case VARCHAR:
-      case FIXEDCHAR:
-        reader.copyAsValue(writer.varChar(outputName));
-        break;
-      case FLOAT4:
-        reader.copyAsValue(writer.float4(outputName));
-        break;
-      case FLOAT8:
-        reader.copyAsValue(writer.float8(outputName));
-        break;
-      case VAR16CHAR:
-      case FIXED16CHAR:
-        reader.copyAsValue(writer.var16Char(outputName));
-        break;
-      case INT:
-        reader.copyAsValue(writer.integer(outputName));
-        break;
-      case SMALLINT:
-        reader.copyAsValue(writer.smallInt(outputName));
-        break;
-      case TINYINT:
-        reader.copyAsValue(writer.tinyInt(outputName));
-        break;
-      case DECIMAL9:
-        reader.copyAsValue(writer.decimal9(outputName));
-        break;
-      case DECIMAL18:
-        reader.copyAsValue(writer.decimal18(outputName));
-        break;
-      case UINT1:
-        reader.copyAsValue(writer.uInt1(outputName));
-        break;
-      case UINT2:
-        reader.copyAsValue(writer.uInt2(outputName));
-        break;
-      case UINT4:
-        reader.copyAsValue(writer.uInt4(outputName));
-        break;
-      case UINT8:
-        reader.copyAsValue(writer.uInt8(outputName));
-        break;
-      case BIGINT:
-        reader.copyAsValue(writer.bigInt(outputName));
-        break;
-      case BIT:
-        reader.copyAsValue(writer.bit(outputName));
-        break;
-      case VARBINARY:
-      case FIXEDBINARY:
-        reader.copyAsValue(writer.varBinary(outputName));
-        break;
-      default:
-        throw new UnsupportedOperationException("Cannot convert field: " + wrapper);
-    }
   }
 
   @Override
