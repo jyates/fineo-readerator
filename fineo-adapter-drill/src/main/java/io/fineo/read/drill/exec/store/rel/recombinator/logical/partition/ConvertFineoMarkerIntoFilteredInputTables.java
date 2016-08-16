@@ -56,7 +56,6 @@ import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN_OR_EQUAL;
 import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;
 import static org.apache.calcite.util.ImmutableNullableList.of;
 import static org.apache.drill.exec.planner.logical.DrillOptiq.toDrill;
-import static org.apache.drill.exec.planner.logical.DrillRel.DRILL_LOGICAL;
 import static org.apache.drill.exec.planner.physical.PrelUtil.getPlannerSettings;
 
 /**
@@ -182,7 +181,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     private PushTimerangeFilterPastRecombinator() {
       super(operand(LogicalFilter.class, operand(FineoRecombinatorMarkerRel.class,
         unordered(operand(TableScan.class, none())))),
-        "FineoPushTimerangePastRecombinatorRule");
+        "Fineo::PushTimerangePastRecombinatorRule");
     }
 
     @Override

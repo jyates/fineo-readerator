@@ -8,6 +8,7 @@ import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderConverter;
 import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderPrule;
+import io.fineo.read.drill.exec.store.rel.expansion.PushFilterPastDynamoRowExpander;
 import io.fineo.read.drill.exec.store.rel.fixed.physical.FixedSchemaPrule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition
@@ -91,7 +92,10 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
 
     // transform FRMR -> FRR
     rules.put(PlannerPhase.LOGICAL, FineoRecombinatorRule.INSTANCE);
+
+    // dynamo conversion + filtering
     rules.put(PlannerPhase.LOGICAL, DynamoRowFieldExpanderConverter.INSTANCE);
+    rules.put(PlannerPhase.LOGICAL, PushFilterPastDynamoRowExpander.INSTANCE);
 
     // FixedR -> FixedPr
     rules.put(PlannerPhase.PHYSICAL, FixedSchemaPrule.INSTANCE);

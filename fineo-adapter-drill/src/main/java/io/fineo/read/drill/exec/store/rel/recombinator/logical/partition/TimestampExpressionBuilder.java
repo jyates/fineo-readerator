@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.drill.common.expression.BooleanOperator;
 import org.apache.drill.common.expression.FunctionCall;
@@ -56,10 +57,10 @@ public class TimestampExpressionBuilder {
             default:
               switch (op.getName()) {
                 case AND:
-                  ret = builder.makeCall(SqlStdOperatorTable.AND, ands);
+                  ret = RexUtil.composeConjunction(builder, ands, true);
                   break;
                 case OR:
-                  ret = builder.makeCall(SqlStdOperatorTable.OR, ands);
+                  ret = RexUtil.composeDisjunction(builder, ands, true);
                   break;
               }
           }
