@@ -6,7 +6,6 @@ import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableFilterBuilder;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TimestampExpressionBuilder;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexInputRef;
@@ -28,7 +27,7 @@ public class FileSystemTimestampHandler implements TimestampHandler {
   }
 
   @Override
-  public TableFilterBuilder getFilterBuilder(TableScan scan) {
+  public TableFilterBuilder getFilterBuilder() {
     return new TableFilterBuilder() {
       @Override
       public RexNode replaceTimestamp(SingleFunctionProcessor processor) {
@@ -43,7 +42,7 @@ public class FileSystemTimestampHandler implements TimestampHandler {
   }
 
   @Override
-  public TimestampExpressionBuilder.ConditionBuilder getShouldScanBuilder(TableScan scan) {
+  public TimestampExpressionBuilder.ConditionBuilder getShouldScanBuilder(String table) {
     // we need to include this scan no matter what - it has "all" the data. Maybe we will get to
     // partition some of the data out later from the generated filter, but for now, we just do
     // the scan, if there is a timestamp
@@ -76,7 +75,7 @@ public class FileSystemTimestampHandler implements TimestampHandler {
   }
 
   @Override
-  public Range<Instant> getTableTimeRange(TableScan scan) {
+  public Range<Instant> getTableTimeRange(String tableName) {
     return new Range<>(Instant.EPOCH, Instant.now());
   }
 

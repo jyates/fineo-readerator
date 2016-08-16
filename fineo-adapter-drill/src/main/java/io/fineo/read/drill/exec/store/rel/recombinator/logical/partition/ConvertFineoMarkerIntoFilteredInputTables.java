@@ -5,6 +5,7 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.lambda.dynamo.Range;
+import io.fineo.read.drill.exec.store.rel.expansion.TableSetMarker;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler
@@ -71,7 +72,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     FineoRecombinatorMarkerRel fmr = getRecombinator(call);
     List<RelNode> scans = call.getChildRels(fmr);
     for (RelNode scan : scans) {
-      if (!(scan instanceof TableScan)) {
+      if (!(scan instanceof TableSetMarker)) {
         return false;
       }
     }
@@ -179,7 +180,8 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
 
     private PushTimerangeFilterPastRecombinator() {
       super(operand(LogicalFilter.class, operand(FineoRecombinatorMarkerRel.class,
-        unordered(operand(TableScan.class, null, Predicates.alwaysTrue(), none())))),
+        unordered(operand(TableSetMarker.class, null, Predicates.alwaysTrue(),
+          operand(TableScan.class, none()))))),
         "FineoPushTimerangePastRecombinatorRule");
     }
 
@@ -207,22 +209,24 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
       for (RelNode s : scans) {
         builder.reset();
 
-        TableScan scan = (TableScan) s;
-        SourceType type = getScanType(scan);
+        TableSetMarker marker = (TableSetMarker) s;
+        String tableName = marker.getTableName();
+        SourceType type = marker.getType();
         TimestampHandler handler = handlers.get(type);
 
-        RexNode shouldScan = builder.lift(conditionExp, rexer, handler.getShouldScanBuilder(scan));
-        Range<Instant> range = handler.getTableTimeRange(scan);
+        RexNode shouldScan =
+          builder.lift(conditionExp, rexer, handler.getShouldScanBuilder(tableName));
+        Range<Instant> range = handler.getTableTimeRange(marker.getTableName());
         if (builder.isScanAll() || shouldScan == null) {
           // we have to scan everything b/c we didn't understand all the timestamp constraints
           //    OR
           // there is no timestamp constraint, in which case we need to scan everything
-          translatedScans.put(type, new RelAndRange(scan, range));
+          translatedScans.put(type, new RelAndRange(marker.getInput(), range));
         } else if (shouldScan != null && evaluate(shouldScan)) {
           // we can make a pretty good guess about the scan
           builder.reset();
-          TableFilterBuilder filterBuilder = handler.getFilterBuilder(scan);
-          wfb.setup(scan, filterBuilder);
+          TableFilterBuilder filterBuilder = handler.getFilterBuilder();
+          wfb.setup(marker.getInput(), filterBuilder);
           RelNode translated = wfb.buildFilter(builder, conditionExp);
           if (translated != null) {
             translatedScans.put(type, new RelAndRange(translated, range));
@@ -274,7 +278,8 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
 
     private FilterRecombinatorTablesWithNoTimestampFilter() {
       super(operand(FineoRecombinatorMarkerRel.class,
-        unordered(operand(TableScan.class, null, Predicates.alwaysTrue(), none()))),
+        unordered(operand(TableSetMarker.class, null, Predicates.alwaysTrue(),
+          operand(TableScan.class, none())))),
         "Fineo::FilterRecombinatorTablesRule");
     }
 
@@ -293,19 +298,15 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
       Map<SourceType, TimestampHandler> handlers = getHandlers(rexer);
       List<RelNode> scans = call.getChildRels(fmr);
       for (RelNode node : scans) {
-        TableScan scan = (TableScan) node;
-        SourceType type = getScanType(scan);
+        TableSetMarker marker = (TableSetMarker) node;
+        SourceType type = marker.getType();
         TimestampHandler handler = handlers.get(type);
-        types.put(type, new RelAndRange(node, handler.getTableTimeRange(scan)));
+        types.put(type,
+          new RelAndRange(marker.getInput(), handler.getTableTimeRange(marker.getTableName())));
       }
 
       return types;
     }
-  }
-
-  protected static SourceType getScanType(TableScan scan) {
-    List<String> name = scan.getTable().getQualifiedName();
-    return SourceType.valueOf(name.get(0).toUpperCase());
   }
 
   protected static Map<SourceType, TimestampHandler> getHandlers(RexBuilder rexer) {

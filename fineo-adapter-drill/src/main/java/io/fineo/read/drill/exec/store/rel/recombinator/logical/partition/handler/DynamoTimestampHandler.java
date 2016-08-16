@@ -6,12 +6,10 @@ import io.fineo.lambda.dynamo.Range;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableFilterBuilder;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TimestampExpressionBuilder;
-import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 
 import java.time.Instant;
-import java.util.List;
 
 import static java.time.Instant.ofEpochMilli;
 import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;
@@ -25,12 +23,12 @@ public class DynamoTimestampHandler implements TimestampHandler {
   }
 
   @Override
-  public TimestampExpressionBuilder.ConditionBuilder getShouldScanBuilder(TableScan scan) {
-    return new DynamoTableNameIncludedConditionBuilder(scan, rexer);
+  public TimestampExpressionBuilder.ConditionBuilder getShouldScanBuilder(String tableName) {
+    return new DynamoTableNameIncludedConditionBuilder(tableName, rexer);
   }
 
   @Override
-  public TableFilterBuilder getFilterBuilder(TableScan scan) {
+  public TableFilterBuilder getFilterBuilder() {
     return new TableFilterBuilder() {
       @Override
       public RexNode replaceTimestamp(SingleFunctionProcessor processor) {
@@ -46,15 +44,9 @@ public class DynamoTimestampHandler implements TimestampHandler {
   }
 
   @Override
-  public Range<Instant> getTableTimeRange(TableScan scan) {
-    DynamoTableNameParts parts = parseName(scan);
+  public Range<Instant> getTableTimeRange(String tableName) {
+    DynamoTableNameParts parts = DynamoTableNameParts.parse(tableName, false);
     return new Range<>(ofEpochMilli(parts.getStart()), ofEpochMilli(parts.getEnd()));
-  }
-
-  private DynamoTableNameParts parseName(TableScan scan) {
-    List<String> name = scan.getTable().getQualifiedName();
-    String actual = name.get(name.size() - 1);
-    return DynamoTableNameParts.parse(actual, false);
   }
 
   private class DynamoTableNameIncludedConditionBuilder
@@ -62,9 +54,8 @@ public class DynamoTimestampHandler implements TimestampHandler {
     private final DynamoTableNameParts parts;
     private final RexBuilder builder;
 
-    public DynamoTableNameIncludedConditionBuilder(
-      TableScan scan, RexBuilder builder) {
-      this.parts = parseName(scan);
+    public DynamoTableNameIncludedConditionBuilder(String tableName, RexBuilder builder) {
+      this.parts = DynamoTableNameParts.parse(tableName, false);
       this.builder = builder;
     }
 

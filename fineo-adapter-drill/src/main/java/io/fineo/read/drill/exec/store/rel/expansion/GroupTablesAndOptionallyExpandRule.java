@@ -3,17 +3,11 @@ package io.fineo.read.drill.exec.store.rel.expansion;
 import com.google.common.base.Predicates;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType;
-import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition
-  .ConvertFineoMarkerIntoFilteredInputTables;
-import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler.TimestampHandler;
-import io.fineo.schema.Pair;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
-import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rex.RexBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +16,8 @@ import java.util.List;
  *
  */
 public class GroupTablesAndOptionallyExpandRule extends RelOptRule {
+
+  public static final RelOptRule INSTANCE = new GroupTablesAndOptionallyExpandRule();
 
   private GroupTablesAndOptionallyExpandRule() {
     super(operand(FineoRecombinatorMarkerRel.class,
@@ -36,13 +32,17 @@ public class GroupTablesAndOptionallyExpandRule extends RelOptRule {
     List<RelNode> scans = call.getChildRels(fmr);
     List<RelNode> inputs = new ArrayList<>();
     for (RelNode scan : scans) {
-      SourceType type = getScanType((TableScan) scan);
+      TableScan table = (TableScan) scan;
+      SourceType type = getScanType(table);
+      List<String> names = scan.getTable().getQualifiedName();
+      String tableName = names.get(names.size() - 1);
       switch (type) {
         case DYNAMO:
           scan = wrapInDynamoExpander(scan);
       }
 
-      inputs.add(new TableSetMarker(cluster, fmr.getTraitSet(), scan.getRowType(), scan, type));
+      inputs.add(new TableSetMarker(cluster, fmr.getTraitSet(), scan.getRowType(), scan, type,
+        tableName));
     }
     call.transformTo(fmr.copy(fmr.getTraitSet(), inputs));
   }

@@ -2,7 +2,6 @@ package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
 
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
@@ -24,7 +23,7 @@ public class WrappingFilterBuilder implements TimestampExpressionBuilder.Conditi
 
   private final RexBuilder rexer;
 
-  private TableScan scan;
+  private RelNode scan;
   private TableFilterBuilder builder;
   private RelDataTypeField field;
 
@@ -32,7 +31,7 @@ public class WrappingFilterBuilder implements TimestampExpressionBuilder.Conditi
     this.rexer = rexer;
   }
 
-  public void setup(TableScan scan, TableFilterBuilder builder) {
+  public void setup(RelNode scan, TableFilterBuilder builder) {
     this.scan = scan;
     this.builder = builder;
     this.field = scan.getRowType().getField(builder.getFilterFieldName(), true, true);
