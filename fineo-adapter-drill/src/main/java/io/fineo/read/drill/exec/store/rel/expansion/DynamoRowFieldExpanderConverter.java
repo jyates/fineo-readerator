@@ -1,10 +1,7 @@
 package io.fineo.read.drill.exec.store.rel.expansion;
 
-import com.google.common.collect.ImmutableList;
-import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.drill.exec.planner.logical.DrillScanRel;
 

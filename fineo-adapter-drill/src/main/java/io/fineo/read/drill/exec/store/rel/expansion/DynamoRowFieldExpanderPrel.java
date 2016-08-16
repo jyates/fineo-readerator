@@ -9,6 +9,7 @@ import org.apache.drill.exec.planner.physical.SinglePrel;
 import org.apache.drill.exec.record.BatchSchema;
 
 import java.io.IOException;
+import java.util.List;
 
 public class DynamoRowFieldExpanderPrel extends SinglePrel {
 
@@ -27,5 +28,10 @@ public class DynamoRowFieldExpanderPrel extends SinglePrel {
   @Override
   public BatchSchema.SelectionVectorMode getEncoding() {
     return BatchSchema.SelectionVectorMode.NONE;
+  }
+
+  @Override
+  public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+    return new DynamoRowFieldExpanderPrel(traitSet, SinglePrel.sole(inputs));
   }
 }
