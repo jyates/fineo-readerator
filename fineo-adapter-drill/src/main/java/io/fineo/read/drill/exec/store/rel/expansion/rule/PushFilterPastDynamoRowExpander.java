@@ -1,21 +1,23 @@
-package io.fineo.read.drill.exec.store.rel.expansion;
+package io.fineo.read.drill.exec.store.rel.expansion.rule;
 
 
 import io.fineo.lambda.dynamo.Schema;
+import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderRel;
+import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.logical.LogicalFilter;
-import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
+import org.apache.drill.exec.planner.logical.DrillFilterRel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static com.google.common.collect.ImmutableList.of;
@@ -28,13 +30,13 @@ public class PushFilterPastDynamoRowExpander extends RelOptRule {
     PushFilterPastDynamoRowExpander();
 
   private PushFilterPastDynamoRowExpander() {
-    super(operand(LogicalFilter.class, operand(DynamoRowFieldExpanderRel.class, any())),
+    super(operand(DrillFilterRel.class, operand(DynamoRowFieldExpanderRel.class, any())),
       "Fineo::PushFilterPathDynamoRowExpander");
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    Filter filterRel = call.rel(0);
+    DrillFilterRel filterRel = call.rel(0);
     DynamoRowFieldExpanderRel expander = call.rel(1);
 
     RexNode filterCond = filterRel.getCondition();
@@ -61,9 +63,9 @@ public class PushFilterPastDynamoRowExpander extends RelOptRule {
     // we didn't remove any, but we did pull some out - this filter seems complex. Just add a new
     // filter below the expander and push down what we can
     if (!removed) {
-      Filter dynamoFilter = LogicalFilter.create(expander.getInput(), lifted);
+      Filter dynamoFilter = filter(lifted, expander.getInput(), filterRel.getTraitSet());
       RelNode newExpander = expander.copy(expander.getTraitSet(), of(dynamoFilter));
-      Filter newFilter = LogicalFilter.create(newExpander, filterCond);
+      Filter newFilter = filter(filterCond, newExpander, filterRel.getTraitSet());
       call.transformTo(newFilter);
       return;
     }
@@ -71,16 +73,21 @@ public class PushFilterPastDynamoRowExpander extends RelOptRule {
     // we did remove some! time to generate a new filter
     if (filterConjunctions.size() == 0) {
       // removed all of them - create a new filter below!
-      Filter newFilterRel = LogicalFilter.create(expander.getInput(), lifted);
+      Filter newFilterRel = filter(lifted, expander.getInput(), filterRel.getTraitSet());
       RelNode newExpander = expander.copy(expander.getTraitSet(), of(newFilterRel));
       call.transformTo(newExpander);
     } else {
       // only removed some of them - rebuild the filter appropriately
-      Filter dynamoFilter = LogicalFilter.create(expander.getInput(), lifted);
+      Filter dynamoFilter = filter(lifted, expander.getInput(), filterRel.getTraitSet());
       RelNode newExpander = expander.copy(expander.getTraitSet(), of(dynamoFilter));
-      Filter newFilter = LogicalFilter.create(newExpander, RexUtil.composeConjunction(builder,
-        filterConjunctions, false));
+      Filter newFilter = filter(RexUtil.composeConjunction(builder,
+        filterConjunctions, false), newExpander, filterRel.getTraitSet());
       call.transformTo(newFilter);
     }
+  }
+
+  private DrillFilterRel filter(RexNode condition, RelNode input, RelTraitSet traits) {
+    RelOptCluster cluster = input.getCluster();
+    return new DrillFilterRel(cluster, traits, input, condition);
   }
 }
