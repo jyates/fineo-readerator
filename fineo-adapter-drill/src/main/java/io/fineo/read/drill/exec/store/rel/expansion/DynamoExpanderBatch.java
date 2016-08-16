@@ -58,6 +58,7 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
 
   @Override
   protected boolean setupNewSchema() throws SchemaChangeException {
+    container.clear();
     vectorMap.clear();
     // use the actual incoming vectors to determine schema
     for (VectorWrapper wrapper : incoming) {
@@ -65,10 +66,10 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
         continue;
       }
       MaterializedField f = wrapper.getField();
+      // all output type are optional... even if they are known
       TypeProtos.MajorType type = getMajorType(wrapper);
-      // for now its easier to just use copies. However, we should be able to switch to sv2/sv4
       MaterializedField field = MaterializedField.create(f.getName(), type);
-      setVector(field);
+      setOutputVector(field);
     }
     container.buildSchema(BatchSchema.SelectionVectorMode.NONE);
     return true;
@@ -79,6 +80,8 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
     List<List<Object>> rows = getRowRecordCount(incoming.getRecordCount());
     this.recordCount = rows.stream().mapToInt(list -> list.size()).sum();
     writer.reset();
+
+    mutator.allocate(recordCount);
 
     int incomingRowCount = 0;
     for (List<Object> rowIds : rows) {
@@ -91,18 +94,16 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
           MaterializedField field = wrapper.getField();
           // expand the 'regular' fields to match the ids
           if (field.getType().getMinorType() != TypeProtos.MinorType.MAP) {
-            VectorUtils.write(field.getName(), wrapper, writer.rootAsMap(), incomingRowCount,
-              outgoingRowCount);
+            // simple copy for fields that are known
+            ValueVector out = vectorMap.get(field.getName());
+            BasicTypeHelper.setValue(out, outgoingRowCount, BasicTypeHelper.getValue(wrapper
+              .getValueVector(), incomingRowCount));
           } else {
             MapVector vector = (MapVector) wrapper.getValueVector();
             String idName = idObj.toString();
-            // the output vector for this field
-            ValueVector out = vectorMap.get(field.getName());
-            ValueVector in = vector.getChild(idName, out.getClass());
-            VectorUtils
-              .write(idName, in, fieldMap.get(field.getName()).getType(), writer.rootAsMap(),
-                incomingRowCount,
-                outgoingRowCount);
+            ValueVector in = vector.getChild(idName);
+            VectorUtils.write(field.getName(), in, fieldMap.get(field.getName()).getType(),
+              writer.rootAsMap(), incomingRowCount, outgoingRowCount);
           }
         }
         outgoingRowCount++;
@@ -146,7 +147,7 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
     return ids;
   }
 
-  private ValueVector setVector(MaterializedField field) {
+  private ValueVector setOutputVector(MaterializedField field) {
     String name = field.getName();
     ValueVector v = vectorMap.get(name);
     if (v == null) {
@@ -167,33 +168,23 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
     MapVector map = (MapVector) wrapper.getValueVector();
     ValueVector item = map.iterator().next();
     // bit
-    if (item instanceof NullableBitVector) {
+    if (item instanceof NullableBitVector
+        || item instanceof RepeatedBitVector
+        || item instanceof BitVector) {
       return Types.optional(TypeProtos.MinorType.BIT);
-    } else if (item instanceof RepeatedBitVector) {
-      return Types.repeated(TypeProtos.MinorType.BIT);
-    } else if (item instanceof BitVector) {
-      return Types.required(TypeProtos.MinorType.BIT);
     }
     // string
-    else if (item instanceof NullableVarCharVector) {
+    else if (item instanceof NullableVarCharVector
+             || item instanceof RepeatedVarCharVector
+             || item instanceof VarCharVector) {
       return Types.optional(TypeProtos.MinorType.VARCHAR);
-    } else if (item instanceof RepeatedVarCharVector) {
-      return Types.repeated(TypeProtos.MinorType.VARCHAR);
-    } else if (item instanceof VarCharVector) {
-      return Types.required(TypeProtos.MinorType.VARCHAR);
     }
     // binary
-    else if (item instanceof NullableVarBinaryVector) {
+    else if (item instanceof NullableVarBinaryVector
+             || item instanceof RepeatedVarBinaryVector
+             || item instanceof VarBinaryVector) {
       return Types.optional(TypeProtos.MinorType.VARBINARY);
-    } else if (item instanceof RepeatedVarBinaryVector) {
-      return Types.repeated(TypeProtos.MinorType.VARBINARY);
-    } else if (item instanceof VarBinaryVector) {
-      return Types.required(TypeProtos.MinorType.VARBINARY);
     }
     throw new IllegalArgumentException("Cannot support map vector of types: " + item);
-  }
-
-  private Class<? extends ValueVector> getVectorClass(MaterializedField field) {
-    return BasicTypeHelper.getValueVectorClass(field.getType().getMinorType(), field.getDataMode());
   }
 }

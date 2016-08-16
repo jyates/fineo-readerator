@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.rel;
 
 import org.apache.drill.common.types.TypeProtos;
+import org.apache.drill.exec.expr.BasicTypeHelper;
 import org.apache.drill.exec.expr.holders.BigIntHolder;
 import org.apache.drill.exec.expr.holders.BitHolder;
 import org.apache.drill.exec.expr.holders.Decimal18Holder;
@@ -21,21 +22,6 @@ import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.reader.FieldReader;
 import org.apache.drill.exec.vector.complex.writer.BaseWriter;
-import org.apache.drill.exec.vector.complex.writer.BigIntWriter;
-import org.apache.drill.exec.vector.complex.writer.BitWriter;
-import org.apache.drill.exec.vector.complex.writer.Decimal18Writer;
-import org.apache.drill.exec.vector.complex.writer.Decimal9Writer;
-import org.apache.drill.exec.vector.complex.writer.Float4Writer;
-import org.apache.drill.exec.vector.complex.writer.Float8Writer;
-import org.apache.drill.exec.vector.complex.writer.IntWriter;
-import org.apache.drill.exec.vector.complex.writer.SmallIntWriter;
-import org.apache.drill.exec.vector.complex.writer.TinyIntWriter;
-import org.apache.drill.exec.vector.complex.writer.UInt1Writer;
-import org.apache.drill.exec.vector.complex.writer.UInt2Writer;
-import org.apache.drill.exec.vector.complex.writer.UInt4Writer;
-import org.apache.drill.exec.vector.complex.writer.UInt8Writer;
-import org.apache.drill.exec.vector.complex.writer.VarBinaryWriter;
-import org.apache.drill.exec.vector.complex.writer.VarCharWriter;
 
 public class VectorUtils {
 
@@ -56,8 +42,6 @@ public class VectorUtils {
 
   public static void write(String outputName, ValueVector vector, TypeProtos.MajorType major,
     BaseWriter.MapWriter writer, int inIndex, int outIndex) {
-    FieldReader reader = vector.getReader();
-    reader.setPosition(inIndex);
     writer.setPosition(outIndex);
     TypeProtos.MinorType type = major.getMinorType();
 
@@ -65,108 +49,64 @@ public class VectorUtils {
       case REPEATED:
         throw new UnsupportedOperationException("Don't support repeated fields!");
       case REQUIRED:
-        writeRequired(type, outputName, reader, writer);
+        writeRequired(type, outputName, BasicTypeHelper.getValue(vector, inIndex), writer);
         break;
       case OPTIONAL:
+        FieldReader reader = vector.getReader();
+        reader.setPosition(inIndex);
         writeNullable(type, outputName, reader, writer);
     }
   }
 
   private static void writeRequired(TypeProtos.MinorType type, String outputName,
-    FieldReader reader, BaseWriter.MapWriter writer) {
-    ValueHolder holder;
+    ValueHolder holder, BaseWriter.MapWriter writer) {
     switch (type) {
       case FIXED16CHAR:
       case VARCHAR:
-        VarCharWriter vcw = writer.varChar(outputName);
-        holder = new VarCharHolder();
-        reader.read((VarCharHolder) holder);
-        vcw.write((VarCharHolder) holder);
+        writer.varChar(outputName).write((VarCharHolder) holder);
         break;
       case FLOAT4:
-        Float4Writer f4w = writer.float4(outputName);
-        holder = new Float4Holder();
-        reader.read((Float4Holder) holder);
-        f4w.write((Float4Holder) holder);
+        writer.float4(outputName).write((Float4Holder) holder);
         break;
       case FLOAT8:
-        Float8Writer f8w = writer.float8(outputName);
-        holder = new Float8Holder();
-        reader.read((Float8Holder) holder);
-        f8w.write((Float8Holder) holder);
+        writer.float8(outputName).write((Float8Holder) holder);
         break;
       case INT:
-        IntWriter iw = writer.integer(outputName);
-        holder = new IntHolder();
-        reader.read((IntHolder) holder);
-        iw.write((IntHolder) holder);
+        writer.integer(outputName).write((IntHolder) holder);
         break;
       case SMALLINT:
-        SmallIntWriter siw = writer.smallInt(outputName);
-        holder = new SmallIntHolder();
-        reader.read((SmallIntHolder) holder);
-        siw.write((SmallIntHolder) holder);
+        writer.smallInt(outputName).write((SmallIntHolder) holder);
         break;
       case TINYINT:
-        TinyIntWriter tiw = writer.tinyInt(outputName);
-        holder = new TinyIntHolder();
-        reader.read((TinyIntHolder) holder);
-        tiw.write((TinyIntHolder) holder);
+        writer.tinyInt(outputName).write((TinyIntHolder) holder);
         break;
       case DECIMAL9:
-        Decimal9Writer d9w = writer.decimal9(outputName);
-        holder = new Decimal9Holder();
-        reader.read((Decimal9Holder) holder);
-        d9w.write((Decimal9Holder) holder);
+        writer.decimal9(outputName).write((Decimal9Holder) holder);
         break;
       case DECIMAL18:
-        Decimal18Writer d18w = writer.decimal18(outputName);
-        holder = new Decimal18Holder();
-        reader.read((Decimal18Holder) holder);
-        d18w.write((Decimal18Holder) holder);
+        writer.decimal18(outputName).write((Decimal18Holder) holder);
         break;
       case UINT1:
-        UInt1Writer ui1w = writer.uInt1(outputName);
-        holder = new UInt1Holder();
-        reader.read((UInt1Holder) holder);
-        ui1w.write((UInt1Holder) holder);
+        writer.uInt1(outputName).write((UInt1Holder) holder);
         break;
       case UINT2:
-        UInt2Writer ui2w = writer.uInt2(outputName);
-        holder = new UInt2Holder();
-        reader.read((UInt2Holder) holder);
-        ui2w.write((UInt2Holder) holder);
+        writer.uInt2(outputName).write((UInt2Holder) holder);
         break;
       case UINT4:
-        UInt4Writer ui4w = writer.uInt4(outputName);
-        holder = new UInt4Holder();
-        reader.read((UInt4Holder) holder);
-        ui4w.write((UInt4Holder) holder);
+        writer.uInt4(outputName).write((UInt4Holder) holder);
         break;
       case UINT8:
-        UInt8Writer ui8w = writer.uInt8(outputName);
-        holder = new UInt8Holder();
-        reader.read((UInt8Holder) holder);
-        ui8w.write((UInt8Holder) holder);
+        writer.uInt8(outputName).write((UInt8Holder) holder);
         break;
       case BIGINT:
-        BigIntWriter biw = writer.bigInt(outputName);
-        holder = new BigIntHolder();
-        reader.read((BigIntHolder) holder);
-        biw.write((BigIntHolder) holder);
+        writer.bigInt(outputName).write((BigIntHolder) holder);
         break;
       case BIT:
-        BitWriter bw = writer.bit(outputName);
-        holder = new BitHolder();
-        reader.read((BitHolder) holder);
-        bw.write((BitHolder) holder);
+        writer.bit(outputName).write((BitHolder) holder);
         break;
       case VARBINARY:
       case FIXEDBINARY:
-        VarBinaryWriter binw = writer.varBinary(outputName);
-        holder = new VarBinaryHolder();
-        reader.read((VarBinaryHolder) holder);
-        binw.write((VarBinaryHolder) holder);
+        writer.varBinary(outputName).write((VarBinaryHolder) holder);
         break;
       default:
         throw new UnsupportedOperationException("Cannot convert field: " + outputName);
