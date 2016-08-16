@@ -3,6 +3,7 @@ package io.fineo.read.drill.exec.store.rel.expansion;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.exec.store.rel.VectorUtils;
 import io.fineo.read.drill.exec.store.rel.recombinator.physical.batch.impl.Mutator;
+import io.fineo.schema.FineoStopWords;
 import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.types.Types;
 import org.apache.drill.exec.exception.SchemaChangeException;
@@ -79,9 +80,9 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
     this.recordCount = rows.stream().mapToInt(list -> list.size()).sum();
     writer.reset();
 
-    int rowCount = 0;
+    int incomingRowCount = 0;
     for (List<Object> rowIds : rows) {
-      int idCount = 0;
+      int outgoingRowCount = 0;
       for (Object idObj : rowIds) {
         for (VectorWrapper wrapper : incoming) {
           if (skip(wrapper)) {
@@ -90,23 +91,24 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
           MaterializedField field = wrapper.getField();
           // expand the 'regular' fields to match the ids
           if (field.getType().getMinorType() != TypeProtos.MinorType.MAP) {
-            VectorUtils.write(field.getName(), wrapper, writer.rootAsMap(), rowCount, idCount);
+            VectorUtils.write(field.getName(), wrapper, writer.rootAsMap(), incomingRowCount,
+              outgoingRowCount);
           } else {
-            // extract the map value, if its present
             MapVector vector = (MapVector) wrapper.getValueVector();
-            String name = (String) idObj;
-            ValueVector out = vectorMap.get(name);
-            ValueVector in = vector.getChild(name, out.getClass());
-            VectorUtils.write(name, in, fieldMap.get(name).getType().getMinorType(),
-              writer.rootAsMap(), rowCount, idCount);
+            String idName = idObj.toString();
+            // the output vector for this field
+            ValueVector out = vectorMap.get(field.getName());
+            ValueVector in = vector.getChild(idName, out.getClass());
+            VectorUtils
+              .write(idName, in, fieldMap.get(field.getName()).getType(), writer.rootAsMap(),
+                incomingRowCount,
+                outgoingRowCount);
           }
         }
-        idCount++;
+        outgoingRowCount++;
       }
-      rowCount++;
+      incomingRowCount++;
     }
-
-
     return IterOutcome.OK;
   }
 
@@ -115,7 +117,10 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
    */
   private boolean skip(VectorWrapper wrapper) {
     MaterializedField field = wrapper.getField();
-    return field.getName().equals(Schema.ID_FIELD);
+    String name = field.getName();
+    return name.equals(Schema.ID_FIELD) ||
+           (FineoStopWords.DRILL_STAR_PREFIX_PATTERN.matcher(name).matches()
+            && name.endsWith(Schema.ID_FIELD));
   }
 
   @Override
@@ -147,6 +152,7 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
     if (v == null) {
       v = TypeHelper.getNewVector(field, oContext.getAllocator(), callBack);
       fieldMap.put(name, field);
+      vectorMap.put(name, v);
       container.add(v);
     }
     return v;

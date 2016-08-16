@@ -27,7 +27,7 @@ public class DynamoRowFieldExpanderPrel extends SinglePrel {
 
   @Override
   public BatchSchema.SelectionVectorMode getEncoding() {
-    return BatchSchema.SelectionVectorMode.NONE;
+    return BatchSchema.SelectionVectorMode.TWO_BYTE;
   }
 
   @Override

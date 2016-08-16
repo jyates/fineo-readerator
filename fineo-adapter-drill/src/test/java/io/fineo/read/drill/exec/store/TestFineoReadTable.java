@@ -6,12 +6,14 @@ import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
+import io.fineo.schema.Pair;
 import io.fineo.schema.avro.AvroSchemaManager;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreManager;
 import org.apache.avro.Schema;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.schemarepo.ValidatorFactory;
@@ -48,6 +50,22 @@ public class TestFineoReadTable extends BaseFineoTest {
     File tmp = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(fieldname, false);
+    List<Map<String, Object>> rows = newArrayList(values);
+    FsSourceTable out = state.write(tmp, org, metrictype, 1, rows);
+
+    // ensure that the fineo-test plugin is enabled
+    bootstrap(out);
+
+    verifySelectStar(FineoTestUtil.withNext(values));
+  }
+
+  @Test
+  public void testSimpleReadWriteVarCharField() throws Exception {
+    TestState state = register(new ImmutablePair<>(fieldname, StoreManager.Type.STRING));
+
+    File tmp = folder.newFolder("drill");
+    Map<String, Object> values = new HashMap<>();
+    values.put(fieldname, "value1");
     List<Map<String, Object>> rows = newArrayList(values);
     FsSourceTable out = state.write(tmp, org, metrictype, 1, rows);
 
@@ -261,7 +279,8 @@ public class TestFineoReadTable extends BaseFineoTest {
     // ensure that the fineo-test plugin is enabled
     bootstrap(files.toArray(new FsSourceTable[0]));
 
-    verifySelectStar(of("`timestamp` > " + longAgo.toEpochMilli()), FineoTestUtil.withNext(contents));
+    verifySelectStar(of("`timestamp` > " + longAgo.toEpochMilli()),
+      FineoTestUtil.withNext(contents));
   }
 
   /**

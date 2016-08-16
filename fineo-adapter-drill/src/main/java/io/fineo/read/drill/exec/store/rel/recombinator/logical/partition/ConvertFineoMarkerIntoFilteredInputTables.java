@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.lambda.dynamo.Range;
+import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType;
@@ -352,6 +353,8 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
   }
 
   private static RelNode wrapInDynamoExpander(RelTraitSet traits, RelNode scan) {
+    // add the id field
+    scan.getRowType().getField(Schema.ID_FIELD, true, true);
     return new DynamoRowFieldExpanderRel(traits, scan);
   }
 
