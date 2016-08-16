@@ -32,8 +32,8 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -46,6 +46,7 @@ import static org.junit.Assert.assertTrue;
 public class PlanValidator {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
+
   static {
     MAPPER.registerSubtypes(FileSystemConfig.class);
     // all the different formats, which the EasyScan plugin serializes, for some reason
@@ -70,16 +71,20 @@ public class PlanValidator {
   }
 
   private final String query;
-  private Map<String, BaseValidator> validators = new HashMap<>();
+  private List<List<BaseValidator>> validators = new ArrayList<>();
 
   public PlanValidator(String query) {
     this.query = query;
   }
 
+  private List<BaseValidator> current;
+
   public DynamoValidator validateDynamoQuery() {
-    DynamoValidator validator = new DynamoValidator();
-    validators.put(validator.getPop(), validator);
-    return validator;
+    return addValidator(new DynamoValidator());
+  }
+
+  public ParquetValidator validateParquetScan() {
+    return addValidator(new ParquetValidator());
   }
 
   public void validate(Connection conn) throws SQLException, IOException {
@@ -89,9 +94,20 @@ public class PlanValidator {
     String jsonPlan = plan.getString("json");
     Map<String, Object> jsonMap = MAPPER.readValue(jsonPlan, Map.class);
     List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
-    for (Map.Entry<String, BaseValidator> validator : validators.entrySet()) {
-      Map<String, Object> scan = getGraphStep(graph, validator.getValue().getPop());
-      validator.getValue().accept(scan);
+    for (List<BaseValidator> validatorList : validators) {
+      Map<String, Object> scan = getGraphStep(graph, validatorList.get(0).getPop());
+      int scanIndex = graph.indexOf(scan);
+      for (int i = 0; i < validatorList.size(); i++) {
+        BaseValidator validator = validatorList.get(i);
+        if (i == 0) {
+          validator.accept(scan);
+        } else {
+          // its a new step validation, so we check the next step
+          int nextIndex = scanIndex + i;
+          Map<String, Object> next = graph.get(nextIndex);
+          validator.accept(next);
+        }
+      }
     }
   }
 
@@ -104,22 +120,29 @@ public class PlanValidator {
     return null;
   }
 
-  public ParquetValidator validateParquetScan() {
-    ParquetValidator validator = new ParquetValidator();
-    validators.put(validator.getPop(), validator);
+  private <T extends BaseValidator> T addValidator(T validator) {
+    if (current == null) {
+      current = new ArrayList<>();
+    }
+    current.add(validator);
     return validator;
   }
 
-  private abstract class BaseValidator<T extends BaseValidator> implements
-                                                                Consumer<Map<String, Object>> {
-    private final String pop;
+  private PlanValidator next() {
+    this.validators.add(current);
+    current = null;
+    return this;
+  }
+
+  private abstract class BaseValidator implements Consumer<Map<String, Object>> {
+    protected final String pop;
     protected List<String> columns;
 
     public BaseValidator(String pop) {
       this.pop = pop;
     }
 
-    public T withColumns(String... columns) {
+    public <T extends BaseValidator> T withColumns(String... columns) {
       this.columns = Arrays.asList(columns).stream().map(FineoTestUtil::bt).collect(Collectors
         .toList());
       return (T) this;
@@ -131,8 +154,12 @@ public class PlanValidator {
       }
     }
 
+    public StepValidator withNextStep(String pop) {
+      return addValidator(new StepValidator(pop));
+    }
+
     public PlanValidator done() {
-      return PlanValidator.this;
+      return PlanValidator.this.next();
     }
 
     public String getPop() {
@@ -140,7 +167,19 @@ public class PlanValidator {
     }
   }
 
-  public class ParquetValidator extends BaseValidator<ParquetValidator> {
+  public class StepValidator extends BaseValidator {
+
+    public StepValidator(String pop) {
+      super(pop);
+    }
+
+    @Override
+    public void accept(Map<String, Object> pop) {
+      assertEquals("Wrong physical operator!", pop.get("pop"), this.pop);
+    }
+  }
+
+  public class ParquetValidator extends BaseValidator {
 
     private File selectionRoot;
     private List<String> files;
@@ -182,7 +221,7 @@ public class PlanValidator {
     }
   }
 
-  public class DynamoValidator extends BaseValidator<DynamoValidator> {
+  public class DynamoValidator extends BaseValidator {
     private String table;
     private DynamoReadFilterSpec scan;
     private List<DynamoReadFilterSpec> getOrQuery;

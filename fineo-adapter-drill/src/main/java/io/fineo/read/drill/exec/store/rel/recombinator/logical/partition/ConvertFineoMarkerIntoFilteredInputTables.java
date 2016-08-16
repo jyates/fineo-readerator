@@ -36,6 +36,7 @@ import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -85,20 +86,21 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
   public void onMatch(RelOptRuleCall call) {
     FineoRecombinatorMarkerRel fmr = getRecombinator(call);
     RelOptCluster cluster = fmr.getCluster();
-    RexBuilder rexer = cluster.getRexBuilder();
 
     Multimap<SourceType, RelAndRange> tables = getTables(call);
-    Multimap<SourceType, RelNode> nodes = partitionReads(rexer, tables, cluster, fmr.getTraitSet());
-    List<RelNode> markers = nodes.asMap().entrySet().stream()
-                                 .map(e -> {
-                                   TableTypeSetMarker
-                                     marker = new TableTypeSetMarker(fmr.getCluster(), fmr
-                                     .getTraitSet(), fmr.getRowType());
-                                   setInputs(marker, e);
-                                   return marker;
-                                 })
-                                 .collect(Collectors.toList());
-    RelNode fineo = fmr.copy(fmr.getTraitSet(), markers);
+    Multimap<SourceType, RelNode> nodes =
+      partitionReads(tables, cluster, fmr.getTraitSet());
+    TableTypeSetMarker marker =
+      new TableTypeSetMarker(fmr.getCluster(), fmr.getTraitSet(), fmr.getRowType());
+    List<RelNode> sources = new ArrayList<>();
+    List<SourceType> types = new ArrayList<>();
+    nodes.asMap().entrySet().stream()
+         .forEach(e -> {
+           types.addAll(newArrayList(limit(cycle(e.getKey()), e.getValue().size())));
+           sources.addAll(e.getValue());
+         });
+    marker.setInputs(sources, types);
+    RelNode fineo = fmr.copy(fmr.getTraitSet(), of(marker));
     call.transformTo(finalTransform(fineo, call));
   }
 
@@ -111,11 +113,12 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     return fineo;
   }
 
-  protected Multimap<SourceType, RelNode> partitionReads(RexBuilder rexer, Multimap<SourceType,
+  protected Multimap<SourceType, RelNode> partitionReads(Multimap<SourceType,
     RelAndRange> translatedScans, RelOptCluster cluster, RelTraitSet traits) {
     Preconditions.checkState(translatedScans.size() > 0,
       "Couldn't find any tables that apply to the scan!");
 
+    RexBuilder rexer = cluster.getRexBuilder();
     Multimap<SourceType, RelNode> groups = ArrayListMultimap.create();
     // simple case, no dynamo tables
     Collection<RelAndRange> dynamo = translatedScans.get(DYNAMO);

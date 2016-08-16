@@ -31,7 +31,7 @@ public class DynamoRowFieldExpanderPrel extends DynamoRowFieldExpanderRelBase im
 
   @Override
   public BatchSchema.SelectionVectorMode getEncoding() {
-    return BatchSchema.SelectionVectorMode.TWO_BYTE;
+    return BatchSchema.SelectionVectorMode.NONE;
   }
 
   @Override

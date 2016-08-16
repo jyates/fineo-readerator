@@ -1,12 +1,10 @@
 package io.fineo.read.drill.exec.store;
 
-import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import io.fineo.drill.ClusterTest;
 import io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
-import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
@@ -14,9 +12,6 @@ import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.avro.AvroSchemaEncoder;
-import io.fineo.schema.avro.AvroSchemaManager;
-import io.fineo.schema.exception.SchemaNotFoundException;
-import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
@@ -51,22 +46,21 @@ public class TestClientLikeReads extends BaseFineoTest {
 
   @Test
   public void testReadAcrossFileAndDynamo() throws Exception {
-    TestState state = register();
+    TestState state = register(p(fieldname, StoreManager.Type.INTEGER));
     long ts = get1980();
-
-    Item wrote = prepareItem(state);
-    wrote.with(Schema.SORT_KEY_NAME, ts);
-    wrote.with("field1", true);
-    Table table = state.write(wrote);
 
     File tmp = folder.newFolder("drill");
     long tsFile = ts - Duration.ofDays(35).toMillis();
 
-    String field1 = "field1";
     Map<String, Object> parquetRow = new HashMap<>();
-    parquetRow.put(field1, false);
+    parquetRow.put(fieldname, 1);
     Pair<FsSourceTable, File> parquet = writeParquet(state, tmp, org, metrictype, tsFile,
       parquetRow);
+
+    Map<String, Object> wrote = prepareItem(state);
+    wrote.put(Schema.SORT_KEY_NAME, ts);
+    wrote.put(fieldname, 2);
+    Table table = state.write(wrote);
 
     bootstrapper()
       // dynamo
@@ -80,7 +74,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     dynamoRow.put(AvroSchemaEncoder.ORG_ID_KEY, org);
     dynamoRow.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
     dynamoRow.put(TIMESTAMP_KEY, ts);
-    dynamoRow.put(field1, true);
+    dynamoRow.put(fieldname, 2);
 
     verifySelectStar(FineoTestUtil.withNext(parquetRow, dynamoRow));
   }
@@ -93,9 +87,9 @@ public class TestClientLikeReads extends BaseFineoTest {
   public void testReadAcrossOverlappingFileAndDynamo() throws Exception {
     TestState state = register(p(fieldname, StoreManager.Type.INT));
     long ts = get1980();
-    Item dynamo = prepareItem(state);
-    dynamo.with(Schema.SORT_KEY_NAME, ts);
-    dynamo.with(fieldname, 1);
+    Map<String, Object> dynamo = prepareItem(state);
+    dynamo.put(Schema.SORT_KEY_NAME, ts);
+    dynamo.put(fieldname, 1);
     Table table = state.write(dynamo);
 
     Map<String, Object> parquet = new HashMap<>();
@@ -113,14 +107,13 @@ public class TestClientLikeReads extends BaseFineoTest {
   }
 
 
-
   @Test
   public void testPruneFileDirectoryAndDynamo() throws Exception {
     TestState state = register(p(fieldname, StoreManager.Type.INT));
     long ts = get1980();
-    Item dynamo = prepareItem(state);
-    dynamo.with(Schema.SORT_KEY_NAME, ts);
-    dynamo.with(fieldname, 1);
+    Map<String, Object> dynamo = prepareItem(state);
+    dynamo.put(Schema.SORT_KEY_NAME, ts);
+    dynamo.put(fieldname, 1);
     Table table = state.write(dynamo);
 
     Map<String, Object> parquet = new HashMap<>();
@@ -148,7 +141,7 @@ public class TestClientLikeReads extends BaseFineoTest {
 
     // validate that we only read the single parquet that we expected and the dynamo table
     DynamoFilterSpec keyFilter = DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
-      dynamo.getString(Schema.PARTITION_KEY_NAME)).and(lte(Schema.SORT_KEY_NAME, ts));
+      dynamo.get(Schema.PARTITION_KEY_NAME)).and(lte(Schema.SORT_KEY_NAME, ts));
     new PlanValidator(query)
       // dynamo
       .validateDynamoQuery()

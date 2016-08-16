@@ -42,6 +42,7 @@ import java.util.Map;
  */
 public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpander> {
   private static final Logger LOG = LoggerFactory.getLogger(DynamoExpanderBatch.class);
+
   private final VectorContainerWriter writer;
   private Map<String, ValueVector> vectorMap = new HashMap<>();
   private Map<String, MaterializedField> fieldMap = new HashMap<>();
@@ -84,8 +85,8 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
     mutator.allocate(recordCount);
 
     int incomingRowCount = 0;
+    int outgoingRowCount = 0;
     for (List<Object> rowIds : rows) {
-      int outgoingRowCount = 0;
       for (Object idObj : rowIds) {
         for (VectorWrapper wrapper : incoming) {
           if (skip(wrapper)) {

@@ -3,6 +3,7 @@ package io.fineo.read.drill;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.google.common.base.Joiner;
 import io.fineo.drill.ClusterTest;
 import io.fineo.drill.rule.DrillClusterRule;
@@ -12,6 +13,7 @@ import io.fineo.lambda.dynamo.DynamoTableTimeManager;
 import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
+import io.fineo.read.drill.exec.store.dynamo.DynamoTranslator;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
@@ -31,9 +33,12 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -72,6 +77,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     Verify<ResultSet> verify;
     boolean withUnion = true;
     private String statement;
+    private List<String> sorts = newArrayList("`timestamp` ASC");
 
     public QueryRunnable(Verify<ResultSet> verify) {
       this(null, verify);
@@ -91,11 +97,14 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     public String getStatement() throws Exception {
       if (statement == null) {
         String from = format(" FROM %s", metrictype);
-        String where = wheres == null ? "" : " WHERE " + AND.join(wheres);
-        statement = "SELECT *" + from + where + " ORDER BY `timestamp` ASC";
+        String where = wheres == null || wheres.size() == 0 ? "" : " WHERE " + AND.join(wheres);
+        statement = "SELECT *" + from + where + " ORDER BY " + Joiner.on(" , ").join(sorts);
       }
-//      return statement;
       return rewriter.rewrite(statement);
+    }
+
+    public void sortBy(String field) {
+      this.sorts.add(format("`%s` ASC", field));
     }
   }
 
@@ -103,6 +112,11 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     return format("%s = '%s'", left, right);
   }
 
+  /**
+   * @param verify handle the result verification
+   * @return the statement that was run
+   * @throws Exception on failure
+   */
   protected String verifySelectStar(Verify<ResultSet> verify) throws Exception {
     return verifySelectStar(null, verify);
   }
@@ -110,11 +124,10 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   protected String verifySelectStar(List<String> wheres, Verify<ResultSet> verify) throws
     Exception {
     QueryRunnable runnable = new QueryRunnable(wheres, verify);
-    runAndVerify(runnable);
-    return runnable.getStatement();
+    return runAndVerify(runnable);
   }
 
-  protected static void runAndVerify(QueryRunnable runnable) throws Exception {
+  protected static String runAndVerify(QueryRunnable runnable) throws Exception {
     String stmt = runnable.getStatement();
     LOG.info("Attempting query: " + stmt);
     Connection conn = drill.getConnection();
@@ -122,6 +135,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     if (runnable.verify != null) {
       runnable.verify.verify(conn.createStatement().executeQuery(stmt));
     }
+    return stmt;
   }
 
   protected void bootstrap(FsSourceTable... files) throws IOException {
@@ -173,6 +187,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   }
 
   protected class TestState {
+    private final DynamoTranslator trans = new DynamoTranslator();
     Metric metric;
     SchemaStore store;
     private DynamoTableCreator creator;
@@ -200,6 +215,20 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     public FsSourceTable write(File dir, String org, String metricType, long ts,
       List<Map<String, Object>> values) throws IOException {
       return FineoTestUtil.writeJson(store, dir, org, metricType, ts, values);
+    }
+
+    public Item translate(Map<String, Object> item) throws Exception {
+      return trans.apply(item);
+    }
+
+    public Table write(Map<String, Object> item) throws Exception {
+      return write(translate(item));
+    }
+
+    public void update(Table table, Map<String, Object> item)
+      throws UnsupportedEncodingException, NoSuchAlgorithmException {
+      UpdateItemSpec spec = trans.updateItem(item);
+      table.updateItem(spec);
     }
 
     public Table write(Item wrote) {
@@ -232,12 +261,12 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       .writeParquet(state, drill.getConnection(), dir, orgid, metricType, ts, rows);
   }
 
-  protected Item prepareItem(TestState state) throws SchemaNotFoundException {
+  protected Map<String, Object> prepareItem(TestState state) throws SchemaNotFoundException {
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
 
-    Item wrote = new Item();
-    wrote.with(Schema.PARTITION_KEY_NAME, org + metric.getMetricId());
+    Map<String, Object> wrote = new HashMap<>();
+    wrote.put(Schema.PARTITION_KEY_NAME, org + metric.getMetricId());
     return wrote;
   }
 }

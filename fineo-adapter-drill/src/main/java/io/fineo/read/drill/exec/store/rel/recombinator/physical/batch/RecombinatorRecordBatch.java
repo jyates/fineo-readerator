@@ -129,7 +129,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       String outputName = stripDynamicProjectPrefix(name);
       // this is a dynamic field with an alias that we know about
       if (aliasMap.shouldSkip(outputName, dynamic)) {
-        LOG.debug("Skipping field {} => {}", name, outputName);
+        LOG.trace("Skipping field {} => {}", name, outputName);
         continue;
       }
 
@@ -160,7 +160,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
 
       outputName = aliasMap.getOutputName(outputName);
       if (outputName == null) {
-        LOG.debug("Skipping: '{}' because not dynamic field, but no alias mapping found", name);
+        LOG.trace("Skipping: '{}' because not dynamic field, but no alias mapping found", name);
         continue;
       }
       // handles alias mapping and required fields
@@ -192,21 +192,21 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       }
 
       if (out != null) {
-        LOG.debug("Adding transfer pair for {}", name);
+        LOG.trace("Adding transfer pair for {}", name);
         transfers.add(wrapper.getValueVector().makeTransferPair(out));
         continue;
       }
 
       out = vectors.getKnownField(name);
       if (out == null) {
-        LOG.debug("No output vector found - skipping field {} ", name);
+        LOG.trace("No output vector found - skipping field {} ", name);
         continue;
       }
 
       // #startup - we can be even smarter and not copy the fields at all if all the values are
       // set for all positions in the vector. Even even smarter would be figuring out how to
       // slice parts of a vector and then transferring the non-null bits from each alias
-      LOG.debug("Manually copying fields for {}", name);
+      LOG.trace("Manually copying fields for {}", name);
       for (int i = 0; i < incomingRecordCount; i++) {
         // only write non-null values
         if (!wrapper.getValueVector().getAccessor().isNull(i)) {

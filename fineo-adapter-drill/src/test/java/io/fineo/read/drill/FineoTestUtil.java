@@ -215,6 +215,10 @@ public class FineoTestUtil {
     };
   }
 
+  public static BaseFineoTest.Verify<ResultSet> withNext(List<Map<String, Object>> rows) {
+    return withNext(rows.toArray(new Map[0]));
+  }
+
   protected static void assertNoMore(ResultSet result) throws SQLException {
     boolean next = result.next();
     List<String> rows = new ArrayList<>();
