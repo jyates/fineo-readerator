@@ -270,7 +270,6 @@ public abstract class DynamoRecordReader<T extends DynamoSubReadSpec> extends Ab
         for (Map.Entry<String, Object> part : parts.entrySet()) {
           handleField(rowCount, part.getKey(), part.getValue(), state);
         }
-        return;
       }
     }
 

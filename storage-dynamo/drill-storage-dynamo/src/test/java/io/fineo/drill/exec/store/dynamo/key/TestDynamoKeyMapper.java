@@ -34,6 +34,7 @@ public class TestDynamoKeyMapper extends BaseDynamoTest {
     Item expected = new Item();
     expected.with("h1", "a");
     expected.with("h2", "b");
+    expected.with(PK, "ab");
     selectStar(table, true, expected);
   }
 
@@ -59,8 +60,10 @@ public class TestDynamoKeyMapper extends BaseDynamoTest {
     Item expected = new Item();
     expected.with("h1", "a");
     expected.with("h2", "b");
+    expected.with(PK, "ab");
     expected.with("h3", 1);
     expected.with("h4", 2);
+    expected.with(sort, "12");
     selectStar(table, true, expected);
   }
 }
