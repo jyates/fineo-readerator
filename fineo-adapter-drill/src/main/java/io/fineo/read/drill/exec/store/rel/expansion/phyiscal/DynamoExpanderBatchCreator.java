@@ -1,4 +1,4 @@
-package io.fineo.read.drill.exec.store.rel.expansion;
+package io.fineo.read.drill.exec.store.rel.expansion.phyiscal;
 
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.exec.ops.FragmentContext;

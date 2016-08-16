@@ -6,9 +6,9 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.read.drill.exec.store.FineoCommon;
-import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderConverter;
-import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderPrule;
-import io.fineo.read.drill.exec.store.rel.expansion.rule.PushFilterPastDynamoRowExpander;
+import io.fineo.read.drill.exec.store.rel.expansion.logical.DynamoRowFieldExpanderConverter;
+import io.fineo.read.drill.exec.store.rel.expansion.phyiscal.DynamoRowFieldExpanderPrule;
+import io.fineo.read.drill.exec.store.rel.expansion.optimize.PushFilterPastDynamoRowExpander;
 import io.fineo.read.drill.exec.store.rel.fixed.physical.FixedSchemaPrule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition

@@ -1,4 +1,4 @@
-package io.fineo.read.drill.exec.store.rel.expansion;
+package io.fineo.read.drill.exec.store.rel.expansion.phyiscal;
 
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.exec.store.rel.VectorUtils;

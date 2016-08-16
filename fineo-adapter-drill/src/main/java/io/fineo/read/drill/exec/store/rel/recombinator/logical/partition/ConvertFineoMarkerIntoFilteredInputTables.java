@@ -5,7 +5,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.lambda.dynamo.Range;
 import io.fineo.lambda.dynamo.Schema;
-import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderRel;
+import io.fineo.read.drill.exec.store.rel.expansion.logical.DynamoRowFieldExpanderRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler

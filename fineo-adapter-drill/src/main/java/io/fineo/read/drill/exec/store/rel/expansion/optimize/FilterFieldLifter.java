@@ -1,4 +1,4 @@
-package io.fineo.read.drill.exec.store.rel.expansion.rule;
+package io.fineo.read.drill.exec.store.rel.expansion.optimize;
 
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.type.RelDataType;

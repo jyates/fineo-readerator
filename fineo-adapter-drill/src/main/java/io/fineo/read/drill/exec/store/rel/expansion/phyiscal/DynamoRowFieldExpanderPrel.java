@@ -1,5 +1,6 @@
-package io.fineo.read.drill.exec.store.rel.expansion;
+package io.fineo.read.drill.exec.store.rel.expansion.phyiscal;
 
+import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderRelBase;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.drill.exec.physical.base.PhysicalOperator;

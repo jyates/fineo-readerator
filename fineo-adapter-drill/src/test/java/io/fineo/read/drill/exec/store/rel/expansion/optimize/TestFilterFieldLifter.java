@@ -1,6 +1,5 @@
-package io.fineo.read.drill.exec.store.rel.expansion.rule;
+package io.fineo.read.drill.exec.store.rel.expansion.optimize;
 
-import io.fineo.read.drill.exec.store.rel.expansion.rule.FilterFieldLifter;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;

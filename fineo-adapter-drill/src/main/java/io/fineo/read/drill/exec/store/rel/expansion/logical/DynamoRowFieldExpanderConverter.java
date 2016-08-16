@@ -1,4 +1,4 @@
-package io.fineo.read.drill.exec.store.rel.expansion;
+package io.fineo.read.drill.exec.store.rel.expansion.logical;
 
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;

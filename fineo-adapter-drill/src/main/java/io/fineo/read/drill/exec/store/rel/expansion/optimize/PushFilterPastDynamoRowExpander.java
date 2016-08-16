@@ -1,8 +1,8 @@
-package io.fineo.read.drill.exec.store.rel.expansion.rule;
+package io.fineo.read.drill.exec.store.rel.expansion.optimize;
 
 
 import io.fineo.lambda.dynamo.Schema;
-import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderRel;
+import io.fineo.read.drill.exec.store.rel.expansion.logical.DynamoRowFieldExpanderRel;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
@@ -10,7 +10,6 @@ import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Filter;
-import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
