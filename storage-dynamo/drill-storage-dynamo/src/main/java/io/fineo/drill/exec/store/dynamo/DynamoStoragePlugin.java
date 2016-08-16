@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.drill.exec.store.dynamo.filter.DynamoPushFilterIntoScan;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
-import io.fineo.drill.exec.store.dynamo.spec.DynamoScanSpec;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.drill.common.JSONOptions;
