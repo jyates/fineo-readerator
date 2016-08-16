@@ -6,8 +6,8 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.read.drill.exec.store.FineoCommon;
+import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderConverter;
 import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderPrule;
-import io.fineo.read.drill.exec.store.rel.expansion.GroupTablesAndOptionallyExpandRule;
 import io.fineo.read.drill.exec.store.rel.fixed.physical.FixedSchemaPrule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition
@@ -83,9 +83,6 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
       }
     });
 
-    // group the input sources together type type and possibly expand the dynamo reads
-    rules.put(PlannerPhase.DIRECTORY_PRUNING, GroupTablesAndOptionallyExpandRule.INSTANCE);
-
     // Filter out tables/directories that are not included in requested time range AND add
     // filters for the input sources to ensure that we don't read overlapping data
     rules.put(PlannerPhase.DIRECTORY_PRUNING,
@@ -94,6 +91,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
 
     // transform FRMR -> FRR
     rules.put(PlannerPhase.LOGICAL, FineoRecombinatorRule.INSTANCE);
+    rules.put(PlannerPhase.LOGICAL, DynamoRowFieldExpanderConverter.INSTANCE);
 
     // FixedR -> FixedPr
     rules.put(PlannerPhase.PHYSICAL, FixedSchemaPrule.INSTANCE);

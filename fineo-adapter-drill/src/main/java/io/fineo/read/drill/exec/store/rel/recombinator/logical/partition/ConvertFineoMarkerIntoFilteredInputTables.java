@@ -1,11 +1,10 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import io.fineo.lambda.dynamo.Range;
-import io.fineo.read.drill.exec.store.rel.expansion.TableSetMarker;
+import io.fineo.read.drill.exec.store.rel.expansion.DynamoRowFieldExpanderRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.SourceType;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler
@@ -56,6 +55,7 @@ import static org.apache.calcite.sql.fun.SqlStdOperatorTable.LESS_THAN_OR_EQUAL;
 import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;
 import static org.apache.calcite.util.ImmutableNullableList.of;
 import static org.apache.drill.exec.planner.logical.DrillOptiq.toDrill;
+import static org.apache.drill.exec.planner.logical.DrillRel.DRILL_LOGICAL;
 import static org.apache.drill.exec.planner.physical.PrelUtil.getPlannerSettings;
 
 /**
@@ -72,7 +72,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
     FineoRecombinatorMarkerRel fmr = getRecombinator(call);
     List<RelNode> scans = call.getChildRels(fmr);
     for (RelNode scan : scans) {
-      if (!(scan instanceof TableSetMarker)) {
+      if (!(scan instanceof TableScan)) {
         return false;
       }
     }
@@ -180,8 +180,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
 
     private PushTimerangeFilterPastRecombinator() {
       super(operand(LogicalFilter.class, operand(FineoRecombinatorMarkerRel.class,
-        unordered(operand(TableSetMarker.class, null, Predicates.alwaysTrue(),
-          operand(TableScan.class, none()))))),
+        unordered(operand(TableScan.class, none())))),
         "FineoPushTimerangePastRecombinatorRule");
     }
 
@@ -208,28 +207,25 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
       WrappingFilterBuilder wfb = new WrappingFilterBuilder(rexer);
       for (RelNode s : scans) {
         builder.reset();
-
-        TableSetMarker marker = (TableSetMarker) s;
-        String tableName = marker.getTableName();
-        SourceType type = marker.getType();
-        TimestampHandler handler = handlers.get(type);
+        GroupedScan group = group(fmr.getTraitSet(), s);
+        TimestampHandler handler = handlers.get(group.source);
 
         RexNode shouldScan =
-          builder.lift(conditionExp, rexer, handler.getShouldScanBuilder(tableName));
-        Range<Instant> range = handler.getTableTimeRange(marker.getTableName());
+          builder.lift(conditionExp, rexer, handler.getShouldScanBuilder(group.tableName));
+        Range<Instant> range = handler.getTableTimeRange(group.tableName);
         if (builder.isScanAll() || shouldScan == null) {
           // we have to scan everything b/c we didn't understand all the timestamp constraints
           //    OR
           // there is no timestamp constraint, in which case we need to scan everything
-          translatedScans.put(type, new RelAndRange(marker.getInput(), range));
+          translatedScans.put(group.source, new RelAndRange(group.scan, range));
         } else if (shouldScan != null && evaluate(shouldScan)) {
           // we can make a pretty good guess about the scan
           builder.reset();
           TableFilterBuilder filterBuilder = handler.getFilterBuilder();
-          wfb.setup(marker.getInput(), filterBuilder);
+          wfb.setup(group.scan, filterBuilder);
           RelNode translated = wfb.buildFilter(builder, conditionExp);
           if (translated != null) {
-            translatedScans.put(type, new RelAndRange(translated, range));
+            translatedScans.put(group.source, new RelAndRange(translated, range));
           }
         }
       }
@@ -278,8 +274,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
 
     private FilterRecombinatorTablesWithNoTimestampFilter() {
       super(operand(FineoRecombinatorMarkerRel.class,
-        unordered(operand(TableSetMarker.class, null, Predicates.alwaysTrue(),
-          operand(TableScan.class, none())))),
+        unordered(operand(TableScan.class, none()))),
         "Fineo::FilterRecombinatorTablesRule");
     }
 
@@ -298,11 +293,11 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
       Map<SourceType, TimestampHandler> handlers = getHandlers(rexer);
       List<RelNode> scans = call.getChildRels(fmr);
       for (RelNode node : scans) {
-        TableSetMarker marker = (TableSetMarker) node;
-        SourceType type = marker.getType();
+        GroupedScan group = group(fmr.getTraitSet(), node);
+        SourceType type = group.source;
         TimestampHandler handler = handlers.get(type);
         types.put(type,
-          new RelAndRange(marker.getInput(), handler.getTableTimeRange(marker.getTableName())));
+          new RelAndRange(group.scan, handler.getTableTimeRange(group.tableName)));
       }
 
       return types;
@@ -335,6 +330,40 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
              "start=" + start +
              ", rel=" + rel +
              '}';
+    }
+  }
+
+
+  private static GroupedScan group(RelTraitSet traits, RelNode node) {
+    TableScan scan = (TableScan) node;
+    SourceType type = getScanType(scan);
+    List<String> names = scan.getTable().getQualifiedName();
+    String tableName = names.get(names.size() - 1);
+    switch (type) {
+      case DYNAMO:
+        node = wrapInDynamoExpander(traits, scan);
+    }
+    return new GroupedScan(type, tableName, node);
+  }
+
+  private static SourceType getScanType(TableScan scan) {
+    List<String> name = scan.getTable().getQualifiedName();
+    return SourceType.valueOf(name.get(0).toUpperCase());
+  }
+
+  private static RelNode wrapInDynamoExpander(RelTraitSet traits, RelNode scan) {
+    return new DynamoRowFieldExpanderRel(traits, scan);
+  }
+
+  private static class GroupedScan {
+    private final SourceType source;
+    private final String tableName;
+    private final RelNode scan;
+
+    public GroupedScan(SourceType source, String tableName, RelNode scan) {
+      this.source = source;
+      this.tableName = tableName;
+      this.scan = scan;
     }
   }
 }

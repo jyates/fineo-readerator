@@ -4,11 +4,14 @@ import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.KeyType;
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
+import com.google.common.collect.ImmutableList;
 import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapperSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoGroupScanSpec;
 import io.fineo.drill.exec.store.dynamo.spec.DynamoTableDefinition;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.schema.Statistic;
+import org.apache.calcite.schema.Statistics;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.exec.planner.logical.DynamicDrillTable;
 
@@ -71,5 +74,10 @@ public class DrillDynamoTable extends DynamicDrillTable {
     }
 
     return type;
+  }
+
+  @Override
+  public Statistic getStatistic() {
+    return Statistics.of(desc.getItemCount(), ImmutableList.of(), ImmutableList.of());
   }
 }
