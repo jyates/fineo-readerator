@@ -36,6 +36,7 @@ public class LocalReadCommand extends Command {
       String stmt = "SELECT *" + from + where + " ORDER BY `timestamp` ASC";
       runQuery(stmt);
     } finally {
+      LOG.info("Command failed = shutting down cluster!");
       if (this.cluster != null) {
         cluster.shutdown();
       }

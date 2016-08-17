@@ -5,7 +5,7 @@ import io.fineo.e2e.options.LocalSchemaStoreOptions;
 import io.fineo.read.drill.e2e.commands.Command;
 import io.fineo.read.drill.e2e.options.DrillArguments;
 
-public class EndToEndWrapper {
+public class ReadFromDrill {
   public static void main(String[] args) throws Throwable {
     DrillArguments opts = new DrillArguments();
     LocalSchemaStoreOptions storeOptions = new LocalSchemaStoreOptions();
