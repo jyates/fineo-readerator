@@ -7,7 +7,7 @@ import io.fineo.read.drill.e2e.command.ReadCommand;
 import io.fineo.read.drill.e2e.command.Reader;
 import io.fineo.read.drill.e2e.options.DrillArguments;
 
-public class EndToEndWrapper {
+public class ReadFromDrill {
   public static void main(String[] args) throws Throwable {
     DrillArguments opts = new DrillArguments();
 
