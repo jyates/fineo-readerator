@@ -37,9 +37,6 @@ public class FineoJdbcMeta extends JdbcMeta {
 
   private static final Logger LOG = LoggerFactory.getLogger(FineoJdbcMeta.class);
   public static final String ORG_PROPERTY_KEY = FineoJdbcProperties.COMPANY_KEY_PROPERTY;
-  private static final String FINEO_CATALOG = "FINEO_CAT";
-  private static final String FINEO_SCHEMA = "FINEO_SCHEMA";
-  private static final String FINEO_SCHEMA_TABLE = "FINEO_SCHEMA_TABLE";
   private FineoSqlRewriter rewrite;
   private String org;
 
@@ -48,6 +45,7 @@ public class FineoJdbcMeta extends JdbcMeta {
   public FineoJdbcMeta(String url, Properties info, MetricsSystem metrics, String org) throws
     SQLException {
     this(url, info, metrics);
+    LOG.info("Connecting to drill at: {} for org: {}", url, org);
     setRewriter(org);
   }
 
