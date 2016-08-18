@@ -2,6 +2,8 @@ package io.fineo.read.drill.e2e.commands;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fineo.read.drill.e2e.options.DrillArguments;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class Command {
+  private static final Logger LOG = LoggerFactory.getLogger(Command.class);
 
   protected final DrillArguments opts;
 
@@ -36,6 +39,8 @@ public abstract class Command {
       }
       ObjectMapper mapper = new ObjectMapper();
       mapper.writeValue(bos, events);
+    } finally {
+      LOG.info("Done running query: {}", stmt);
     }
   }
 
