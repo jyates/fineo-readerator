@@ -173,7 +173,6 @@ public class FineoJdbcMeta extends JdbcMeta {
   }
 
   public void setRewriter(String org) {
-    LOG.info("Using org: {}", org);
     this.rewrite = new FineoSqlRewriter(org);
     this.org = org;
   }
