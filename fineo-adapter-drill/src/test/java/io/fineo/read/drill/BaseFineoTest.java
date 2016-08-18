@@ -38,12 +38,15 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.String.format;
+import static java.util.Arrays.asList;
 import static org.junit.Assert.assertTrue;
 
 @Category(ClusterTest.class)
@@ -58,7 +61,6 @@ public class BaseFineoTest extends BaseDynamoTableTest {
 
   protected final String org = "orgid1", metrictype = "metricid1", fieldname = "field1";
   private static final String DYNAMO_TABLE_PREFIX = "test-dynamo-client-";
-  private static final Joiner AND = Joiner.on(" AND ");
 
   @BeforeClass
   public static void prepareCluster() throws Exception {
@@ -77,6 +79,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     Verify<ResultSet> verify;
     boolean withUnion = true;
     private String statement;
+    private List<String> select = new ArrayList<>();
     private List<String> sorts = newArrayList("`timestamp` ASC");
 
     public QueryRunnable(Verify<ResultSet> verify) {
@@ -94,17 +97,30 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       }
     }
 
+    public QueryRunnable select(String... elems) {
+      select.addAll(asList(elems));
+      return this;
+    }
+
     public String getStatement() throws Exception {
       if (statement == null) {
         String from = format(" FROM %s", metrictype);
-        String where = wheres == null || wheres.size() == 0 ? "" : " WHERE " + AND.join(wheres);
-        statement = "SELECT *" + from + where + " ORDER BY " + Joiner.on(" , ").join(sorts);
+        String where = wheres == null || wheres.size() == 0 ? "" :
+                       " WHERE " + join(" AND ", wheres);
+        String fields = select.size() == 0 ? "*" : join(",", select);
+        statement =
+          format("SELECT %s %s %s ORDER BY %s", fields, from, where, join(" , ", sorts));
       }
       return rewriter.rewrite(statement);
     }
 
-    public void sortBy(String field) {
+    public QueryRunnable sortBy(String field) {
       this.sorts.add(format("`%s` ASC", field));
+      return this;
+    }
+
+    private String join(String joiner, Collection<?> parts) {
+      return Joiner.on(joiner).join(parts);
     }
   }
 

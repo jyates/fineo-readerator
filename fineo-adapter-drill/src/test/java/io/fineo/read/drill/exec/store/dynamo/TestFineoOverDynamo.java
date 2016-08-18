@@ -58,7 +58,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
     expected.put(TIMESTAMP_KEY, ts);
     expected.put("field1", true);
-    String query = verifySelectStar(FineoTestUtil.withNext(expected));
+    String query = verifySelectStar(withNext(expected));
     DynamoFilterSpec keyFilter = DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
       wrote.get(Schema.PARTITION_KEY_NAME));
     new PlanValidator(query)
@@ -103,7 +103,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     expected.put(field, "v1");
     Map<String, Object> expected2 = newHashMap(expected);
     expected2.put(field, "v2");
-    QueryRunnable runnable = new QueryRunnable(ImmutableList.of(), FineoTestUtil.withNext(expected,
+    QueryRunnable runnable = new QueryRunnable(ImmutableList.of(), withNext(expected,
       expected2));
     runnable.sortBy(field);
     runAndVerify(runnable);
@@ -136,8 +136,8 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     expected.put("field1", true);
     long tsLessThan = (ts + 100);
     String query =
-      verifySelectStar(of(FineoTestUtil.bt(TIMESTAMP_KEY) + " <= " + tsLessThan), FineoTestUtil
-        .withNext(expected));
+      verifySelectStar(of(FineoTestUtil.bt(TIMESTAMP_KEY) + " <= " + tsLessThan),
+        withNext(expected));
     // take into account the push down timerange filter, which includes the TS in the output, but
     // otherwise wouldn't be there.
     DynamoFilterSpec keyFilter = DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
@@ -215,9 +215,49 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     Map<String, Object> row2 = copyOverride(expected, p(TIMESTAMP_KEY, ts + 1), p(fieldname, 25));
     rows.add(row2);
     rows.add(copyOverride(row2, p(fieldname, 26)));
-    QueryRunnable runnable = new QueryRunnable(ImmutableList.of(), FineoTestUtil.withNext(rows));
+    QueryRunnable runnable = new QueryRunnable(ImmutableList.of(), withNext(rows));
     runnable.sortBy(fieldname);
     runAndVerify(runnable);
+  }
+
+  @Test
+  public void testReadSingleFieldOneRow() throws Exception {
+    TestState state = register();
+    long ts = FineoTestUtil.get1980();
+
+    Map<String, Object> wrote = prepareItem(state);
+    wrote.put(Schema.SORT_KEY_NAME, ts);
+    wrote.put(fieldname, true);
+    Table table = state.write(wrote);
+    bootstrap(table);
+
+    Map<String, Object> expected = new HashMap<>();
+    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
+    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(fieldname, true);
+    runAndVerify(new QueryRunnable(withNext(expected)).select(fieldname));
+  }
+
+  @Test
+  public void testReadSingleFieldMultipleElementsPerRow() throws Exception {
+    TestState state = register(p(fieldname, StoreManager.Type.INTEGER));
+    long ts = FineoTestUtil.get1980();
+
+    Map<String, Object> wrote = prepareItem(state);
+    wrote.put(Schema.SORT_KEY_NAME, ts);
+    wrote.put(fieldname, 1);
+    Table table = state.write(wrote);
+    bootstrap(table);
+
+    wrote.put(fieldname, 25);
+    state.update(table, wrote);
+
+    Map<String, Object> expected = new HashMap<>();
+    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
+    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(fieldname, 1);
+    runAndVerify(new QueryRunnable(withNext(expected, copyOverride(expected, p(fieldname, 25))))
+      .select(fieldname).sortBy(fieldname));
   }
 
   private Map<String, Object> copyOverride(Map<String, Object> map, Pair<String, Object>...

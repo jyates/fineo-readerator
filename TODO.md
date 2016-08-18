@@ -10,7 +10,6 @@
 
 3. Server
   a. stand up
-  b. filter per-tenant based on properties
   c. load testing
 
 --- Later ---
@@ -19,8 +18,9 @@
  but requires using some sort of splitting, which is not well defined in drill right now
 
 2. Dynamo Reading
- a. fix reading Decimal38 (now just reads strings)
- b. Better support for PK Mapping.
+ a. Don't always read columns[`*`], but instead just the ones in the query
+ b. fix reading Decimal38 (now just reads strings)
+ c. Better support for PK Mapping.
   i. Separate sort and hash key expansion in mapper so we can be smart about what fields to 
   include in the table definition
   ii. Use the KeyMapper when building the filter condition so we can avoid referencing the 
@@ -30,7 +30,7 @@
   a. Support _fm field by enabling merging schemas in ExternalSort/TopN. 
     ii. Currently only supports 'union' logic and merging schemas for non-complex types. We enable the union logic, but only use the schema merging support. This same logic can be applied to complex types (map/list) so we can read those as well.
 
-4. Timerange pushdown
+4. Timerange pushdown source filtering
  a. support tracking the last json -> parquet conversion time so we create several different plans (progressively removing dynamo tables and replacing them with parquet scans)
 
 1. Spark Reading

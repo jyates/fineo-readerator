@@ -141,7 +141,13 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
       // count the number of ids for each row to get a total number of rows
       for (int i = 0; i < recordCount; i++) {
         List<Object> row = (List<Object>) wrapper.getValueVector().getAccessor().getObject(i);
-        ids.add(row);
+        // can happen if we have the wrong write implementation running - don't fail out, just
+        // return empty
+        if (row != null) {
+          ids.add(row);
+        } else {
+          LOG.error("Got an empty id set {} from dynamo table!", field);
+        }
       }
       break;
     }
