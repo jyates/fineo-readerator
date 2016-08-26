@@ -55,7 +55,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
     super(popConfig, context, incoming);
     // figure out how we should map the fields
     Metric metric = popConfig.getMetricObj();
-    StoreClerk.Metric clerkMetric = new StoreClerk.Metric(null, metric, null);
+    StoreClerk.Metric clerkMetric = StoreClerk.Metric.metricOnlyFunctions(metric);
     OptionManager options = context.getOptions();
     String partitionDesignator =
       options.getOption(ExecConstants.FILESYSTEM_PARTITION_COLUMN_LABEL).string_val;
