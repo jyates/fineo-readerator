@@ -33,8 +33,6 @@ import org.apache.calcite.avatica.server.HttpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Driver;
-import java.sql.DriverManager;
 import java.util.Properties;
 
 /**
@@ -47,9 +45,11 @@ public class FineoServer {
   public static final String DRILL_CONNECTION_KEY = "drill-connection";
   public static final String DRILL_CATALOG_KEY = "drill-catalog";
 
+  private static final String EMPTY = "===UNSPECIFIED===";
+
   @Parameter(names = "--org-id", required = true,
              description = "Org ID served by this server. Only 1 org per server allowed.")
-  private String org;
+  private String org = EMPTY;
 
   @Parameter(names = {"-p", "--port"},
              description = "Port the server should bind")
@@ -57,7 +57,7 @@ public class FineoServer {
 
   @Parameter(names = "--"+DRILL_CONNECTION_KEY, required = true,
              description = "Connection string for the Drill JDBC driver")
-  private String drill = "===UNSPECIFIED===";
+  private String drill = EMPTY;
 
   @Parameter(names = "--"+DRILL_CATALOG_KEY,
              description = "Override the catalog that the target jdbc connection will use")

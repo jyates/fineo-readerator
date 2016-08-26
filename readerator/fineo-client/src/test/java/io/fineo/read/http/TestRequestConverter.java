@@ -24,7 +24,7 @@ public class TestRequestConverter {
   @Test
   @Ignore("Requires AWS test api connectivity")
   public void testMockApi() throws Exception {
-    String url = address + "/test";
+    String url = address + "/prod";
     URI uri = new URI(address);
     AsyncHttpClient client = new DefaultAsyncHttpClient();
     BoundRequestBuilder post = client.preparePost(url);

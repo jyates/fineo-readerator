@@ -48,14 +48,14 @@ public class RequestConverter {
     byte[] translated = translator.encode(data);
     post.setBody(translated);
     if (credentials != null) {
-      DefaultRequest<AmazonWebServiceRequest> awsReq = new DefaultRequest( "execute-api");
+      DefaultRequest<AmazonWebServiceRequest> awsReq = new DefaultRequest("execute-api");
       awsReq.setContent(new ByteArrayInputStream(translated));
       awsReq.addHeader("Content-Length", Integer.toString(translated.length));
       awsReq.addHeader("Content-Type", "application/json");
 
       awsReq.setHttpMethod(HttpMethodName.POST);
       awsReq.setEndpoint(endpoint);
-      awsReq.setResourcePath("/test");
+      awsReq.setResourcePath("/prod");
       awsReq.addHeader("x-api-key", apiKey);
 
       AWS4Signer signer = new AWS4Signer();
