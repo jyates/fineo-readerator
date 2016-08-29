@@ -58,7 +58,7 @@ public class FineoSchemaFactory implements SchemaFactory {
     String schemaTable = config.getRepository().getTable();
     AmazonDynamoDBAsyncClient dynamo = plugin.getDynamoClient();
     DynamoDBRepository schemaRepo = new DynamoDBRepository(ValidatorFactory.EMPTY, dynamo,
-      DynamoDBRepository.getBaseTableCreate(schemaTable));
+      schemaTable);
     return new SchemaStore(schemaRepo);
   }
 }

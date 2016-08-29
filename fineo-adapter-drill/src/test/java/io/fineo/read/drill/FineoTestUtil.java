@@ -1,13 +1,10 @@
 package io.fineo.read.drill;
 
-import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
-import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.fasterxml.jackson.jr.ob.JSON;
 import com.google.common.base.Joiner;
 import com.google.common.io.Files;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
-import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -144,15 +141,6 @@ public class FineoTestUtil {
 
   public static long get1980() {
     return LocalDate.of(1980, 1, 1).atStartOfDay().toEpochSecond(ZoneOffset.UTC) * 1000;
-  }
-
-  public static CreateTableRequest getCreateTable(String schemaTable) {
-    CreateTableRequest create =
-      DynamoDBRepository.getBaseTableCreate(schemaTable);
-    create.setProvisionedThroughput(new ProvisionedThroughput()
-      .withReadCapacityUnits(1L)
-      .withWriteCapacityUnits(1L));
-    return create;
   }
 
   protected static File createOutputDir(FsSourceTable table, StoreClerk.Metric metric, long ts) {

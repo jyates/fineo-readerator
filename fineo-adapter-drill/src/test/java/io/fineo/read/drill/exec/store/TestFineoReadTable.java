@@ -6,9 +6,7 @@ import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
-import io.fineo.schema.Pair;
 import io.fineo.schema.avro.AvroSchemaManager;
-import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreManager;
@@ -16,7 +14,6 @@ import org.apache.avro.Schema;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-import org.schemarepo.ValidatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -156,10 +153,7 @@ public class TestFineoReadTable extends BaseFineoTest {
 
   @Test
   public void testCastWithMultipleFieldAliases() throws Exception {
-    DynamoDBRepository repository =
-      new DynamoDBRepository(ValidatorFactory.EMPTY, tables.getAsyncClient(),
-        FineoTestUtil.getCreateTable(tables.getTestTableName()));
-    SchemaStore store = new SchemaStore(repository);
+    SchemaStore store = createDynamoSchemaStore();
     StoreManager manager = new StoreManager(store);
     StoreManager.MetricBuilder builder = manager.newOrg(org)
                                                 .newMetric().setDisplayName(metrictype);
@@ -309,10 +303,7 @@ public class TestFineoReadTable extends BaseFineoTest {
   private Map<String, Object> bootstrapFileWithFields(long timestamp, FieldInstance<?>... fields)
     throws IOException, OldSchemaException {
     // setup the schema repository
-    DynamoDBRepository repository =
-      new DynamoDBRepository(ValidatorFactory.EMPTY, tables.getAsyncClient(),
-        FineoTestUtil.getCreateTable(tables.getTestTableName()));
-    SchemaStore store = new SchemaStore(repository);
+    SchemaStore store = createDynamoSchemaStore();
     StoreManager manager = new StoreManager(store);
     StoreManager.MetricBuilder builder = manager.newOrg(org)
                                                 .newMetric().setDisplayName(metrictype);

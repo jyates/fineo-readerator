@@ -5,18 +5,22 @@ import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.google.common.base.Joiner;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 import io.fineo.drill.ClusterTest;
 import io.fineo.drill.rule.DrillClusterRule;
 import io.fineo.internal.customer.Metric;
+import io.fineo.lambda.configure.util.InstanceToNamed;
 import io.fineo.lambda.dynamo.DynamoTableCreator;
 import io.fineo.lambda.dynamo.DynamoTableTimeManager;
 import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
+import io.fineo.lambda.handle.schema.SchemaStoreModuleForTesting;
+import io.fineo.lambda.handle.schema.inject.SchemaStoreModule;
 import io.fineo.read.drill.exec.store.dynamo.DynamoTranslator;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
-import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
@@ -27,7 +31,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.experimental.categories.Category;
-import org.schemarepo.ValidatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -175,13 +178,8 @@ public class BaseFineoTest extends BaseDynamoTableTest {
 
   protected TestState register(Pair<String, StoreManager.Type>... fields)
     throws IOException, OldSchemaException {
-    // setup the schema repository
-    DynamoDBRepository repository =
-      new DynamoDBRepository(ValidatorFactory.EMPTY, tables.getAsyncClient(),
-        FineoTestUtil.getCreateTable(tables.getTestTableName()));
-    SchemaStore store = new SchemaStore(repository);
-
     // create a simple schema and store it
+    SchemaStore store = createDynamoSchemaStore();
     StoreManager manager = new StoreManager(store);
     StoreManager.OrganizationBuilder builder = manager.newOrg(org);
 
@@ -200,6 +198,14 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     StoreClerk clerk = new StoreClerk(store, org);
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
     return new TestState(metric.getUnderlyingMetric(), store);
+  }
+
+  protected SchemaStore createDynamoSchemaStore(){
+    // setup the schema repository
+    SchemaStoreModuleForTesting module = new SchemaStoreModuleForTesting();
+    Injector inject = Guice.createInjector(module, tables.getDynamoModule(), InstanceToNamed
+      .namedInstance(SchemaStoreModule.DYNAMO_SCHEMA_STORE_TABLE, tables.getTestTableName()));
+    return inject.getInstance(SchemaStore.class);
   }
 
   protected class TestState {

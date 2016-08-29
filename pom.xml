@@ -288,6 +288,13 @@
         <classifier>tests</classifier>
       </dependency>
       <dependency>
+        <groupId>io.fineo.schema</groupId>
+        <artifactId>schema-lambda</artifactId>
+        <version>${fineo.schema.version}</version>
+        <classifier>tests</classifier>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
         <groupId>io.fineo.etl.pipeline</groupId>
         <artifactId>dynamo-access</artifactId>
         <version>${fineo.ingest.version}</version>
