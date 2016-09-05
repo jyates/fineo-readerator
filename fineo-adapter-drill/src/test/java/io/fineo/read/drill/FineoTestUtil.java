@@ -33,9 +33,9 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
+import static io.fineo.schema.store.AvroSchemaProperties.ORG_ID_KEY;
+import static io.fineo.schema.store.AvroSchemaProperties.ORG_METRIC_TYPE_KEY;
+import static io.fineo.schema.store.AvroSchemaProperties.TIMESTAMP_KEY;
 import static java.lang.String.format;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;

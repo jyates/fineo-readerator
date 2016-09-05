@@ -11,7 +11,7 @@ import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
-import io.fineo.schema.avro.AvroSchemaEncoder;
+import io.fineo.schema.store.AvroSchemaProperties;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
@@ -30,7 +30,6 @@ import static io.fineo.read.drill.FineoTestUtil.bt;
 import static io.fineo.read.drill.FineoTestUtil.get1980;
 import static io.fineo.read.drill.FineoTestUtil.p;
 import static io.fineo.read.drill.FineoTestUtil.withNext;
-import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 import static org.apache.calcite.util.ImmutableNullableList.of;
 
 /**
@@ -71,9 +70,9 @@ public class TestClientLikeReads extends BaseFineoTest {
       .bootstrap();
 
     Map<String, Object> dynamoRow = new HashMap<>();
-    dynamoRow.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    dynamoRow.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    dynamoRow.put(TIMESTAMP_KEY, ts);
+    dynamoRow.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    dynamoRow.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
+    dynamoRow.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     dynamoRow.put(fieldname, 2);
 
     verifySelectStar(FineoTestUtil.withNext(parquetRow, dynamoRow));
@@ -99,9 +98,9 @@ public class TestClientLikeReads extends BaseFineoTest {
     bootstrapper().withDynamoKeyMapper().withDynamoTable(table).withLocalSource(source).bootstrap();
 
     Map<String, Object> expected = new HashMap<>();
-    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    expected.put(TIMESTAMP_KEY, ts);
+    expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     expected.put(fieldname, 1);
     verifySelectStar(withNext(expected));
   }
@@ -132,11 +131,11 @@ public class TestClientLikeReads extends BaseFineoTest {
     builder.bootstrap();
 
     Map<String, Object> expected = new HashMap<>();
-    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    expected.put(TIMESTAMP_KEY, ts);
+    expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     expected.put(fieldname, 1);
-    String query = verifySelectStar(of(bt(AvroSchemaEncoder.TIMESTAMP_KEY) + " <= " + ts), withNext
+    String query = verifySelectStar(of(bt(AvroSchemaProperties.TIMESTAMP_KEY) + " <= " + ts), withNext
       (expected));
 
     // validate that we only read the single parquet that we expected and the dynamo table

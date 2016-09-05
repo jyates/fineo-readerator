@@ -11,7 +11,7 @@ import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
-import io.fineo.schema.avro.AvroSchemaEncoder;
+import io.fineo.schema.store.AvroSchemaProperties;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -31,7 +31,6 @@ import static io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils.lte;
 import static io.fineo.read.drill.FineoTestUtil.get1980;
 import static io.fineo.read.drill.FineoTestUtil.p;
 import static io.fineo.read.drill.FineoTestUtil.withNext;
-import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 import static org.apache.calcite.util.ImmutableNullableList.of;
 import static org.junit.Assert.assertNotEquals;
 
@@ -54,9 +53,9 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     bootstrap(table);
 
     Map<String, Object> expected = new HashMap<>();
-    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    expected.put(TIMESTAMP_KEY, ts);
+    expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     expected.put("field1", true);
     String query = verifySelectStar(withNext(expected));
     DynamoFilterSpec keyFilter = DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
@@ -97,9 +96,9 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     state.update(table, wrote2);
 
     Map<String, Object> expected = new HashMap<>();
-    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    expected.put(TIMESTAMP_KEY, ts);
+    expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     expected.put(field, "v1");
     Map<String, Object> expected2 = newHashMap(expected);
     expected2.put(field, "v2");
@@ -130,13 +129,14 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     bootstrap(table, table2);
 
     Map<String, Object> expected = new HashMap<>();
-    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    expected.put(TIMESTAMP_KEY, ts);
+    expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     expected.put("field1", true);
     long tsLessThan = (ts + 100);
     String query =
-      verifySelectStar(of(FineoTestUtil.bt(TIMESTAMP_KEY) + " <= " + tsLessThan),
+      verifySelectStar(
+        of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " <= " + tsLessThan),
         withNext(expected));
     // take into account the push down timerange filter, which includes the TS in the output, but
     // otherwise wouldn't be there.
@@ -176,13 +176,14 @@ public class TestFineoOverDynamo extends BaseFineoTest {
 
     bootstrap(table);
     Map<String, Object> expected = new HashMap<>();
-    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    expected.put(TIMESTAMP_KEY, ts);
+    expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     expected.put(fieldname, 1);
 
     verifySelectStar(
-      withNext(expected, copyOverride(expected, p(TIMESTAMP_KEY, ts + 1), p(fieldname, 25))));
+      withNext(expected, copyOverride(expected, p(AvroSchemaProperties.TIMESTAMP_KEY, ts + 1), p
+        (fieldname, 25))));
   }
 
   @Test
@@ -206,13 +207,14 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     bootstrap(table);
     List<Map<String, Object>> rows = new ArrayList<>();
     Map<String, Object> expected = new HashMap<>();
-    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
-    expected.put(TIMESTAMP_KEY, ts);
+    expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     expected.put(fieldname, 1);
     rows.add(expected);
     rows.add(copyOverride(expected, p(fieldname, 2)));
-    Map<String, Object> row2 = copyOverride(expected, p(TIMESTAMP_KEY, ts + 1), p(fieldname, 25));
+    Map<String, Object> row2 = copyOverride(expected, p(AvroSchemaProperties.TIMESTAMP_KEY, ts +
+                                                                                            1), p(fieldname, 25));
     rows.add(row2);
     rows.add(copyOverride(row2, p(fieldname, 26)));
     QueryRunnable runnable = new QueryRunnable(ImmutableList.of(), withNext(rows));
@@ -232,8 +234,8 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     bootstrap(table);
 
     Map<String, Object> expected = new HashMap<>();
-    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
     expected.put(fieldname, true);
     runAndVerify(new QueryRunnable(withNext(expected)).select(fieldname));
   }
@@ -253,8 +255,8 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     state.update(table, wrote);
 
     Map<String, Object> expected = new HashMap<>();
-    expected.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    expected.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
     expected.put(fieldname, 1);
     runAndVerify(new QueryRunnable(withNext(expected, copyOverride(expected, p(fieldname, 25))))
       .select(fieldname).sortBy(fieldname));

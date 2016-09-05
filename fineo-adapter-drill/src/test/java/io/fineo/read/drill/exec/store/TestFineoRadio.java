@@ -1,13 +1,11 @@
 package io.fineo.read.drill.exec.store;
 
 import io.fineo.drill.ClusterTest;
-import io.fineo.internal.customer.Metric;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
-import io.fineo.schema.avro.AvroSchemaManager;
-import io.fineo.schema.store.SchemaBuilder;
 import io.fineo.schema.store.SchemaStore;
+import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -131,17 +129,11 @@ public class TestFineoRadio extends BaseFineoTest {
   public void testKnownAliasKnownField() throws Exception {
     TestState state = register();
     // create a new alias name for the field
-    Metric metric = state.getMetric();
-    SchemaStore store = state.getStore();
-    SchemaBuilder builder = SchemaBuilder.create();
-    SchemaBuilder.OrganizationBuilder ob = builder.updateOrg(store.getOrgMetadata(org));
-    Map<String, String> aliasToCname = AvroSchemaManager.getAliasRemap(metric);
-    String cname = aliasToCname.get(fieldname);
     String storeFieldName = "other-field-name";
-    SchemaBuilder.Organization org =
-      ob.updateSchema(metric).updateField(cname).withAlias(storeFieldName).asField().build()
-        .build();
-    store.updateOrgMetric(org, metric);
+    SchemaStore store = state.getStore();
+    StoreManager manager = new StoreManager(store);
+    manager.updateOrg(org).updateMetric(metrictype).addFieldAlias(fieldname, storeFieldName)
+           .build().commit();
 
     // apply a file with the new field name
     File tmp = folder.newFolder("drill");

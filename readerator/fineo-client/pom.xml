@@ -96,10 +96,10 @@
                     </includes>
                   </artifactSet>
                   <relocations>
-                    <relocation>
-                      <pattern>com.fasterxml.jackson</pattern>
-                      <shadedPattern>fineo.fasterxml.jackson</shadedPattern>
-                    </relocation>
+                  <relocation>
+                    <pattern>com.fasterxml.jackson</pattern>
+                    <shadedPattern>fineo.fasterxml.jackson</shadedPattern>
+                  </relocation>
                     <relocation>
                       <pattern>com.google.common</pattern>
                       <shadedPattern>fineo.com.google.common</shadedPattern>
