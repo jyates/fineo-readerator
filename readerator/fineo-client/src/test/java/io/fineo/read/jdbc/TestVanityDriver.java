@@ -2,19 +2,17 @@ package io.fineo.read.jdbc;
 
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
-import org.hamcrest.Matcher;
-import org.hamcrest.core.Is;
-import org.hamcrest.core.IsEqual;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.net.ConnectException;
 import java.net.Inet4Address;
-import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.concurrent.ExecutionException;
 
+import static com.amazonaws.SDKGlobalConfiguration.ACCESS_KEY_SYSTEM_PROPERTY;
+import static com.amazonaws.SDKGlobalConfiguration.SECRET_KEY_SYSTEM_PROPERTY;
 import static java.lang.String.format;
 import static junit.framework.TestCase.assertEquals;
 
@@ -28,6 +26,10 @@ public class TestVanityDriver {
 
   @Test
   public void testGetDriver() throws Exception {
+    // ensure that we an AWS key/secret set properties set
+    System.setProperty(ACCESS_KEY_SYSTEM_PROPERTY, "AKIAIUHLZLB7VTXUAX7A");
+    System.setProperty(SECRET_KEY_SYSTEM_PROPERTY, "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");
+
     Class.forName("io.fineo.read.Driver");
     assertEquals(DriverManager.getDriver("jdbc:fineo:").getClass(), io.fineo.read.Driver.class);
     String url = "https://" + Inet4Address.getLocalHost().getCanonicalHostName();
