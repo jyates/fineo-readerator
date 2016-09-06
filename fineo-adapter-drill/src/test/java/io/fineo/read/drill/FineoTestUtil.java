@@ -5,6 +5,7 @@ import com.google.common.base.Joiner;
 import com.google.common.io.Files;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
+import io.fineo.schema.store.AvroSchemaProperties;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -33,6 +34,7 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static io.fineo.schema.store.AvroSchemaProperties.*;
 import static io.fineo.schema.store.AvroSchemaProperties.ORG_ID_KEY;
 import static io.fineo.schema.store.AvroSchemaProperties.ORG_METRIC_TYPE_KEY;
 import static io.fineo.schema.store.AvroSchemaProperties.TIMESTAMP_KEY;
@@ -55,6 +57,8 @@ public class FineoTestUtil {
     row.put(ORG_ID_KEY, org);
     row.put(ORG_METRIC_TYPE_KEY, metricId);
     row.put(TIMESTAMP_KEY, ts);
+    row.put(WRITE_TIME_KEY, System.currentTimeMillis());
+    row.put(METRIC_ORIGINAL_FIELD_ALIAS, metric.getUserName());
   }
 
   protected static void assertNext(int j, ResultSet result, Map<String, Object> values)
@@ -66,9 +70,16 @@ public class FineoTestUtil {
                "\n\tExpected Content =>" + values +
                "\n\tActual row content: " + row);
     }
+
+    List<String> skipKeys = newArrayList(
+      ORG_ID_KEY,
+      ORG_METRIC_TYPE_KEY,
+      WRITE_TIME_KEY,
+      METRIC_ORIGINAL_FIELD_ALIAS
+    );
+
     values.keySet().stream()
-          .filter(Predicate.isEqual(ORG_ID_KEY).negate())
-          .filter(Predicate.isEqual(ORG_METRIC_TYPE_KEY).negate())
+          .filter(key -> !skipKeys.contains(key))
           .forEach(key -> {
             try {
               Object expected = values.get(key);
@@ -79,8 +90,7 @@ public class FineoTestUtil {
             }
           });
     List<String> expectedKeys = newArrayList(values.keySet());
-    expectedKeys.remove(ORG_ID_KEY);
-    expectedKeys.remove(ORG_METRIC_TYPE_KEY);
+    expectedKeys.removeAll(skipKeys);
     List<String> actualKeys = getColumns(result.getMetaData());
     Collections.sort(expectedKeys);
     Collections.sort(actualKeys);

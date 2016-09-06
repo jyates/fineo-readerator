@@ -21,6 +21,7 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import java.io.File;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,6 +32,8 @@ import static io.fineo.read.drill.FineoTestUtil.get1980;
 import static io.fineo.read.drill.FineoTestUtil.p;
 import static io.fineo.read.drill.FineoTestUtil.withNext;
 import static org.apache.calcite.util.ImmutableNullableList.of;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
 /**
  * Validate reads across all three sources with different varying time ranges. Things that need
@@ -135,8 +138,9 @@ public class TestClientLikeReads extends BaseFineoTest {
     expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
     expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     expected.put(fieldname, 1);
-    String query = verifySelectStar(of(bt(AvroSchemaProperties.TIMESTAMP_KEY) + " <= " + ts), withNext
-      (expected));
+    String query =
+      verifySelectStar(of(bt(AvroSchemaProperties.TIMESTAMP_KEY) + " <= " + ts), withNext
+        (expected));
 
     // validate that we only read the single parquet that we expected and the dynamo table
     DynamoFilterSpec keyFilter = DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
@@ -205,6 +209,61 @@ public class TestClientLikeReads extends BaseFineoTest {
       .bootstrap();
 
     parquetRow.put(fieldname, parquetRow.remove(cname));
+    verifySelectStar(FineoTestUtil.withNext(parquetRow));
+  }
+
+  @Test
+  public void testMetricDeletionHiding() throws Exception {
+    // create a single field
+    Pair<String, StoreManager.Type> field = p(fieldname, StoreManager.Type.INT);
+    TestState state = register(field);
+    StoreClerk clerk = new StoreClerk(state.getStore(), org);
+    StoreClerk.Metric metric = clerk.getMetrics().get(0);
+
+    // write some data for that metric
+    long ts = get1980();
+    File tmp = folder.newFolder("drill");
+
+    Map<String, Object> parquetRow = new HashMap<>();
+    parquetRow.put(fieldname, 1);
+    Pair<FsSourceTable, File> parquet = writeParquet(state, tmp, org, metrictype, ts,
+      parquetRow);
+
+    bootstrapper()
+      .withLocalSource(parquet.getKey())
+      .bootstrap();
+
+    verifySelectStar(FineoTestUtil.withNext(parquetRow));
+
+    StoreManager manager = new StoreManager(state.getStore());
+    manager.updateOrg(org).deleteMetric(metric.getUserName()).commit();
+
+    // now delete the metric and we shouldn't see any data
+    try {
+      verifySelectStar(r -> {
+      });
+      fail("Should not be able to read a metric that doesn't exist - the table should be deleted");
+    } catch (SQLException e) {
+      // expected
+    }
+
+    // create a new metric with the same name
+    registerSchema(state.getStore(), false, field);
+
+    verifySelectStar(results -> {
+      assertFalse("Got a row after recreating the metric!", results.next());
+    });
+
+    // write a row again
+    parquetRow = new HashMap<>();
+    parquetRow.put(fieldname, 2);
+    Pair<FsSourceTable, File> parquet2 = writeParquet(state, tmp, org, metrictype, ts + 1,
+      parquetRow);
+    bootstrapper()
+      .withLocalSource(parquet.getKey())
+      .withLocalSource(parquet2.getKey())
+      .bootstrap();
+    // this time we should be able to read it
     verifySelectStar(FineoTestUtil.withNext(parquetRow));
   }
 

@@ -8,6 +8,7 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.tools.RelBuilder;
 
@@ -52,6 +53,22 @@ public class LogicalScanBuilder {
       new LogicalTableScan(cluster, cluster.traitSetOf(Convention.NONE), table);
     addFields(scan);
     return scan;
+  }
+
+  public void removeScan(String schema, String tableName){
+    LogicalTableScan scan =null;
+    for(RelNode table: tables){
+      if(table instanceof TableScan){
+        if(table.getTable().equals(relOptTable.getRelOptSchema().getTableForMember(newArrayList
+          (schema, tableName)))){
+          scan = (LogicalTableScan) table;
+          break;
+        }
+      }
+    }
+    if(scan != null){
+      tables.remove(scan);
+    }
   }
 
   private void addFields(RelNode scan) {

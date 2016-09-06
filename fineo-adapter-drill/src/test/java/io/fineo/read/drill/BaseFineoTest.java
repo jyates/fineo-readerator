@@ -21,7 +21,9 @@ import io.fineo.lambda.handle.schema.inject.SchemaStoreModule;
 import io.fineo.read.drill.exec.store.dynamo.DynamoTranslator;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
+import io.fineo.schema.exception.SchemaExistsException;
 import io.fineo.schema.exception.SchemaNotFoundException;
+import io.fineo.schema.exception.SchemaTypeNotFoundException;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
@@ -180,8 +182,18 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     throws IOException, OldSchemaException {
     // create a simple schema and store it
     SchemaStore store = createDynamoSchemaStore();
+    registerSchema(store, true, fields);
+
+    StoreClerk clerk = new StoreClerk(store, org);
+    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
+    return new TestState(metric.getUnderlyingMetric(), store);
+  }
+
+  protected void registerSchema(SchemaStore store, boolean newOrg, Pair<String, StoreManager.Type>...
+    fields) throws IOException, OldSchemaException {
     StoreManager manager = new StoreManager(store);
-    StoreManager.OrganizationBuilder builder = manager.newOrg(org);
+    StoreManager.OrganizationBuilder builder =
+      newOrg ? manager.newOrg(org) : manager.updateOrg(org);
 
     StoreManager.MetricBuilder mb = builder.newMetric().setDisplayName(metrictype);
     // default just creates a boolean field
@@ -194,13 +206,9 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     }
 
     mb.build().commit();
-
-    StoreClerk clerk = new StoreClerk(store, org);
-    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
-    return new TestState(metric.getUnderlyingMetric(), store);
   }
 
-  protected SchemaStore createDynamoSchemaStore(){
+  protected SchemaStore createDynamoSchemaStore() {
     // setup the schema repository
     SchemaStoreModuleForTesting module = new SchemaStoreModuleForTesting();
     Injector inject = Guice.createInjector(module, tables.getDynamoModule(), InstanceToNamed

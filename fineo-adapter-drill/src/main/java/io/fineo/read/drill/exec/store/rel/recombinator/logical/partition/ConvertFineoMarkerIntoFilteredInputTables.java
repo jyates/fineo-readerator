@@ -14,7 +14,7 @@ import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler
   .FileSystemTimestampHandler;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler.TimestampHandler;
 import io.fineo.read.drill.exec.store.schema.FineoTable;
-import io.fineo.schema.avro.AvroSchemaEncoder;
+import io.fineo.schema.store.AvroSchemaProperties;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
@@ -154,7 +154,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
            // TODO replace this with another instance of WrappingFilterBuilder + TimestampHandler
            // timestamp is strictly less than the minimum dynamo time value
            RelDataTypeField field =
-             node.getRowType().getField(AvroSchemaEncoder.TIMESTAMP_KEY, false, false);
+             node.getRowType().getField(AvroSchemaProperties.TIMESTAMP_KEY, false, false);
            RexInputRef ref = rexer.makeInputRef(node, field.getIndex());
            RexNode limit = rexer.makeCall(LESS_THAN, ref, startLiteral);
 
