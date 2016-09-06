@@ -10,6 +10,7 @@ import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
+import io.fineo.read.drill.exec.store.dynamo.TestFineoOverDynamo;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.store.AvroSchemaProperties;
 import io.fineo.schema.store.SchemaStore;
@@ -32,6 +33,7 @@ import static io.fineo.read.drill.FineoTestUtil.bt;
 import static io.fineo.read.drill.FineoTestUtil.get1980;
 import static io.fineo.read.drill.FineoTestUtil.p;
 import static io.fineo.read.drill.FineoTestUtil.withNext;
+import static io.fineo.read.drill.exec.store.dynamo.TestFineoOverDynamo.getFilterSpec;
 import static org.apache.calcite.util.ImmutableNullableList.of;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
@@ -144,8 +146,8 @@ public class TestClientLikeReads extends BaseFineoTest {
         (expected));
 
     // validate that we only read the single parquet that we expected and the dynamo table
-    DynamoFilterSpec keyFilter = DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
-      dynamo.get(Schema.PARTITION_KEY_NAME)).and(lte(Schema.SORT_KEY_NAME, ts));
+    DynamoFilterSpec keyFilter = getFilterSpec(state.getStore(), org, metrictype)
+      .and(lte(Schema.SORT_KEY_NAME, ts));
     new PlanValidator(query)
       // dynamo
       .validateDynamoQuery()
