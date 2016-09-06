@@ -11,7 +11,9 @@ import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
+import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.AvroSchemaProperties;
+import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -39,7 +41,6 @@ import static org.junit.Assert.assertNotEquals;
  */
 @Category(ClusterTest.class)
 public class TestFineoOverDynamo extends BaseFineoTest {
-  private final DynamoTranslator trans = new DynamoTranslator();
 
   @Test
   public void testReadSingleRow() throws Exception {
@@ -49,17 +50,15 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put("field1", true);
-    Table table = state.write(wrote);
+    Table table = state.writeToDynamo(wrote);
     bootstrap(table);
-
     Map<String, Object> expected = new HashMap<>();
     expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
     expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
     expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     expected.put("field1", true);
     String query = verifySelectStar(withNext(expected));
-    DynamoFilterSpec keyFilter = DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
-      wrote.get(Schema.PARTITION_KEY_NAME));
+    DynamoFilterSpec keyFilter = getFilterSpec(state.getStore(), org, metrictype);
     new PlanValidator(query)
       // dynamo
       .validateDynamoQuery()
@@ -79,6 +78,14 @@ public class TestFineoOverDynamo extends BaseFineoTest {
       .validate(drill.getConnection());
   }
 
+  public static DynamoFilterSpec getFilterSpec(SchemaStore store, String org, String metricName)
+    throws SchemaNotFoundException {
+    String metricId = new StoreClerk(store, org).getMetricForUserNameOrAlias
+      (metricName).getMetricId();
+    return
+      DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME, org + metricId);
+  }
+
   @Test
   public void testReadOverlappingTimestampRow() throws Exception {
     String field = "field1";
@@ -88,12 +95,12 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put(field, "v1");
-    Table table = state.write(wrote);
+    Table table = state.writeToDynamo(wrote);
     bootstrap(table);
 
     Map<String, Object> wrote2 = newHashMap(wrote);
     wrote2.put(field, "v2");
-    state.update(table, wrote2);
+    state.update(wrote2);
 
     Map<String, Object> expected = new HashMap<>();
     expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
@@ -120,10 +127,10 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put("field1", true);
-    Table table = state.write(wrote);
+    Table table = state.writeToDynamo(wrote);
 
     wrote.put(Schema.SORT_KEY_NAME, ts + Duration.ofDays(30).toMillis());
-    Table table2 = state.write(wrote);
+    Table table2 = state.writeToDynamo(wrote);
     assertNotEquals("Write are to the same table, but checking reading across multiple tables! ",
       table.getTableName(), table2.getTableName());
     bootstrap(table, table2);
@@ -167,12 +174,12 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     Map<String, Object> dynamo = prepareItem();
     dynamo.put(Schema.SORT_KEY_NAME, ts);
     dynamo.put(fieldname, 1);
-    Table table = state.write(dynamo);
+    Table table = state.writeToDynamo(dynamo);
 
     // definitely a different row
     dynamo.put(fieldname, 25);
     dynamo.put(Schema.SORT_KEY_NAME, ts + 1);
-    table.putItem(trans.apply(dynamo));
+    state.writeToDynamo(dynamo);
 
     bootstrap(table);
     Map<String, Object> expected = new HashMap<>();
@@ -193,16 +200,16 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     Map<String, Object> dynamo = prepareItem();
     dynamo.put(Schema.SORT_KEY_NAME, ts);
     dynamo.put(fieldname, 1);
-    Table table = state.write(dynamo);
+    Table table = state.writeToDynamo(dynamo);
     dynamo.put(fieldname, 2);
-    state.update(table, dynamo);
+    state.update(dynamo);
 
     // definitely a different row
     dynamo.put(fieldname, 25);
     dynamo.put(Schema.SORT_KEY_NAME, ts + 1);
-    table.putItem(trans.apply(dynamo));
+    state.writeToDynamo(dynamo);
     dynamo.put(fieldname, 26);
-    state.update(table, dynamo);
+    state.update(dynamo);
 
     bootstrap(table);
     List<Map<String, Object>> rows = new ArrayList<>();
@@ -214,7 +221,8 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     rows.add(expected);
     rows.add(copyOverride(expected, p(fieldname, 2)));
     Map<String, Object> row2 = copyOverride(expected, p(AvroSchemaProperties.TIMESTAMP_KEY, ts +
-                                                                                            1), p(fieldname, 25));
+                                                                                            1),
+      p(fieldname, 25));
     rows.add(row2);
     rows.add(copyOverride(row2, p(fieldname, 26)));
     QueryRunnable runnable = new QueryRunnable(ImmutableList.of(), withNext(rows));
@@ -230,7 +238,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put(fieldname, true);
-    Table table = state.write(wrote);
+    Table table = state.writeToDynamo(wrote);
     bootstrap(table);
 
     Map<String, Object> expected = new HashMap<>();
@@ -248,11 +256,11 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put(fieldname, 1);
-    Table table = state.write(wrote);
+    Table table = state.writeToDynamo(wrote);
     bootstrap(table);
 
     wrote.put(fieldname, 25);
-    state.update(table, wrote);
+    state.update(wrote);
 
     Map<String, Object> expected = new HashMap<>();
     expected.put(AvroSchemaProperties.ORG_ID_KEY, org);

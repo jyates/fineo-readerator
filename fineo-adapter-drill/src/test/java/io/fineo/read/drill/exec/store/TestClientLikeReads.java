@@ -62,7 +62,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put(fieldname, 2);
-    Table table = state.write(wrote);
+    Table table = state.writeToDynamo(wrote);
 
     bootstrapper()
       // dynamo
@@ -92,7 +92,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     Map<String, Object> dynamo = prepareItem();
     dynamo.put(Schema.SORT_KEY_NAME, ts);
     dynamo.put(fieldname, 1);
-    Table table = state.write(dynamo);
+    Table table = state.writeToDynamo(dynamo);
 
     Map<String, Object> parquet = new HashMap<>();
     parquet.put(fieldname, 2);
@@ -116,7 +116,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     Map<String, Object> dynamo = prepareItem();
     dynamo.put(Schema.SORT_KEY_NAME, ts);
     dynamo.put(fieldname, 1);
-    Table table = state.write(dynamo);
+    Table table = state.writeToDynamo(dynamo);
 
     Map<String, Object> parquet = new HashMap<>();
     parquet.put(fieldname, 2);
@@ -220,7 +220,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
     StoreClerk.Metric metric = clerk.getMetrics().get(0);
 
-    // write some data for that metric
+    // writeToDynamo some data for that metric
     long ts = get1980();
     File tmp = folder.newFolder("drill");
 
@@ -259,7 +259,7 @@ public class TestClientLikeReads extends BaseFineoTest {
       //expected
     }
 
-    // write a row again
+    // writeToDynamo a row again
     parquetRow = new HashMap<>();
     parquetRow.put(fieldname, 2);
     Pair<FsSourceTable, File> parquet2 = writeParquet(state, tmp, org, metrictype, ts + 1,
@@ -279,13 +279,13 @@ public class TestClientLikeReads extends BaseFineoTest {
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
     StoreClerk.Metric metric = clerk.getMetrics().get(0);
 
-    // write some data for that metric
+    // writeToDynamo some data for that metric
     long ts = get1980();
 
     Map<String, Object> dynamo = prepareItem();
     dynamo.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     dynamo.put(fieldname, 1);
-    Table table = state.write(tables.getAsyncClient(), dynamo);
+    Table table = state.writeToDynamo(dynamo);
 
     bootstrapper()
       .withDynamoKeyMapper()
@@ -313,9 +313,9 @@ public class TestClientLikeReads extends BaseFineoTest {
       assertFalse("Got a row after recreating the metric!", results.next());
     });
 
-    // write a row again. This goes to the same table, so we don't need to re-bootstrap
+    // writeToDynamo a row again. This goes to the same table, so we don't need to re-bootstrap
     dynamo.put(fieldname, 2);
-    state.write(tables.getAsyncClient(), dynamo);
+    state.writeToDynamo(dynamo);
 
     // this time we should be able to read it
     verifySelectStar(FineoTestUtil.withNext(dynamo));
@@ -328,13 +328,13 @@ public class TestClientLikeReads extends BaseFineoTest {
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
     StoreClerk.Metric metric = clerk.getMetrics().get(0);
 
-    // write some data for that metric
+    // writeToDynamo some data for that metric
     long ts = get1980();
 
     Map<String, Object> dynamo = prepareItem();
     dynamo.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     dynamo.put(fieldname, 1);
-    Table table = state.write(tables.getAsyncClient(), dynamo);
+    Table table = state.writeToDynamo(dynamo);
 
     bootstrapper()
       .withDynamoKeyMapper()
@@ -355,9 +355,9 @@ public class TestClientLikeReads extends BaseFineoTest {
     registerSchema(state.getStore(), false, field);
     verifyNoRows();
 
-    // write a row again. This goes to the same table, so we don't need to re-bootstrap
+    // writeToDynamo a row again. This goes to the same table, so we don't need to re-bootstrap
     dynamo.put(fieldname, 2);
-    state.write(tables.getAsyncClient(), dynamo);
+    state.writeToDynamo(dynamo);
 
     // this time we should be able to read it
     verifySelectStar(FineoTestUtil.withNext(dynamo));

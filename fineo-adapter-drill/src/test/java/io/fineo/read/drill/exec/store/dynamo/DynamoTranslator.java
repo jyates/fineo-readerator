@@ -38,8 +38,13 @@ import static org.junit.Assert.assertFalse;
  */
 public class DynamoTranslator {
 
-  public void write(AmazonDynamoDBAsyncClient client, DynamoTableCreator creator, SchemaStore
-    store, Map<String, Object> item)
+  private final AmazonDynamoDBAsyncClient client;
+
+  public DynamoTranslator(AmazonDynamoDBAsyncClient asyncClient) {
+    this.client = asyncClient;
+  }
+
+  public void write(DynamoTableCreator creator, SchemaStore store, Map<String, Object> item)
     throws
     SchemaNotFoundException {
     StoreClerk clerk = new StoreClerk(store,
@@ -49,25 +54,7 @@ public class DynamoTranslator {
     AvroToDynamoWriter writer = new AvroToDynamoWriter(client, 3, creator);
     writer.write(record);
     MultiWriteFailures<GenericRecord> failures = writer.flush();
-    assertFalse("Failed to write records to dynamo! " + failures.getActions(), failures.any());
-  }
-
-  public Item apply(Map<String, Object> itemToWrite) throws Exception {
-    Item wrote = new Item();
-    Map<String, Object> item = newHashMap(itemToWrite);
-    wrote.with(Schema.PARTITION_KEY_NAME, item.remove(Schema.PARTITION_KEY_NAME));
-    wrote.with(Schema.SORT_KEY_NAME, item.remove(Schema.SORT_KEY_NAME));
-    // assume sin
-
-    // the remaining elements are stored by id
-    String id = getId();
-    wrote.with(Schema.ID_FIELD, newHashSet(id));
-    for (Map.Entry<String, Object> column : item.entrySet()) {
-      Map<String, Object> map = new HashMap<>();
-      map.put(id, column.getValue());
-      wrote.with(column.getKey(), map);
-    }
-    return wrote;
+    assertFalse("Failed to writeToDynamo records to dynamo! " + failures.getActions(), failures.any());
   }
 
   public UpdateItemSpec updateItem(Map<String, Object> toUpdate)

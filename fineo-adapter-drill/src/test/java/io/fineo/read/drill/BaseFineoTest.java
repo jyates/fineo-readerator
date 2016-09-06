@@ -2,15 +2,12 @@ package io.fineo.read.drill;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
-import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
-import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.google.common.base.Joiner;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import io.fineo.drill.ClusterTest;
 import io.fineo.drill.rule.DrillClusterRule;
-import io.fineo.internal.customer.Metric;
 import io.fineo.lambda.configure.util.InstanceToNamed;
 import io.fineo.lambda.dynamo.DynamoTableCreator;
 import io.fineo.lambda.dynamo.DynamoTableTimeManager;
@@ -38,8 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -186,7 +181,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
 
     StoreClerk clerk = new StoreClerk(store, org);
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
-    return new TestState(metric.getUnderlyingMetric(), store);
+    return new TestState(store, tables.getAsyncClient());
   }
 
   protected void registerSchema(SchemaStore store, boolean newOrg,
@@ -218,14 +213,13 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   }
 
   protected class TestState {
-    private final DynamoTranslator trans = new DynamoTranslator();
-    Metric metric;
+    private final DynamoTranslator trans;
     SchemaStore store;
     private DynamoTableCreator creator;
 
-    public TestState(Metric metric, SchemaStore store) {
-      this.metric = metric;
+    public TestState(SchemaStore store, AmazonDynamoDBAsyncClient asyncClient) {
       this.store = store;
+      this.trans = new DynamoTranslator(asyncClient);
     }
 
     public FsSourceTable writeParquet(File dir, long ts, Map<String, Object>... values)
@@ -248,32 +242,23 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       return FineoTestUtil.writeJson(store, dir, org, metricType, ts, values);
     }
 
-    public Item translate(Map<String, Object> item) throws Exception {
-      return trans.apply(item);
-    }
-
-    public Table write(Map<String, Object> item) throws Exception {
-      return write(translate(item));
-    }
-
-    public Table write(AmazonDynamoDBAsyncClient client, Map<String, Object> item) throws
+    public Table writeToDynamo(Map<String, Object> item) throws
       Exception {
-      Table table = getAndEnsureTable((Long) item.get(AvroSchemaProperties.TIMESTAMP_KEY));
-      trans.write(client, creator, store, item);
-      return table;
-    }
+      // older code used the sort key, so check for that instead
+      Long ts = (Long) item.remove(Schema.SORT_KEY_NAME);
+      if (ts != null) {
+        item.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
+      }
+      ts = (Long) item.get(AvroSchemaProperties.TIMESTAMP_KEY);
 
-    public void update(Table table, Map<String, Object> item)
-      throws UnsupportedEncodingException, NoSuchAlgorithmException {
-      UpdateItemSpec spec = trans.updateItem(item);
-      table.updateItem(spec);
-    }
-
-    public Table write(Item wrote) {
-      long ts = wrote.getLong(Schema.SORT_KEY_NAME);
       Table table = getAndEnsureTable(ts);
-      table.putItem(wrote);
+      trans.write(creator, store, item);
       return table;
+    }
+
+    public void update(Map<String, Object> item)
+      throws Exception {
+      writeToDynamo(item);
     }
 
     private Table getAndEnsureTable(long ts) {
@@ -285,10 +270,6 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       }
       String name = creator.getTableAndEnsureExists(ts);
       return dynamo.getTable(name);
-    }
-
-    public Metric getMetric() {
-      return metric;
     }
 
     public SchemaStore getStore() {
