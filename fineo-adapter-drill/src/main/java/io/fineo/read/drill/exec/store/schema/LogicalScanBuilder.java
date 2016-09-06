@@ -55,22 +55,6 @@ public class LogicalScanBuilder {
     return scan;
   }
 
-  public void removeScan(String schema, String tableName){
-    LogicalTableScan scan =null;
-    for(RelNode table: tables){
-      if(table instanceof TableScan){
-        if(table.getTable().equals(relOptTable.getRelOptSchema().getTableForMember(newArrayList
-          (schema, tableName)))){
-          scan = (LogicalTableScan) table;
-          break;
-        }
-      }
-    }
-    if(scan != null){
-      tables.remove(scan);
-    }
-  }
-
   private void addFields(RelNode scan) {
     // this is always a dynamic table - that the "*" operator is added to the row type
     scan.getRowType().getFieldList();

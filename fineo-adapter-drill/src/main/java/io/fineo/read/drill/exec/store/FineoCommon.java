@@ -1,5 +1,7 @@
 package io.fineo.read.drill.exec.store;
 
+import io.fineo.lambda.dynamo.Schema;
+
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -11,8 +13,13 @@ import static io.fineo.schema.store.AvroSchemaProperties.TIMESTAMP_KEY;
  *
  */
 public class FineoCommon {
+
+  public static final String WRITE_TIME_FIELD_NAME = Schema.WRITE_TIME_FIELD;
+
   public static final List<String> REQUIRED_FIELDS =
-    newArrayList(ORG_ID_KEY, ORG_METRIC_TYPE_KEY, TIMESTAMP_KEY);
+    newArrayList(ORG_ID_KEY, ORG_METRIC_TYPE_KEY, TIMESTAMP_KEY, WRITE_TIME_FIELD_NAME);
+
+
 
   /**
    * This is also overridden in resources/drill-module.conf

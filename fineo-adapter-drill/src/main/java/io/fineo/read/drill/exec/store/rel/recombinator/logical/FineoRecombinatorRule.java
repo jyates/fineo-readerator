@@ -8,8 +8,6 @@ import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.plan.RelOptTable;
-import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
@@ -69,9 +67,9 @@ public class FineoRecombinatorRule extends RelOptRule {
       // cast table fields to the expected user-typed fields
       RelNode table = cast(marker.getInput(i), userFields, rexBuilder, rowType);
 
-      // wrap with a filter to limit the output to the correct org and metrictableNode
-      RexNode orgMetricCondition = getOrgAndMetricFilter(rexBuilder, fmr, table, type);
-      RelNode filter = LogicalFilter.create(table, orgMetricCondition);
+      // wrap with a filter to limit the output to the correct org and metric tableNode
+      RexNode condition = getOrgAndMetricFilter(rexBuilder, fmr, table, type);
+      RelNode filter = LogicalFilter.create(table, condition);
 
       // Child of this is the -logical- equivalent of the filter
       filter = convert(filter, table.getTraitSet().plus(DRILL_LOGICAL));
@@ -168,19 +166,6 @@ public class FineoRecombinatorRule extends RelOptRule {
         return builder.makeCall(SqlStdOperatorTable.EQUALS, pkRef, pk);
     }
     throw new UnsupportedOperationException("Don't know how to support table type: " + type);
-  }
-
-  private List<String> getSourceTableQualifiedName(RelNode input) {
-    RelOptTable table = null;
-    while (table == null) {
-      table = input.getTable();
-      if (table == null) {
-        input = input instanceof RelSubset ?
-                ((RelSubset) input).getRelList().get(0) :
-                input.getInput(0);
-      }
-    }
-    return table.getQualifiedName();
   }
 
   private void addSort(RelBuilder builder, RelOptCluster cluster) {

@@ -17,6 +17,7 @@ import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.drill.exec.store.parquet.ParquetFormatConfig;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -322,6 +323,7 @@ public class TestClientLikeReads extends BaseFineoTest {
   }
 
   @Test
+  @Ignore("Deleting fields not yet supported. This is how we would validate that it works")
   public void testDeleteFieldInMetric() throws Exception {
     Pair<String, StoreManager.Type> field = p(fieldname, StoreManager.Type.INT);
     TestState state = register(field);
@@ -343,23 +345,24 @@ public class TestClientLikeReads extends BaseFineoTest {
 
     verifySelectStar(FineoTestUtil.withNext(dynamo));
 
+    // now delete the field and we shouldn't see any data
     StoreManager manager = new StoreManager(state.getStore());
     manager.updateOrg(org)
            .updateMetric(metric.getUserName()).deleteField(fieldname).build()
            .commit();
-
-    // now delete the metric and we shouldn't see any data
     verifyNoRows();
 
-    // create a new metric with the same name
-    registerSchema(state.getStore(), false, field);
-    verifyNoRows();
+    //add a new field, write some data and then we should be able to read the new data
+    manager.updateOrg(org)
+           .updateMetric(metric.getUserName())
+           .newField().withName(fieldname).withType(StoreManager.Type.INTEGER).build()
+           .build().commit();
 
     // writeToDynamo a row again. This goes to the same table, so we don't need to re-bootstrap
     dynamo.put(fieldname, 2);
     state.writeToDynamo(dynamo);
 
-    // this time we should be able to read it
+    // this time we should be able to read it, but not the old row
     verifySelectStar(FineoTestUtil.withNext(dynamo));
   }
 
