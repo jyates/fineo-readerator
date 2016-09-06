@@ -321,6 +321,52 @@ public class TestClientLikeReads extends BaseFineoTest {
     verifySelectStar(FineoTestUtil.withNext(dynamo));
   }
 
+  @Test
+  public void testDeleteFieldInMetric() throws Exception {
+    Pair<String, StoreManager.Type> field = p(fieldname, StoreManager.Type.INT);
+    TestState state = register(field);
+    StoreClerk clerk = new StoreClerk(state.getStore(), org);
+    StoreClerk.Metric metric = clerk.getMetrics().get(0);
+
+    // write some data for that metric
+    long ts = get1980();
+
+    Map<String, Object> dynamo = prepareItem();
+    dynamo.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
+    dynamo.put(fieldname, 1);
+    Table table = state.write(tables.getAsyncClient(), dynamo);
+
+    bootstrapper()
+      .withDynamoKeyMapper()
+      .withDynamoTable(table)
+      .bootstrap();
+
+    verifySelectStar(FineoTestUtil.withNext(dynamo));
+
+    StoreManager manager = new StoreManager(state.getStore());
+    manager.updateOrg(org)
+           .updateMetric(metric.getUserName()).deleteField(fieldname).build()
+           .commit();
+
+    // now delete the metric and we shouldn't see any data
+    verifyNoRows();
+
+    // create a new metric with the same name
+    registerSchema(state.getStore(), false, field);
+    verifyNoRows();
+
+    // write a row again. This goes to the same table, so we don't need to re-bootstrap
+    dynamo.put(fieldname, 2);
+    state.write(tables.getAsyncClient(), dynamo);
+
+    // this time we should be able to read it
+    verifySelectStar(FineoTestUtil.withNext(dynamo));
+  }
+
+  private void verifyNoRows() throws Exception {
+    verifySelectStar(withNext());
+  }
+
   private BootstrapFineo.DrillConfigBuilder bootstrapper() {
     return basicBootstrap(new BootstrapFineo().builder());
   }

@@ -5,7 +5,6 @@ import com.google.common.base.Joiner;
 import com.google.common.io.Files;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
-import io.fineo.schema.store.AvroSchemaProperties;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -31,13 +30,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Predicate;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static io.fineo.schema.store.AvroSchemaProperties.*;
+import static io.fineo.schema.store.AvroSchemaProperties.METRIC_ORIGINAL_FIELD_ALIAS;
 import static io.fineo.schema.store.AvroSchemaProperties.ORG_ID_KEY;
 import static io.fineo.schema.store.AvroSchemaProperties.ORG_METRIC_TYPE_KEY;
 import static io.fineo.schema.store.AvroSchemaProperties.TIMESTAMP_KEY;
+import static io.fineo.schema.store.AvroSchemaProperties.WRITE_TIME_KEY;
 import static java.lang.String.format;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -130,9 +129,16 @@ public class FineoTestUtil {
   protected static String toStringRow(ResultSet result) throws SQLException {
     StringBuffer sb = new StringBuffer("row=[");
     ResultSetMetaData meta = result.getMetaData();
+    List<String> fields = new ArrayList<>();
     for (int i = 1; i <= meta.getColumnCount(); i++) {
-      sb.append(meta.getColumnName(i) + " => " + result.getObject(i) + ",");
+      fields.add(meta.getColumnName(i) + " => " + result.getObject(i));
     }
+    try {
+      Joiner.on(", ").appendTo(sb, fields);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    sb.append("]");
     return sb.toString();
   }
 
