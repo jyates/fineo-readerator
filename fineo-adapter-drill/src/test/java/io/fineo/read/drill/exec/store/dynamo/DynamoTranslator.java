@@ -43,7 +43,7 @@ public class DynamoTranslator {
     throws
     SchemaNotFoundException {
     StoreClerk clerk = new StoreClerk(store,
-      (String) item.remove(AvroSchemaProperties.ORG_ID_KEY));
+      (String) item.get(AvroSchemaProperties.ORG_ID_KEY));
     GenericData.Record record =
       clerk.getEncoderFactory().getEncoder(new MapRecord(item)).encode();
     AvroToDynamoWriter writer = new AvroToDynamoWriter(client, 3, creator);
