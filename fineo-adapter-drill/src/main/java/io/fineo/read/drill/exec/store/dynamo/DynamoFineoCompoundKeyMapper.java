@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapper;
 import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapperSpec;
 import io.fineo.schema.FineoStopWords;
-import io.fineo.schema.avro.AvroSchemaEncoder;
+import io.fineo.schema.store.AvroSchemaProperties;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,15 +24,15 @@ public class DynamoFineoCompoundKeyMapper extends DynamoKeyMapper {
     String org = val.substring(0, metricStart);
     String metric = val.substring(metricStart);
     Map<String, Object> out = new HashMap<>();
-    out.put(AvroSchemaEncoder.ORG_ID_KEY, org);
-    out.put(AvroSchemaEncoder.ORG_METRIC_TYPE_KEY, metric);
+    out.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    out.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metric);
     return out;
   }
 
   @Override
   public Map<String, Object> mapSortKey(Object value) {
     Map<String, Object> out = new HashMap<>();
-    out.put(AvroSchemaEncoder.TIMESTAMP_KEY, value);
+    out.put(AvroSchemaProperties.TIMESTAMP_KEY, value);
     return out;
   }
 }

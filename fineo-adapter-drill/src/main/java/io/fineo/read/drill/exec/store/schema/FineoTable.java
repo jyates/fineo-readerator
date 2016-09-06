@@ -46,39 +46,7 @@ public class FineoTable extends DrillTable implements TranslatableTable {
   @Override
   public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
     LogicalScanBuilder builder = new LogicalScanBuilder(context, relOptTable);
-    try {
-      scanner.scan(builder, metric.getMetricId());
-    } catch (NullPointerException e) {
-      // skip adding this scan - we couldn't find any files for this table & no dynamo
-      // support...apparently.
-      if (e.getMessage().startsWith("Could not find any input table from dfs")) {
-        // remove the offending directory
-        String pattern = "(.*(\\Q[\\E(.*)(\\Q]\\E\\z)))";
-        Pattern pat = Pattern.compile(pattern);
-        Matcher matcher = pat.matcher(e.getMessage());
-        if(!matcher.matches()){
-          LOG.error("Couldn't find any matching tables in '{}'", e.getMessage());
-          throw e;
-        }
-        String fileString = matcher.group(3);
-        for(String file: fileString.split(",")){
-          file = file.replaceAll("\\s+","");
-          builder.removeScan("dfs", file);
-        }
-
-        // create a temp json file with no data
-        try {
-          Path path = Files.createTempFile("fineo-empty-read", ".json");
-          builder.scan("dfs", path.toString());
-          scanner.scan(builder, metric.getMetricId());
-        } catch (IOException e1) {
-          LOG.error("Failed to create temp directoy file, just throwing original exception");
-          throw e;
-        }
-      }else{
-        throw e;
-      }
-    }
+    scanner.scan(builder, metric.getMetricId());
     return builder.buildMarker(this.metric);
   }
 

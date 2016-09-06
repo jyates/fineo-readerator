@@ -3,9 +3,9 @@ package io.fineo.read.drill.exec.store;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
+import static io.fineo.schema.store.AvroSchemaProperties.ORG_ID_KEY;
+import static io.fineo.schema.store.AvroSchemaProperties.ORG_METRIC_TYPE_KEY;
+import static io.fineo.schema.store.AvroSchemaProperties.TIMESTAMP_KEY;
 
 /**
  *

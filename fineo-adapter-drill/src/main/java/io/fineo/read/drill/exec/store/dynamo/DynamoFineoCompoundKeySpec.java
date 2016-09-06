@@ -1,7 +1,7 @@
 package io.fineo.read.drill.exec.store.dynamo;
 
 import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapperSpec;
-import io.fineo.schema.avro.AvroSchemaEncoder;
+import io.fineo.schema.store.AvroSchemaProperties;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,8 +13,8 @@ import static java.util.Arrays.asList;
  */
 public class DynamoFineoCompoundKeySpec extends DynamoKeyMapperSpec {
   public DynamoFineoCompoundKeySpec() {
-    super(asList(AvroSchemaEncoder.ORG_ID_KEY, AvroSchemaEncoder.ORG_METRIC_TYPE_KEY,
-      AvroSchemaEncoder.TIMESTAMP_KEY), asList("S", "S", "N"),
+    super(asList(AvroSchemaProperties.ORG_ID_KEY, AvroSchemaProperties.ORG_METRIC_TYPE_KEY,
+      AvroSchemaProperties.TIMESTAMP_KEY), asList("S", "S", "N"),
       args());
   }
 

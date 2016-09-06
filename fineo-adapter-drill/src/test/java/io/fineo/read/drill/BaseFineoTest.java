@@ -1,5 +1,6 @@
 package io.fineo.read.drill;
 
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
@@ -21,9 +22,8 @@ import io.fineo.lambda.handle.schema.inject.SchemaStoreModule;
 import io.fineo.read.drill.exec.store.dynamo.DynamoTranslator;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
-import io.fineo.schema.exception.SchemaExistsException;
 import io.fineo.schema.exception.SchemaNotFoundException;
-import io.fineo.schema.exception.SchemaTypeNotFoundException;
+import io.fineo.schema.store.AvroSchemaProperties;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
@@ -189,8 +189,9 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     return new TestState(metric.getUnderlyingMetric(), store);
   }
 
-  protected void registerSchema(SchemaStore store, boolean newOrg, Pair<String, StoreManager.Type>...
-    fields) throws IOException, OldSchemaException {
+  protected void registerSchema(SchemaStore store, boolean newOrg,
+    Pair<String, StoreManager.Type>...
+      fields) throws IOException, OldSchemaException {
     StoreManager manager = new StoreManager(store);
     StoreManager.OrganizationBuilder builder =
       newOrg ? manager.newOrg(org) : manager.updateOrg(org);
@@ -255,6 +256,13 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       return write(translate(item));
     }
 
+    public Table write(AmazonDynamoDBAsyncClient client, Map<String, Object> item) throws
+      Exception {
+      Table table = getAndEnsureTable((Long) item.get(AvroSchemaProperties.TIMESTAMP_KEY));
+      trans.write(client, creator, store, item);
+      return table;
+    }
+
     public void update(Table table, Map<String, Object> item)
       throws UnsupportedEncodingException, NoSuchAlgorithmException {
       UpdateItemSpec spec = trans.updateItem(item);
@@ -262,18 +270,21 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     }
 
     public Table write(Item wrote) {
+      long ts = wrote.getLong(Schema.SORT_KEY_NAME);
+      Table table = getAndEnsureTable(ts);
+      table.putItem(wrote);
+      return table;
+    }
+
+    private Table getAndEnsureTable(long ts) {
       DynamoDB dynamo = new DynamoDB(tables.getAsyncClient());
       if (creator == null) {
         DynamoTableTimeManager ttm = new DynamoTableTimeManager(tables.getAsyncClient(),
           DYNAMO_TABLE_PREFIX);
         this.creator = new DynamoTableCreator(ttm, dynamo, 1, 1);
       }
-
-      long ts = wrote.getLong(Schema.SORT_KEY_NAME);
       String name = creator.getTableAndEnsureExists(ts);
-      Table table = dynamo.getTable(name);
-      table.putItem(wrote);
-      return table;
+      return dynamo.getTable(name);
     }
 
     public Metric getMetric() {
@@ -291,12 +302,10 @@ public class BaseFineoTest extends BaseDynamoTableTest {
       .writeParquet(state, drill.getConnection(), dir, orgid, metricType, ts, rows);
   }
 
-  protected Map<String, Object> prepareItem(TestState state) throws SchemaNotFoundException {
-    StoreClerk clerk = new StoreClerk(state.getStore(), org);
-    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
-
+  protected Map<String, Object> prepareItem() throws SchemaNotFoundException {
     Map<String, Object> wrote = new HashMap<>();
-    wrote.put(Schema.PARTITION_KEY_NAME, org + metric.getMetricId());
+    wrote.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    wrote.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
     return wrote;
   }
 }

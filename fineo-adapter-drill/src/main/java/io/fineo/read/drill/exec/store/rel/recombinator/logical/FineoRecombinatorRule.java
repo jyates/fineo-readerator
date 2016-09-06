@@ -3,7 +3,7 @@ package io.fineo.read.drill.exec.store.rel.recombinator.logical;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableTypeSetMarker;
-import io.fineo.schema.avro.AvroSchemaEncoder;
+import io.fineo.schema.store.AvroSchemaProperties;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
@@ -31,9 +31,6 @@ import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.ImmutableList.of;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_ID_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.ORG_METRIC_TYPE_KEY;
-import static io.fineo.schema.avro.AvroSchemaEncoder.TIMESTAMP_KEY;
 import static org.apache.drill.exec.planner.logical.DrillRel.DRILL_LOGICAL;
 
 /**
@@ -118,9 +115,9 @@ public class FineoRecombinatorRule extends RelOptRule {
       StoreClerk.Field storeField = typeToField.get(field);
       if (storeField != null) {
         node = cast(rexer, rowType, storeField, node);
-      } else if (field.getName().equals(AvroSchemaEncoder.TIMESTAMP_KEY)) {
+      } else if (field.getName().equals(AvroSchemaProperties.TIMESTAMP_KEY)) {
         // dynamo reads the timestamp as a string, so we need to cast it to the expected LONG type
-        node = cast(rexer, rowType, AvroSchemaEncoder.TIMESTAMP_KEY, node);
+        node = cast(rexer, rowType, AvroSchemaProperties.TIMESTAMP_KEY, node);
       }
       expanded.add(node);
     }
@@ -150,10 +147,12 @@ public class FineoRecombinatorRule extends RelOptRule {
     switch (type) {
       case DFS:
         RexInputRef org =
-          builder.makeInputRef(castProject, row.getField(ORG_ID_KEY, false, false).getIndex());
+          builder.makeInputRef(castProject, row.getField(AvroSchemaProperties.ORG_ID_KEY, false,
+            false).getIndex());
         RexInputRef metric =
           builder
-            .makeInputRef(castProject, row.getField(ORG_METRIC_TYPE_KEY, false, false).getIndex());
+            .makeInputRef(castProject, row.getField(AvroSchemaProperties.ORG_METRIC_TYPE_KEY,
+              false, false).getIndex());
         RexLiteral orgId = builder.makeLiteral(userMetric.getOrgId());
         RexLiteral metricType = builder.makeLiteral(userMetric.getMetricId());
         RexNode orgEq = builder.makeCall(SqlStdOperatorTable.EQUALS, org, orgId);
@@ -187,7 +186,7 @@ public class FineoRecombinatorRule extends RelOptRule {
   private void addSort(RelBuilder builder, RelOptCluster cluster) {
     RelNode node = builder.peek();
     RelDataType type = node.getRowType();
-    RelDataTypeField field = type.getField(TIMESTAMP_KEY, false, false);
+    RelDataTypeField field = type.getField(AvroSchemaProperties.TIMESTAMP_KEY, false, false);
     RexNode sortNode = cluster.getRexBuilder().makeInputRef(node, field.getIndex());
     builder.sort(sortNode);
   }

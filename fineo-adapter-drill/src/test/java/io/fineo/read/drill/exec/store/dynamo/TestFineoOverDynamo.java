@@ -46,7 +46,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     TestState state = register();
     long ts = FineoTestUtil.get1980();
 
-    Map<String, Object> wrote = prepareItem(state);
+    Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put("field1", true);
     Table table = state.write(wrote);
@@ -85,7 +85,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     TestState state = register(new ImmutablePair<>(field, StoreManager.Type.STRING));
     long ts = FineoTestUtil.get1980();
 
-    Map<String, Object> wrote = prepareItem(state);
+    Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put(field, "v1");
     Table table = state.write(wrote);
@@ -117,7 +117,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
 
     String key = org + metric.getMetricId();
-    Map<String, Object> wrote = prepareItem(state);
+    Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put("field1", true);
     Table table = state.write(wrote);
@@ -164,7 +164,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
   public void testReadMultipleRows() throws Exception {
     TestState state = register(p(fieldname, StoreManager.Type.INT));
     long ts = get1980();
-    Map<String, Object> dynamo = prepareItem(state);
+    Map<String, Object> dynamo = prepareItem();
     dynamo.put(Schema.SORT_KEY_NAME, ts);
     dynamo.put(fieldname, 1);
     Table table = state.write(dynamo);
@@ -190,7 +190,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
   public void testReadMultipleRowsWithMultipleEventsPerTimestamp() throws Exception {
     TestState state = register(p(fieldname, StoreManager.Type.INT));
     long ts = get1980();
-    Map<String, Object> dynamo = prepareItem(state);
+    Map<String, Object> dynamo = prepareItem();
     dynamo.put(Schema.SORT_KEY_NAME, ts);
     dynamo.put(fieldname, 1);
     Table table = state.write(dynamo);
@@ -227,7 +227,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     TestState state = register();
     long ts = FineoTestUtil.get1980();
 
-    Map<String, Object> wrote = prepareItem(state);
+    Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put(fieldname, true);
     Table table = state.write(wrote);
@@ -245,7 +245,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     TestState state = register(p(fieldname, StoreManager.Type.INTEGER));
     long ts = FineoTestUtil.get1980();
 
-    Map<String, Object> wrote = prepareItem(state);
+    Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put(fieldname, 1);
     Table table = state.write(wrote);

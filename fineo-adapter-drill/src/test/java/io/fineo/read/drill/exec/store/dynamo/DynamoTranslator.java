@@ -1,10 +1,21 @@
 package io.fineo.read.drill.exec.store.dynamo;
 
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
 import com.google.common.base.Joiner;
+import io.fineo.lambda.aws.MultiWriteFailures;
 import io.fineo.lambda.dynamo.DynamoExpressionPlaceHolders;
+import io.fineo.lambda.dynamo.DynamoTableCreator;
 import io.fineo.lambda.dynamo.Schema;
+import io.fineo.lambda.dynamo.avro.AvroToDynamoWriter;
+import io.fineo.schema.MapRecord;
+import io.fineo.schema.exception.SchemaNotFoundException;
+import io.fineo.schema.store.AvroSchemaProperties;
+import io.fineo.schema.store.SchemaStore;
+import io.fineo.schema.store.StoreClerk;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
 
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
@@ -15,11 +26,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.google.common.collect.ImmutableList.of;
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.String.format;
+import static org.junit.Assert.assertFalse;
 
 /**
  * Writer that mimics the writing of records to dynamo from the ingest pipeline, without the
@@ -28,11 +38,27 @@ import static java.lang.String.format;
  */
 public class DynamoTranslator {
 
+  public void write(AmazonDynamoDBAsyncClient client, DynamoTableCreator creator, SchemaStore
+    store, Map<String, Object> item)
+    throws
+    SchemaNotFoundException {
+    StoreClerk clerk = new StoreClerk(store,
+      (String) item.remove(AvroSchemaProperties.ORG_ID_KEY));
+    GenericData.Record record =
+      clerk.getEncoderFactory().getEncoder(new MapRecord(item)).encode();
+    AvroToDynamoWriter writer = new AvroToDynamoWriter(client, 3, creator);
+    writer.write(record);
+    MultiWriteFailures<GenericRecord> failures = writer.flush();
+    assertFalse("Failed to write records to dynamo! " + failures.getActions(), failures.any());
+  }
+
   public Item apply(Map<String, Object> itemToWrite) throws Exception {
     Item wrote = new Item();
     Map<String, Object> item = newHashMap(itemToWrite);
     wrote.with(Schema.PARTITION_KEY_NAME, item.remove(Schema.PARTITION_KEY_NAME));
     wrote.with(Schema.SORT_KEY_NAME, item.remove(Schema.SORT_KEY_NAME));
+    // assume sin
+
     // the remaining elements are stored by id
     String id = getId();
     wrote.with(Schema.ID_FIELD, newHashSet(id));

@@ -59,7 +59,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     Pair<FsSourceTable, File> parquet = writeParquet(state, tmp, org, metrictype, tsFile,
       parquetRow);
 
-    Map<String, Object> wrote = prepareItem(state);
+    Map<String, Object> wrote = prepareItem();
     wrote.put(Schema.SORT_KEY_NAME, ts);
     wrote.put(fieldname, 2);
     Table table = state.write(wrote);
@@ -89,7 +89,7 @@ public class TestClientLikeReads extends BaseFineoTest {
   public void testReadAcrossOverlappingFileAndDynamo() throws Exception {
     TestState state = register(p(fieldname, StoreManager.Type.INT));
     long ts = get1980();
-    Map<String, Object> dynamo = prepareItem(state);
+    Map<String, Object> dynamo = prepareItem();
     dynamo.put(Schema.SORT_KEY_NAME, ts);
     dynamo.put(fieldname, 1);
     Table table = state.write(dynamo);
@@ -113,7 +113,7 @@ public class TestClientLikeReads extends BaseFineoTest {
   public void testPruneFileDirectoryAndDynamo() throws Exception {
     TestState state = register(p(fieldname, StoreManager.Type.INT));
     long ts = get1980();
-    Map<String, Object> dynamo = prepareItem(state);
+    Map<String, Object> dynamo = prepareItem();
     dynamo.put(Schema.SORT_KEY_NAME, ts);
     dynamo.put(fieldname, 1);
     Table table = state.write(dynamo);
@@ -250,9 +250,14 @@ public class TestClientLikeReads extends BaseFineoTest {
     // create a new metric with the same name
     registerSchema(state.getStore(), false, field);
 
-    verifySelectStar(results -> {
-      assertFalse("Got a row after recreating the metric!", results.next());
-    });
+    try {
+      verifySelectStar(results -> {
+        assertFalse("Got a row after recreating the metric!", results.next());
+      });
+      fail("should not be able to read when no data present on FS");
+    } catch (SQLException e) {
+      //expected
+    }
 
     // write a row again
     parquetRow = new HashMap<>();
@@ -265,6 +270,55 @@ public class TestClientLikeReads extends BaseFineoTest {
       .bootstrap();
     // this time we should be able to read it
     verifySelectStar(FineoTestUtil.withNext(parquetRow));
+  }
+
+  @Test
+  public void testMetricDeletionHidingOnDynamo() throws Exception {
+    Pair<String, StoreManager.Type> field = p(fieldname, StoreManager.Type.INT);
+    TestState state = register(field);
+    StoreClerk clerk = new StoreClerk(state.getStore(), org);
+    StoreClerk.Metric metric = clerk.getMetrics().get(0);
+
+    // write some data for that metric
+    long ts = get1980();
+
+    Map<String, Object> dynamo = prepareItem();
+    dynamo.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
+    dynamo.put(fieldname, 1);
+    Table table = state.write(tables.getAsyncClient(), dynamo);
+
+    bootstrapper()
+      .withDynamoKeyMapper()
+      .withDynamoTable(table)
+      .bootstrap();
+
+    verifySelectStar(FineoTestUtil.withNext(dynamo));
+
+    StoreManager manager = new StoreManager(state.getStore());
+    manager.updateOrg(org).deleteMetric(metric.getUserName()).commit();
+
+    // now delete the metric and we shouldn't see any data
+    try {
+      verifySelectStar(r -> {
+      });
+      fail("Should not be able to read a metric that doesn't exist - the table should be deleted");
+    } catch (SQLException e) {
+      // expected
+    }
+
+    // create a new metric with the same name
+    registerSchema(state.getStore(), false, field);
+
+    verifySelectStar(results -> {
+      assertFalse("Got a row after recreating the metric!", results.next());
+    });
+
+    // write a row again. This goes to the same table, so we don't need to re-bootstrap
+    dynamo.put(fieldname, 2);
+    state.write(tables.getAsyncClient(), dynamo);
+
+    // this time we should be able to read it
+    verifySelectStar(FineoTestUtil.withNext(dynamo));
   }
 
   private BootstrapFineo.DrillConfigBuilder bootstrapper() {

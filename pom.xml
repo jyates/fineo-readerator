@@ -299,6 +299,12 @@
         <artifactId>dynamo-access</artifactId>
         <version>${fineo.ingest.version}</version>
       </dependency>
+      <dependency>
+        <groupId>io.fineo.aws</groupId>
+        <artifactId>aws-common</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <scope>test</scope>
+      </dependency>
 
       <!-- Logging -->
       <dependency>
