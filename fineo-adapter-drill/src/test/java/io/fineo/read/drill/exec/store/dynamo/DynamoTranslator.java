@@ -51,7 +51,7 @@ public class DynamoTranslator {
       clerk.getEncoderFactory().getEncoder(new MapRecord(item)).encode();
     AvroToDynamoWriter writer = new AvroToDynamoWriter(client, 3, creator);
     writer.write(record);
-    MultiWriteFailures<GenericRecord> failures = writer.flush();
+    MultiWriteFailures<GenericRecord, ?> failures = writer.flush();
     assertFalse("Failed to writeToDynamo records to dynamo! " + failures.getActions(),
       failures.any());
   }
