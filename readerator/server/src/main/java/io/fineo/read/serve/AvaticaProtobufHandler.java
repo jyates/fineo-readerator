@@ -50,7 +50,7 @@ import javax.servlet.http.HttpServletResponse;
 
 /**
  * Fork of the org.apache.calcite.avatica.server.AvaticaProtobufHandler to support a settable
- * translation protobuf translator.
+ * protobuf translator (see constructor)
  */
 public class AvaticaProtobufHandler extends AbstractAvaticaHandler {
   private static final Logger LOG = LoggerFactory.getLogger(AvaticaProtobufHandler.class);
