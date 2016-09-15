@@ -65,6 +65,10 @@
     <test.skip.cluster>false</test.skip.cluster>
   </properties>
 
+  <scm>
+    <connection>scm:git:git://github.com/jyates/fineo-readerator.git</connection>
+  </scm>
+
   <build>
     <pluginManagement>
       <plugins>
@@ -134,6 +138,20 @@
             <exclude>${test.exclude.pattern}</exclude>
           </excludes>
         </configuration>
+      </plugin>
+      <!-- Add a build-number property -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>buildnumber-maven-plugin</artifactId>
+        <version>1.1</version>
+        <executions>
+          <execution>
+            <phase>validate</phase>
+            <goals>
+              <goal>create</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
