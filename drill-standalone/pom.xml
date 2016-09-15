@@ -114,6 +114,13 @@
                         <exclude>META-INF/drill-module-scan/registry.json</exclude>
                         <!-- Executable producer - huge!... not needed since we use the java api -->
                         <exclude>amazon-kinesis-producer-native-binaries/**</exclude>
+                        <!-- Breaks unzipping -->
+                        <exclude>*LICENSE**</exclude>
+                        <exclude>META-INF/license</exclude>
+                        <exclude>META-INF/LICENSE</exclude>
+                        <exclude>*license**</exclude>
+                        <!-- Test includes from calcite/drill-jdbc-all -->
+                        <exclude>sales*.json</exclude>
                       </excludes>
                     </filter>
                   </filters>
