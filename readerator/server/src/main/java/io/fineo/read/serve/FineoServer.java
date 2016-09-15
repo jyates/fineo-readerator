@@ -20,6 +20,7 @@ import com.beust.jcommander.IStringConverter;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.codahale.metrics.MetricRegistry;
+import com.google.common.base.Preconditions;
 import io.fineo.read.FineoJdbcProperties;
 import io.fineo.read.serve.driver.FineoServerDriver;
 import org.apache.calcite.avatica.jdbc.JdbcMeta;
@@ -50,26 +51,26 @@ public class FineoServer {
   public static final String DRILL_CATALOG_PARAMETER_KEY = "drill-catalog";
 
   // environment key
-  private static final String ORG_ID_KEY = "FINEO_ORG_ID";
+  private static final String ORG_ID_ENV_KEY = "FINEO_ORG_ID";
   private static final String DRILL_CONNECTION_ENV_KEY = "FINEO_DRILL_CONNECTION";
   private static final String DRILL_CONNECTION_CATALOG_KEY = "FINEO_DRILL_CATALOG";
-  private static final String PORT_KEY = "PORT_KEY";
+  private static final String PORT_KEY = "PORT";
 
-  @Parameter(names = "--org-id", required = true,
+  @Parameter(names = "--org-id",
              description = "Org ID served by this server. Only 1 org per server allowed.")
-  private String org =  System.getProperty(ORG_ID_KEY, EMPTY);
+  private String org = System.getenv(ORG_ID_ENV_KEY);
 
   @Parameter(names = {"-p", "--port" },
              description = "Port the server should bind")
-  private int port = Integer.valueOf(System.getProperty(PORT_KEY, "0"));
+  private int port = Integer.valueOf(getEnv(PORT_KEY, "0"));
 
-  @Parameter(names = "--" + DRILL_CONNECTION_PARAMETER_KEY, required = true,
+  @Parameter(names = "--" + DRILL_CONNECTION_PARAMETER_KEY,
              description = "Connection string for the Drill JDBC driver")
-  private String drill = System.getProperty(DRILL_CONNECTION_ENV_KEY, EMPTY);
+  private String drill = System.getenv(DRILL_CONNECTION_ENV_KEY);
 
   @Parameter(names = "--" + DRILL_CATALOG_PARAMETER_KEY,
              description = "Override the catalog that the target jdbc connection will use")
-  private String catalog = System.getProperty(DRILL_CONNECTION_CATALOG_KEY, "DRILL");
+  private String catalog = getEnv(DRILL_CONNECTION_CATALOG_KEY, "DRILL");
 
   private HttpServer server;
   private final MetricRegistry metrics = new MetricRegistry();
@@ -138,6 +139,8 @@ public class FineoServer {
     final FineoServer server = new FineoServer();
     new JCommander(server, args);
 
+    Preconditions.checkNotNull(server.org, "Missing ORG ID specification!");
+    Preconditions.checkNotNull(server.drill, "Missing DRILL CONNECTION specification!");
     // Try to clean up when the server is stopped.
     Runtime.getRuntime().addShutdownHook(
       new Thread(() -> {
@@ -175,6 +178,14 @@ public class FineoServer {
     NORMAL,
     ALREADY_STARTED, // 1
     START_FAILED;    // 2
+  }
+
+  private static String getEnv(String key, String defaultValue) {
+    String s = System.getenv(key);
+    if (s == null) {
+      s = defaultValue;
+    }
+    return s;
   }
 }
 
