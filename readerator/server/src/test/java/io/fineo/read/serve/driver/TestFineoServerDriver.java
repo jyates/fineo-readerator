@@ -257,12 +257,12 @@ public class TestFineoServerDriver {
   private Connection getConnection(String org) throws SQLException {
     FineoServerDriver.load();
     Properties props = new Properties();
-    props.put(FineoServer.DRILL_CONNECTION_KEY, ScottHsqldb.URI);
+    props.put(FineoServer.DRILL_CONNECTION_PARAMETER_KEY, ScottHsqldb.URI);
     props.put("user", ScottHsqldb.USER);
     props.put("password", ScottHsqldb.PASSWORD);
     props.put(FineoJdbcProperties.COMPANY_KEY_PROPERTY, org);
     // actually the hsqldb catalog...
-    props.put(FineoServer.DRILL_CATALOG_KEY, "PUBLIC");
+    props.put(FineoServer.DRILL_CATALOG_PARAMETER_KEY, "PUBLIC");
     return getConnection(FineoServerDriver.CONNECT_PREFIX, props);
   }
 

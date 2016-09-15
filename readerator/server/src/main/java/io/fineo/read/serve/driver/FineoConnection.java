@@ -49,7 +49,7 @@ public class FineoConnection extends AvaticaConnection {
     // is really should be the delegateCatalog of this connection, but its accessed from the external
     // facing FineoDatabaseMetaData as the delegateCatalog that the real underlying connection should
     // use... confusing, I know. See TestFineoServerDriver#testGetTables for how this works out
-    this.delegateCatalog = Preconditions.checkNotNull(info.getProperty(FineoServer.DRILL_CATALOG_KEY));
+    this.delegateCatalog = Preconditions.checkNotNull(info.getProperty(FineoServer.DRILL_CATALOG_PARAMETER_KEY));
     Map<String, String> props = new HashMap<>();
     for (String name : info.stringPropertyNames()) {
       props.put(name, info.getProperty(name));

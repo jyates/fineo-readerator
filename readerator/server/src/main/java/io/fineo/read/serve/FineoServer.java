@@ -42,26 +42,34 @@ public class FineoServer {
   private static final Logger LOG = LoggerFactory.getLogger(FineoServer.class);
 
   private static final Serialization SER = Serialization.PROTOBUF;
-  public static final String DRILL_CONNECTION_KEY = "drill-connection";
-  public static final String DRILL_CATALOG_KEY = "drill-catalog";
 
   private static final String EMPTY = "===UNSPECIFIED===";
 
+  // command line key
+  public static final String DRILL_CONNECTION_PARAMETER_KEY = "drill-connection";
+  public static final String DRILL_CATALOG_PARAMETER_KEY = "drill-catalog";
+
+  // environment key
+  private static final String ORG_ID_KEY = "FINEO_ORG_ID";
+  private static final String DRILL_CONNECTION_ENV_KEY = "FINEO_DRILL_CONNECTION";
+  private static final String DRILL_CONNECTION_CATALOG_KEY = "FINEO_DRILL_CATALOG";
+  private static final String PORT_KEY = "PORT_KEY";
+
   @Parameter(names = "--org-id", required = true,
              description = "Org ID served by this server. Only 1 org per server allowed.")
-  private String org = EMPTY;
+  private String org =  System.getProperty(ORG_ID_KEY, EMPTY);
 
-  @Parameter(names = {"-p", "--port"},
+  @Parameter(names = {"-p", "--port" },
              description = "Port the server should bind")
-  private int port = 0;
+  private int port = Integer.valueOf(System.getProperty(PORT_KEY, "0"));
 
-  @Parameter(names = "--"+DRILL_CONNECTION_KEY, required = true,
+  @Parameter(names = "--" + DRILL_CONNECTION_PARAMETER_KEY, required = true,
              description = "Connection string for the Drill JDBC driver")
-  private String drill = EMPTY;
+  private String drill = System.getProperty(DRILL_CONNECTION_ENV_KEY, EMPTY);
 
-  @Parameter(names = "--"+DRILL_CATALOG_KEY,
+  @Parameter(names = "--" + DRILL_CATALOG_PARAMETER_KEY,
              description = "Override the catalog that the target jdbc connection will use")
-  private String catalog="DRILL";
+  private String catalog = System.getProperty(DRILL_CONNECTION_CATALOG_KEY, "DRILL");
 
   private HttpServer server;
   private final MetricRegistry metrics = new MetricRegistry();
@@ -80,8 +88,8 @@ public class FineoServer {
 
       // setup the connection delegation properties
       Properties props = new Properties();
-      props.setProperty(DRILL_CATALOG_KEY, catalog);
-      props.setProperty(DRILL_CONNECTION_KEY, drill);
+      props.setProperty(DRILL_CATALOG_PARAMETER_KEY, catalog);
+      props.setProperty(DRILL_CONNECTION_PARAMETER_KEY, drill);
       props.setProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY, org);
 
       // its "just" a jdbc connection... to a driver which creates its own jdbc connection the

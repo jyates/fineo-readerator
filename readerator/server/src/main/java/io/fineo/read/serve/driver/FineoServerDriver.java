@@ -66,7 +66,7 @@ public class FineoServerDriver extends UnregisteredDriver {
   public Meta createMeta(AvaticaConnection connection) {
     FineoConnection conn = (FineoConnection) connection;
     Properties props = conn.getInfo();
-    String url = props.getProperty(FineoServer.DRILL_CONNECTION_KEY);
+    String url = props.getProperty(FineoServer.DRILL_CONNECTION_PARAMETER_KEY);
     String org = props.getProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY);
     try {
       return new FineoJdbcMeta(url, props, metrics, org);
