@@ -21,12 +21,10 @@ import java.util.UUID;
  */
 public class IsDrillAliveCheck extends BaseInternalHandler {
   private final JdbcMeta meta;
-  private final String org;
 
-  public IsDrillAliveCheck(JdbcMeta meta, String org) {
+  public IsDrillAliveCheck(JdbcMeta meta) {
     super("GET", "alive", "drill");
     this.meta = meta;
-    this.org= org;
   }
 
   @Override

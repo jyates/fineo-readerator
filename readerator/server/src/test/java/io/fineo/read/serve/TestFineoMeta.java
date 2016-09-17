@@ -32,7 +32,7 @@ public class TestFineoMeta {
     return new Meta.ConnectionHandle(UUID.randomUUID().toString());
   }
 
-  private FineoJdbcMeta getMeta() throws SQLException {
+  public static FineoJdbcMeta getMeta() throws SQLException {
     Properties props = new Properties();
     props.put("user", ScottHsqldb.USER);
     props.put("password", ScottHsqldb.PASSWORD);

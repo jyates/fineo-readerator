@@ -43,7 +43,7 @@ public class TestBaseInternalHandler {
     assertFalse(handler.matches(newArrayList(part("a"))));
   }
   
-  private Part part(String name) {
+  public static Part part(String name) {
     Part p = Mockito.mock(Part.class);
     Mockito.when(p.getName()).thenReturn(name);
     return p;
