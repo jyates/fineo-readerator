@@ -22,7 +22,7 @@ import static java.lang.String.format;
 
 public class FineoDatabaseMetaData extends AvaticaDatabaseMetaData {
 
-  static final String FINEO_CATALOG = "FINEO";
+  public static final String FINEO_CATALOG = "FINEO";
   static final String FINEO_INFO = "INFO";
   static final String FINEO_SCHEMA = "FINEO";
 

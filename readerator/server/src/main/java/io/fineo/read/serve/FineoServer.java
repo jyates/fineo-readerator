@@ -23,6 +23,8 @@ import com.codahale.metrics.MetricRegistry;
 import com.google.common.base.Preconditions;
 import io.fineo.read.FineoJdbcProperties;
 import io.fineo.read.serve.driver.FineoServerDriver;
+import io.fineo.read.serve.health.IsAliveHealthCheck;
+import io.fineo.read.serve.health.IsFineoAliveCheck;
 import org.apache.calcite.avatica.jdbc.JdbcMeta;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.apache.calcite.avatica.metrics.dropwizard3.DropwizardMetricsSystemConfiguration;
@@ -105,7 +107,10 @@ public class FineoServer {
       // custom translator so we can interop with AWS
       ProtobufTranslation translator = new AwsStringBytesDecodingTranslator();
       AvaticaProtobufHandler handler =
-        new AvaticaProtobufHandler(service, metrics, null, translator);
+        new AvaticaProtobufHandler(service, metrics, null, translator)
+          .withRequestHandlers(
+            new IsAliveHealthCheck(),
+            new IsFineoAliveCheck(meta));
 
       // Construct the server
       this.server = new HttpServer.Builder()
