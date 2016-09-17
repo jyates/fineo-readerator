@@ -18,6 +18,8 @@
  */
 package io.fineo.read.serve;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import org.apache.calcite.avatica.AvaticaUtils;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.apache.calcite.avatica.metrics.Timer;
@@ -34,19 +36,18 @@ import org.apache.calcite.avatica.server.AbstractAvaticaHandler;
 import org.apache.calcite.avatica.server.AvaticaServerConfiguration;
 import org.apache.calcite.avatica.server.MetricsAwareAvaticaHandler;
 import org.apache.calcite.avatica.util.UnsynchronizedBuffer;
-
 import org.eclipse.jetty.server.Request;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.Objects;
-import java.util.concurrent.Callable;
 
 import javax.servlet.ServletException;
 import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.concurrent.Callable;
 
 /**
  * Fork of the org.apache.calcite.avatica.server.AvaticaProtobufHandler to support a settable
@@ -62,6 +63,7 @@ public class AvaticaProtobufHandler extends AbstractAvaticaHandler {
   private final Timer requestTimer;
   private final AvaticaServerConfiguration serverConfig;
 
+  private final Multimap<String, BaseInternalHandler> handlers = ArrayListMultimap.create();
   final ThreadLocal<UnsynchronizedBuffer> threadLocalBuffer;
 
   public AvaticaProtobufHandler(Service service) {
@@ -73,7 +75,7 @@ public class AvaticaProtobufHandler extends AbstractAvaticaHandler {
   }
 
   public AvaticaProtobufHandler(Service service, MetricsSystem metrics,
-      AvaticaServerConfiguration serverConfig) {
+    AvaticaServerConfiguration serverConfig) {
     this(service, metrics, serverConfig, new ProtobufTranslationImpl());
   }
 
@@ -83,14 +85,15 @@ public class AvaticaProtobufHandler extends AbstractAvaticaHandler {
     this.metrics = Objects.requireNonNull(metrics);
 
     this.requestTimer = this.metrics.getTimer(
-        MetricsHelper.concat(AvaticaProtobufHandler.class,
-            MetricsAwareAvaticaHandler.REQUEST_TIMER_NAME));
+      MetricsHelper.concat(AvaticaProtobufHandler.class,
+        MetricsAwareAvaticaHandler.REQUEST_TIMER_NAME));
 
     this.protobufTranslation = translation;
     this.pbHandler = new ProtobufHandler(service, protobufTranslation, metrics);
 
     this.threadLocalBuffer = new ThreadLocal<UnsynchronizedBuffer>() {
-      @Override public UnsynchronizedBuffer initialValue() {
+      @Override
+      public UnsynchronizedBuffer initialValue() {
         return new UnsynchronizedBuffer();
       }
     };
@@ -98,14 +101,21 @@ public class AvaticaProtobufHandler extends AbstractAvaticaHandler {
     this.serverConfig = serverConfig;
   }
 
+  public AvaticaProtobufHandler withRequestHandlers(BaseInternalHandler... handlers) {
+    for (BaseInternalHandler handler : handlers) {
+      this.handlers.put(handler.getMethod().toUpperCase(), handler);
+    }
+    return this;
+  }
+
   public void handle(String target, Request baseRequest,
-      HttpServletRequest request, HttpServletResponse response)
-      throws IOException, ServletException {
+    HttpServletRequest request, HttpServletResponse response)
+    throws IOException, ServletException {
     try (final Context ctx = this.requestTimer.start()) {
       // Check if the user is OK to proceed.
       if (!isUserPermitted(serverConfig, request, response)) {
         LOG.debug("HTTP request from {} is unauthenticated and authentication is required",
-            request.getRemoteAddr());
+          request.getRemoteAddr());
         return;
       }
 
@@ -127,7 +137,8 @@ public class AvaticaProtobufHandler extends AbstractAvaticaHandler {
             // Invoke the ProtobufHandler inside as doAs for the remote user.
             handlerResponse = serverConfig.doAsRemoteUser(request.getRemoteUser(),
               request.getRemoteAddr(), new Callable<HandlerResponse<byte[]>>() {
-                @Override public HandlerResponse<byte[]> call() {
+                @Override
+                public HandlerResponse<byte[]> call() {
                   return pbHandler.apply(requestBytes);
                 }
               });
@@ -143,18 +154,33 @@ public class AvaticaProtobufHandler extends AbstractAvaticaHandler {
         baseRequest.setHandled(true);
         response.setStatus(handlerResponse.getStatusCode());
         response.getOutputStream().write(handlerResponse.getResponse());
+      } else {
+        // try our special handlers
+        Collection<BaseInternalHandler> handlers = this.handlers.get(request.getMethod());
+        if (handlers == null || handlers.isEmpty()) {
+          return;
+        }
+
+        for (BaseInternalHandler h : handlers) {
+          if (h.matches(request.getParts())) {
+            h.handle(target, baseRequest, request, response);
+            baseRequest.setHandled(true);
+          }
+        }
       }
     }
   }
 
-  @Override public void setServerRpcMetadata(RpcMetadataResponse metadata) {
+  @Override
+  public void setServerRpcMetadata(RpcMetadataResponse metadata) {
     // Set the metadata for the normal service calls
     service.setRpcMetadata(metadata);
     // Also add it to the handler to include with exceptions
     pbHandler.setRpcMetadata(metadata);
   }
 
-  @Override public MetricsSystem getMetrics() {
+  @Override
+  public MetricsSystem getMetrics() {
     return this.metrics;
   }
 

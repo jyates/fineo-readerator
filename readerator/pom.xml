@@ -14,7 +14,6 @@
   <packaging>pom</packaging>
   <modules>
     <module>server</module>
-    <module>fineo-client</module>
     <module>readerator-common</module>
   </modules>
 
