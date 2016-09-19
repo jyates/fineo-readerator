@@ -10,10 +10,13 @@ import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.drill.exec.store.SchemaConfig;
 import org.apache.drill.exec.store.SchemaFactory;
+import org.apache.parquet.Preconditions;
 import org.schemarepo.ValidatorFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -22,6 +25,8 @@ import java.util.Set;
 import static com.google.common.collect.ImmutableList.of;
 
 public class FineoSchemaFactory implements SchemaFactory {
+
+  private static final Logger LOG = LoggerFactory.getLogger(FineoSchemaFactory.class);
 
   protected final FineoStoragePlugin plugin;
   protected final String name;
@@ -32,7 +37,8 @@ public class FineoSchemaFactory implements SchemaFactory {
     orgs) {
     this.plugin = fineoStoragePlugin;
     this.name = name;
-    this.orgs = orgs;
+    this.orgs = Preconditions.checkNotNull(orgs, "No org ids specified on factory creation!");
+    Preconditions.checkArgument(!orgs.isEmpty(), "No org ids specified on factory creation!");
   }
 
   @Override
@@ -44,9 +50,15 @@ public class FineoSchemaFactory implements SchemaFactory {
       FineoInternalProperties.FINEO_DRILL_SCHEMA_NAME) {
     });
 
+    // add the non-null sources
     Set<SourceTable> sources = new HashSet<>();
-    sources.addAll(config.getFsSources());
-    sources.addAll(config.getDynamoSources());
+    Arrays.asList(config.getFsSources(), config.getDynamoSources()).stream()
+          .filter(list -> list != null)
+          .forEach(list -> sources.addAll(list));
+    if(sources.isEmpty()){
+      LOG.error("No sources specified in schema - skipping adding children schemas!");
+    }
+
     List<String> parentName = of(FineoInternalProperties.FINEO_DRILL_SCHEMA_NAME);
     for (String org : orgs) {
       SubTableScanBuilder scanner = new SubTableScanBuilder(org, sources, plugin.getDynamo());
