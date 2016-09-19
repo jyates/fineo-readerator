@@ -161,8 +161,12 @@ public class AvaticaProtobufHandler extends AbstractAvaticaHandler {
           return;
         }
 
+        if (target.startsWith("/")) {
+          target = target.substring(1);
+        }
+        String[] parts = target.split("/");
         for (BaseInternalHandler h : handlers) {
-          if (h.matches(request.getParts())) {
+          if (h.matches(parts)) {
             h.handle(target, baseRequest, request, response);
             baseRequest.setHandled(true);
           }

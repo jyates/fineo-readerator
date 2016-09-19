@@ -19,33 +19,29 @@ public class TestBaseInternalHandler {
 
   @Test
   public void testPathMatches() throws Exception {
-    BaseInternalHandler handler = new BaseInternalHandler("a", "a", "b", "c"){
+    BaseInternalHandler handler = new BaseInternalHandler("a", "a", "b", "c") {
       @Override
       public void handle(String target, Request baseRequest, HttpServletRequest request,
         HttpServletResponse response) throws IOException, ServletException {
       }
     };
-    assertTrue(handler.matches(newArrayList(part("a"), part("b"), part("c"))));
-    assertFalse(handler.matches(newArrayList(part("a"), part("b"))));
-    assertFalse(handler.matches(newArrayList()));
-    assertFalse(handler.matches(newArrayList(part("a"), part("b"), part("c"), part("d"))));
+    assertTrue(handler.matches(new String[]{"a", "b", "c"}));
+    assertFalse(handler.matches(new String[]{"a", "b"}));
+    assertFalse(handler.matches(new String[]{}));
+    assertFalse(handler.matches(null));
+    assertFalse(handler.matches(new String[]{"a", "b", "c", "c"}));
   }
 
   @Test
   public void testNoPath() throws Exception {
-    BaseInternalHandler handler = new BaseInternalHandler("a"){
+    BaseInternalHandler handler = new BaseInternalHandler("a") {
       @Override
       public void handle(String target, Request baseRequest, HttpServletRequest request,
         HttpServletResponse response) throws IOException, ServletException {
       }
     };
-    assertTrue(handler.matches(newArrayList()));
-    assertFalse(handler.matches(newArrayList(part("a"))));
-  }
-  
-  public static Part part(String name) {
-    Part p = Mockito.mock(Part.class);
-    Mockito.when(p.getName()).thenReturn(name);
-    return p;
+    assertTrue(handler.matches(new String[]{}));
+    assertTrue(handler.matches(null));
+    assertFalse(handler.matches(new String[]{"a"}));
   }
 }

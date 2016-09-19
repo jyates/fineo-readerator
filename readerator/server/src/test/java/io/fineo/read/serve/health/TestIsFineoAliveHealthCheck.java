@@ -7,11 +7,8 @@ import org.mockito.Mockito;
 
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
-
 import java.io.IOException;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static io.fineo.read.serve.TestBaseInternalHandler.part;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -22,10 +19,10 @@ public class TestIsFineoAliveHealthCheck {
   public void testCheckMatches() throws Exception {
     JdbcMeta meta = TestFineoMeta.getMeta();
     IsFineoAliveCheck check = new IsFineoAliveCheck(meta);
-    assertTrue(check.matches(newArrayList(part("alive"), part("fineo"))));
-    assertFalse(check.matches(newArrayList(part("alive"))));
-    assertFalse(check.matches(newArrayList()));
-    assertFalse(check.matches(newArrayList(part("alive"), part("fineo"), part("fineo"))));
+    assertTrue(check.matches(new String[]{"alive", "fineo"}));
+    assertFalse(check.matches(new String[]{"alive"}));
+    assertFalse(check.matches(new String[]{}));
+    assertFalse(check.matches(new String[]{"alive", "fineo", "fineo"}));
   }
 
   @Test

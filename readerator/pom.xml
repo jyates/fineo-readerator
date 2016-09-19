@@ -15,6 +15,7 @@
   <modules>
     <module>server</module>
     <module>readerator-common</module>
+    <module>readerator-it</module>
   </modules>
 
   <dependencyManagement>

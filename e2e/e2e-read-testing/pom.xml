@@ -18,8 +18,9 @@
       <artifactId>e2e-common</artifactId>
     </dependency>
     <dependency>
-      <groupId>io.fineo.read</groupId>
-      <artifactId>fineo-client</artifactId>
+      <groupId>io.fineo.client</groupId>
+      <artifactId>jdbc</artifactId>
+      <classifier>all</classifier>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>

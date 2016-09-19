@@ -41,8 +41,6 @@ public class FineoServerDriver extends UnregisteredDriver {
 
   public FineoServerDriver(MetricsSystem metricsSystem) throws ClassNotFoundException {
     super();
-    // make sure we can reach drill as a delegate connection
-    Class.forName("org.apache.drill.jdbc.Driver");
     this.metrics = metricsSystem == null ? NoopMetricsSystem.getInstance() : metricsSystem;
   }
 

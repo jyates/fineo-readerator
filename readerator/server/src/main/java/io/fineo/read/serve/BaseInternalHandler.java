@@ -7,7 +7,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.Part;
 import java.io.IOException;
-import java.util.Collection;
+import java.util.Arrays;
 
 /**
  * Simple handler that specifies the method and path that it handles. Similar to something like
@@ -27,19 +27,13 @@ public abstract class BaseInternalHandler {
     HttpServletRequest request, HttpServletResponse response) throws
     IOException, ServletException;
 
-  public boolean matches(Collection<Part> parts) {
-    if (parts.size() != path.length) {
-      return false;
+  public boolean matches(String[] parts) {
+    boolean empty = parts == null || parts.length == 0;
+    if(empty && (path == null || path.length == 0)){
+      return true;
     }
 
-    int i = 0;
-    for (Part p : parts) {
-      String part = path[i++];
-      if (!p.getName().equals(part)) {
-        return false;
-      }
-    }
-    return true;
+    return Arrays.equals(path, parts);
   }
 
   public String getMethod() {

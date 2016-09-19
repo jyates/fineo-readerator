@@ -26,6 +26,7 @@ import io.fineo.read.serve.driver.FineoServerDriver;
 import io.fineo.read.serve.health.IsAliveHealthCheck;
 import io.fineo.read.serve.health.IsDrillAliveCheck;
 import io.fineo.read.serve.health.IsFineoAliveCheck;
+import org.apache.calcite.avatica.jdbc.FineoWrapperJdbcMeta;
 import org.apache.calcite.avatica.jdbc.JdbcMeta;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.apache.calcite.avatica.metrics.dropwizard3.DropwizardMetricsSystemConfiguration;
@@ -63,7 +64,7 @@ public class FineoServer {
              description = "Org ID served by this server. Only 1 org per server allowed.")
   private String org = System.getenv(ORG_ID_ENV_KEY);
 
-  @Parameter(names = {"-p", "--port" },
+  @Parameter(names = {"-p", "--port"},
              description = "Port the server should bind")
   private int port = Integer.valueOf(getEnv(PORT_KEY, "0"));
 
@@ -78,6 +79,7 @@ public class FineoServer {
   private HttpServer server;
   private final MetricRegistry metrics = new MetricRegistry();
 
+  private Properties props = new Properties();
 
   public void start() {
     if (null != server) {
@@ -91,18 +93,18 @@ public class FineoServer {
       FineoServerDriver.load();
 
       // setup the connection delegation properties
-      Properties props = new Properties();
       props.setProperty(DRILL_CATALOG_PARAMETER_KEY, catalog);
       props.setProperty(DRILL_CONNECTION_PARAMETER_KEY, drill);
       props.setProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY, org);
 
-      // its "just" a jdbc connection... to a driver which creates its own jdbc connection the
+      // its "just" a jdbc connection... to a driver which creates its own jdbc connection from the
       // specified connection key. This ensures that we encapsulate the schema and tables from
-      // the wrong user
+      // the wrong user, but handle all the usual JDBC stuff normally.
       DropwizardMetricsSystemConfiguration metricsConf = new DropwizardMetricsSystemConfiguration
         (metrics);
       MetricsSystem metrics = new DropwizardMetricsSystemFactory().create(metricsConf);
-      JdbcMeta meta = new JdbcMeta(FineoServerDriver.CONNECT_PREFIX, props, metrics);
+      JdbcMeta meta =
+        new FineoWrapperJdbcMeta(FineoServerDriver.CONNECT_PREFIX, props, metrics, org);
       LocalService service = new LocalService(meta, metrics);
 
       // custom translator so we can interop with AWS
@@ -142,7 +144,7 @@ public class FineoServer {
     server.join();
   }
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws ClassNotFoundException {
     final FineoServer server = new FineoServer();
     new JCommander(server, args);
 
@@ -155,6 +157,9 @@ public class FineoServer {
         server.stop();
         LOG.info("Server stopped");
       }));
+
+    // make sure we can reach drill as a delegate connection
+    Class.forName("org.apache.drill.jdbc.Driver");
 
     server.start();
 
@@ -193,6 +198,27 @@ public class FineoServer {
       s = defaultValue;
     }
     return s;
+  }
+
+
+  void setOrgForTesting(String org) {
+    this.org = org;
+  }
+
+  void setPortForTesting(int port) {
+    this.port = port;
+  }
+
+  void setDrillForTesting(String drill) {
+    this.drill = drill;
+  }
+
+  void setCatalogForTesting(String catalog) {
+    this.catalog = catalog;
+  }
+
+  void setPropsForTesting(Properties props) {
+    this.props = props;
   }
 }
 

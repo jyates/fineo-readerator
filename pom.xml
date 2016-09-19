@@ -38,10 +38,11 @@
     <drill.version>1.6.0</drill.version>
     <drill.calcite.version>1.4.0-drill-r10</drill.calcite.version>
 
-    <aws.java.sdk.version>1.10.72</aws.java.sdk.version>
+    <aws.java.sdk.version>1.11.33</aws.java.sdk.version>
     <aws.dynamodb.local.version>1.10.5.1</aws.dynamodb.local.version>
     <aws.android.sdk.version>2.3.0</aws.android.sdk.version>
 
+    <fineo.client.version>1.0.1-SNAPSHOT</fineo.client.version>
     <fineo.ingest.version>2.0-SNAPSHOT</fineo.ingest.version>
     <fineo.schema.version>2.0-SNAPSHOT</fineo.schema.version>
     <avatica.version>1.8.0-fineo-1.0-SNAPSHOT</avatica.version>
@@ -194,10 +195,13 @@
         <artifactId>fineo-reparser</artifactId>
         <version>${project.version}</version>
       </dependency>
+
+      <!-- Fineo Projects -->
       <dependency>
-        <groupId>io.fineo.read</groupId>
-        <artifactId>fineo-client</artifactId>
-        <version>${project.version}</version>
+        <groupId>io.fineo.client</groupId>
+        <artifactId>jdbc</artifactId>
+        <classifier>all</classifier>
+        <version>${fineo.client.version}</version>
       </dependency>
 
       <!-- Recent avatica release, not tied to existing drill/calcite -->

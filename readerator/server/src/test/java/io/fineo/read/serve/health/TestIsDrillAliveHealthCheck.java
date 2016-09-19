@@ -9,8 +9,6 @@ import org.mockito.Mockito;
 
 import javax.servlet.http.HttpServletResponse;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static io.fineo.read.serve.TestBaseInternalHandler.part;
 import static io.fineo.read.serve.health.TestIsFineoAliveHealthCheck.mockResponse;
 import static io.fineo.read.serve.health.TestIsFineoAliveHealthCheck.verifyFailed;
 import static org.junit.Assert.assertFalse;
@@ -24,10 +22,10 @@ public class TestIsDrillAliveHealthCheck {
   public void testCheckMatches() throws Exception {
     JdbcMeta meta = TestFineoMeta.getMeta();
     IsDrillAliveCheck check = new IsDrillAliveCheck(meta);
-    assertTrue(check.matches(newArrayList(part("alive"), part("drill"))));
-    assertFalse(check.matches(newArrayList(part("alive"))));
-    assertFalse(check.matches(newArrayList()));
-    assertFalse(check.matches(newArrayList(part("alive"), part("drill"), part("drill"))));
+    assertTrue(check.matches(new String[]{"alive", "drill"}));
+    assertFalse(check.matches(new String[]{"alive"}));
+    assertFalse(check.matches(new String[]{}));
+    assertFalse(check.matches(new String[]{"alive", "drill", "drill"}));
   }
 
   @Test
