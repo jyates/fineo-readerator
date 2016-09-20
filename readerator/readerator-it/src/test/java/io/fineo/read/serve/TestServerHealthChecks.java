@@ -16,6 +16,13 @@ public class TestServerHealthChecks {
   public static StandaloneServerRule SERVER = new StandaloneServerRule(org, ServerTestUtils.LOAD_DRIVER);
 
   @Test
+  public void testRoot() throws Exception {
+    DefaultAsyncHttpClient client = new DefaultAsyncHttpClient();
+    Response response = client.prepareGet(getUrl("")).execute().get();
+    assertEquals(200, response.getStatusCode());
+  }
+
+  @Test
   public void testAlive() throws Exception {
     DefaultAsyncHttpClient client = new DefaultAsyncHttpClient();
     Response response = client.prepareGet(getUrl("alive")).execute().get();
@@ -23,8 +30,6 @@ public class TestServerHealthChecks {
   }
 
   @Test
-  @Ignore("Fineo health check relies on having the ORG in the request. Currently just checking if"
-          + " the server is up instead")
   public void testFineoAlive() throws Exception {
     DefaultAsyncHttpClient client = new DefaultAsyncHttpClient();
     Response response = client.prepareGet(getUrl("alive/fineo")).execute().get();

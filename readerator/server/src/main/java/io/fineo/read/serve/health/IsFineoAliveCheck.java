@@ -1,6 +1,7 @@
 package io.fineo.read.serve.health;
 
 import com.google.common.base.Joiner;
+import io.fineo.read.FineoJdbcProperties;
 import io.fineo.read.serve.BaseInternalHandler;
 import org.apache.calcite.avatica.Meta;
 import org.apache.calcite.avatica.jdbc.JdbcMeta;
@@ -12,7 +13,9 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -20,10 +23,12 @@ import java.util.UUID;
  */
 public class IsFineoAliveCheck extends BaseInternalHandler {
   private final JdbcMeta meta;
+  private final Map<String, String> options = new HashMap<>();
 
-  public IsFineoAliveCheck(JdbcMeta meta) {
-    super("GET", "alive", "fineo");
+  public IsFineoAliveCheck(JdbcMeta meta, String org) {
+    super("GET", "", "alive", "fineo");
     this.meta = meta;
+    options.put(FineoJdbcProperties.COMPANY_KEY_PROPERTY, org);
   }
 
   @Override
@@ -31,7 +36,7 @@ public class IsFineoAliveCheck extends BaseInternalHandler {
     HttpServletResponse response) throws IOException, ServletException {
     Meta.ConnectionHandle handle = new Meta.ConnectionHandle("health-check_" + UUID.randomUUID());
     try {
-      meta.openConnection(handle, new HashMap<>());
+      meta.openConnection(handle, Collections.unmodifiableMap(options));
       meta.getCatalogs(handle);
       response.setStatus(200);
       response.setContentLength(0);

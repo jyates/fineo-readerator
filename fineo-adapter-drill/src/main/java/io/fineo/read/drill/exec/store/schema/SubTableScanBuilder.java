@@ -5,6 +5,7 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import io.fineo.read.drill.FineoRuntimeException;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.source.DynamoSourceTable;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
@@ -22,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 public class SubTableScanBuilder {
 
@@ -50,7 +52,16 @@ public class SubTableScanBuilder {
           DynamoSourceTable source = (DynamoSourceTable) schemas.getValue();
           String prefix = source.getPrefix();
           String regex = source.getPattern();
-          Pattern pattern = Pattern.compile(regex);
+          Pattern pattern;
+          try {
+            pattern = Pattern.compile(regex);
+          } catch (PatternSyntaxException e) {
+            StringBuffer sb = new StringBuffer("Internal Fineo Configuration Error!\n");
+            sb.append("Illegal Dyanmo table pattern: " + regex + ",\n");
+            sb.append(" for prefix: ");
+            sb.append(prefix);
+            throw new FineoRuntimeException(sb.toString());
+          }
           for (Table table : dynamo.listTables(prefix)) {
             String name = table.getTableName();
             // moved off the prefix

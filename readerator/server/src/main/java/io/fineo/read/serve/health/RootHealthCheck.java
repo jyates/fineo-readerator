@@ -9,11 +9,11 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
 /**
- * Simple check to make sure the server is alive
+ * Simple check to make sure the server is alive at the "/". Needed b/c EB keeps trying to  GET "/"
  */
-public class IsAliveHealthCheck extends BaseInternalHandler {
-  public IsAliveHealthCheck() {
-    super("GET", "", "alive");
+public class RootHealthCheck extends BaseInternalHandler {
+  public RootHealthCheck() {
+    super("GET");
   }
 
   @Override

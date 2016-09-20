@@ -26,6 +26,7 @@ import io.fineo.read.serve.driver.FineoServerDriver;
 import io.fineo.read.serve.health.IsAliveHealthCheck;
 import io.fineo.read.serve.health.IsDrillAliveCheck;
 import io.fineo.read.serve.health.IsFineoAliveCheck;
+import io.fineo.read.serve.health.RootHealthCheck;
 import org.apache.calcite.avatica.jdbc.FineoWrapperJdbcMeta;
 import org.apache.calcite.avatica.jdbc.JdbcMeta;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
@@ -112,8 +113,9 @@ public class FineoServer {
       AvaticaProtobufHandler handler =
         new AvaticaProtobufHandler(service, metrics, null, translator)
           .withRequestHandlers(
+            new RootHealthCheck(),
             new IsAliveHealthCheck(),
-            new IsFineoAliveCheck(meta),
+            new IsFineoAliveCheck(meta, org),
             new IsDrillAliveCheck(meta));
 
       // Construct the server

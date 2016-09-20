@@ -297,6 +297,7 @@
                 <configuration>
                   <artifactSet>
                     <excludes>
+                      <exclude>net.hydromatic:foodmart-data-json</exclude>
                       <exclude>org.apache.drill.exec:drill-jdbc-all</exclude>
                       <exclude>commons-logging:commons-logging</exclude>
                       <!-- Test jars -->
@@ -357,7 +358,14 @@
                       <exclude>com.amazonaws:aws-java-sdk-acm</exclude>
                       <exclude>com.amazonaws:aws-java-sdk-gamelift</exclude>
                       <exclude>com.amazonaws:aws-java-sdk-dms</exclude>
+                      <exclude>com.amazonaws:aws-java-sdk-servicecatalog</exclude>
+                      <exclude>com.amazonaws:aws-java-sdk-snowball</exclude>
+                      <exclude>com.amazonaws:aws-java-sdk-autoscaling</exclude>
+                      <exclude>com.amazonaws:aws-java-sdk-discovery</exclude>
                       <exclude>com.amazonaws:aws-java-sdk-swf-libraries</exclude>
+                      <exclude>org.glassfish.hk2.external:aopalliance-repackaged</exclude>
+                      <exclude>aopalliance:aopalliance</exclude>
+                      <exclude></exclude>
                     </excludes>
                   </artifactSet>
                   <filters>
@@ -375,6 +383,16 @@
                         <exclude>META-INF/drill-module-scan/registry.json</exclude>
                         <!-- Executable producer - huge!... not needed since we use the java api -->
                         <exclude>amazon-kinesis-producer-native-binaries/**</exclude>
+                        <!-- amazon json models -->
+                        <exclude>models/lambda*</exclude>
+                        <exclude>models/discovery*</exclude>
+                        <exclude>models/streams.dynamo*</exclude>
+                      </excludes>
+                    </filter>
+                    <filter>
+                      <artifact>org.apache.drill.exec:drill-*:jar:tests</artifact>
+                      <excludes>
+                        <exclude>*.json</exclude>
                       </excludes>
                     </filter>
                   </filters>

@@ -23,7 +23,7 @@ public class IsDrillAliveCheck extends BaseInternalHandler {
   private final JdbcMeta meta;
 
   public IsDrillAliveCheck(JdbcMeta meta) {
-    super("GET", "alive", "drill");
+    super("GET", "", "alive", "drill");
     this.meta = meta;
   }
 

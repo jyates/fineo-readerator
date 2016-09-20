@@ -23,13 +23,14 @@ public abstract class BaseInternalHandler {
     this.method = method;
     this.path = path;
   }
+
   public abstract void handle(String target, Request baseRequest,
     HttpServletRequest request, HttpServletResponse response) throws
     IOException, ServletException;
 
   public boolean matches(String[] parts) {
     boolean empty = parts == null || parts.length == 0;
-    if(empty && (path == null || path.length == 0)){
+    if (empty && (path == null || path.length == 0)) {
       return true;
     }
 

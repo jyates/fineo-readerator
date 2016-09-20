@@ -18,8 +18,8 @@ public class TestIsFineoAliveHealthCheck {
   @Test
   public void testCheckMatches() throws Exception {
     JdbcMeta meta = TestFineoMeta.getMeta();
-    IsFineoAliveCheck check = new IsFineoAliveCheck(meta);
-    assertTrue(check.matches(new String[]{"alive", "fineo"}));
+    IsFineoAliveCheck check = new IsFineoAliveCheck(meta, "org");
+    assertTrue(check.matches(new String[]{"", "alive", "fineo"}));
     assertFalse(check.matches(new String[]{"alive"}));
     assertFalse(check.matches(new String[]{}));
     assertFalse(check.matches(new String[]{"alive", "fineo", "fineo"}));
@@ -28,7 +28,7 @@ public class TestIsFineoAliveHealthCheck {
   @Test
   public void testCheckAlive() throws Exception {
     JdbcMeta meta = TestFineoMeta.getMeta();
-    IsFineoAliveCheck check = new IsFineoAliveCheck(meta);
+    IsFineoAliveCheck check = new IsFineoAliveCheck(meta, "org");
     HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
     check.handle("target", null, null, response);
     Mockito.verify(response).setStatus(200);
@@ -39,7 +39,7 @@ public class TestIsFineoAliveHealthCheck {
   public void testReturnsErrorIfNoConnection() throws Exception {
     JdbcMeta meta = Mockito.mock(JdbcMeta.class);
     Mockito.when(meta.getCatalogs(any())).thenThrow(new RuntimeException("Injected failure"));
-    IsFineoAliveCheck check = new IsFineoAliveCheck(meta);
+    IsFineoAliveCheck check = new IsFineoAliveCheck(meta, "org");
     WriteCheckResponseStream stream = new WriteCheckResponseStream();
     HttpServletResponse response = mockResponse(stream);
     check.handle("target", null, null, response);
