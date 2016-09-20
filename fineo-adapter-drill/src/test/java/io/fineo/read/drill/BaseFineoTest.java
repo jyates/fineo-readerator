@@ -178,9 +178,6 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     // create a simple schema and store it
     SchemaStore store = createDynamoSchemaStore();
     registerSchema(store, true, fields);
-
-    StoreClerk clerk = new StoreClerk(store, org);
-    StoreClerk.Metric metric = clerk.getMetricForUserNameOrAlias(metrictype);
     return new TestState(store, tables.getAsyncClient());
   }
 
