@@ -1,6 +1,7 @@
 package io.fineo.read.drill.e2e.commands;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.fineo.read.drill.e2e.DelegateConnection;
 import io.fineo.read.drill.e2e.options.DrillArguments;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +10,7 @@ import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,7 +26,7 @@ public abstract class Command {
   }
 
   protected void runQuery(String stmt) throws Exception {
-    try (Connection conn = getConnection();
+    try (Connection conn = connection();
          ResultSet results = conn.createStatement().executeQuery(stmt);
          FileOutputStream os = new FileOutputStream(opts.outputFile);
          BufferedOutputStream bos = new BufferedOutputStream(os)) {
@@ -42,6 +44,16 @@ public abstract class Command {
     } finally {
       LOG.info("Done running query: {}", stmt);
     }
+  }
+
+  private Connection connection() throws Exception {
+    return new DelegateConnection(getConnection()) {
+      @Override
+      public void close() throws SQLException {
+        LOG.info("Closing connection...");
+        super.close();
+      }
+    };
   }
 
   public abstract void run() throws Throwable;
