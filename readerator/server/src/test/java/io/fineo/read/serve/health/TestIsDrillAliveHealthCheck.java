@@ -22,7 +22,7 @@ public class TestIsDrillAliveHealthCheck {
   public void testCheckMatches() throws Exception {
     JdbcMeta meta = TestFineoMeta.getMeta();
     IsDrillAliveCheck check = new IsDrillAliveCheck(meta);
-    assertTrue(check.matches(new String[]{"alive", "drill"}));
+    assertTrue(check.matches(new String[]{"", "alive", "drill"}));
     assertFalse(check.matches(new String[]{"alive"}));
     assertFalse(check.matches(new String[]{}));
     assertFalse(check.matches(new String[]{"alive", "drill", "drill"}));
