@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Properties;
 
@@ -32,7 +33,7 @@ public class LocalDrillCluster {
 
   public LocalDrillCluster(int serverCount) {
     this.serverCount = serverCount;
-    this.factory =  new SingleConnectionCachingFactory(new ConnectionFactory() {
+    this.factory = new SingleConnectionCachingFactory(new ConnectionFactory() {
       @Override
       public Connection getConnection(ConnectionInfo info) throws Exception {
         Class.forName("org.apache.drill.jdbc.Driver");
@@ -69,6 +70,12 @@ public class LocalDrillCluster {
     }
 
     zkHelper.stopZookeeper();
+
+    try {
+      factory.closeConnections();
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   public String getUrl() {
