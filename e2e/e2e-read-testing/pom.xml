@@ -26,6 +26,11 @@
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
     </dependency>
+    <dependency>
+      <groupId>io.fineo.client</groupId>
+      <artifactId>jdbc</artifactId>
+      <classifier>all</classifier>
+    </dependency>
   </dependencies>
   <profiles>
     <profile>
@@ -56,8 +61,8 @@
                   <shadedClassifierName>aws</shadedClassifierName>
                   <artifactSet>
                     <includes>
-                      <include>org.slf4j:slf4j-api</include>
-                      <include>io.fineo.read:fineo-client</include>
+                      <!-- fineo-jdbc include slf4j -->
+                      <include>io.fineo.client:jdbc:all</include>
                       <include>ch.qos.logback:logback-classic</include>
                       <include>ch.qos.logback:logback-core</include>
                       <!-- Needed for parsing -->
