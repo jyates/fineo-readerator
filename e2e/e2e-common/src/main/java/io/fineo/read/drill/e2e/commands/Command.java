@@ -26,8 +26,8 @@ public abstract class Command {
   }
 
   protected void runQuery(String stmt) throws Exception {
-    try (Connection conn = connection();
-         ResultSet results = conn.createStatement().executeQuery(stmt);
+    Connection conn = connection();
+    try (ResultSet results = conn.createStatement().executeQuery(stmt);
          FileOutputStream os = new FileOutputStream(opts.outputFile);
          BufferedOutputStream bos = new BufferedOutputStream(os)) {
       List<Map<String, Object>> events = new ArrayList<>();
@@ -42,8 +42,10 @@ public abstract class Command {
       ObjectMapper mapper = new ObjectMapper();
       mapper.writeValue(bos, events);
     } finally {
+      conn.close();
       LOG.info("Done running query: {}", stmt);
     }
+    LOG.info("And finished with query method");
   }
 
   private Connection connection() throws Exception {
