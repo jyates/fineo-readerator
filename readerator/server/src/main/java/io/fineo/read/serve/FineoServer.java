@@ -49,8 +49,6 @@ public class FineoServer {
 
   private static final Serialization SER = Serialization.PROTOBUF;
 
-  private static final String EMPTY = "===UNSPECIFIED===";
-
   // command line key
   public static final String DRILL_CONNECTION_PARAMETER_KEY = "drill-connection";
   public static final String DRILL_CATALOG_PARAMETER_KEY = "drill-catalog";

@@ -39,7 +39,6 @@ public class ReadCommand extends Command {
     Class.forName(reader.getDriver());
     String url = reader.getJdbcConnection(jdbc.getUrl());
     LOG.info("Connecting to {} with url: {}", reader.getDriver(), url);
-    return DriverManager.getConnection(url, reader
-      .loadProperties(opts));
+    return DriverManager.getConnection(url, reader.loadProperties(opts));
   }
 }

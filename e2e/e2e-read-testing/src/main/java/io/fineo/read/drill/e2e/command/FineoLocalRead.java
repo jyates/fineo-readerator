@@ -17,6 +17,9 @@ public class FineoLocalRead extends Reader {
     Properties props = new Properties();
     // no authentication - just an API key
     props.put(FineoConnectionProperties.API_KEY.camelName(), opts.org.get());
+    // no prefix for the api. Ensures that requests just hit url/, rather than url/prod (which we
+    // don't serve from the local rest server
+    props.put("fineo.internal.test.api-prefix", "/");
     return props;
   }
 
