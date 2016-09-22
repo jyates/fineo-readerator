@@ -9,6 +9,8 @@ import org.apache.calcite.avatica.UnregisteredDriver;
 import org.apache.calcite.avatica.jdbc.FineoJdbcMeta;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.apache.calcite.avatica.metrics.noop.NoopMetricsSystem;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.Properties;
@@ -19,6 +21,7 @@ import java.util.Properties;
  */
 public class FineoServerDriver extends UnregisteredDriver {
 
+  private static final Logger LOG = LoggerFactory.getLogger(FineoServerDriver.class);
   public static final String CONNECT_PREFIX = "jdbc:fineo-server:";
 
   static {
@@ -67,6 +70,7 @@ public class FineoServerDriver extends UnregisteredDriver {
     String url = props.getProperty(FineoServer.DRILL_CONNECTION_PARAMETER_KEY);
     String org = props.getProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY);
     try {
+      LOG.debug("Creating Fineo JDBC Metadata");
       return new FineoJdbcMeta(url, props, metrics, org);
     } catch (SQLException e) {
       throw new RuntimeException(e);

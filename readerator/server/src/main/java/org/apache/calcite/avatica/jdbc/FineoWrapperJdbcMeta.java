@@ -3,6 +3,8 @@ package org.apache.calcite.avatica.jdbc;
 import com.google.common.base.Preconditions;
 import io.fineo.read.FineoJdbcProperties;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -20,6 +22,7 @@ import java.util.stream.Collectors;
  */
 public class FineoWrapperJdbcMeta extends JdbcMeta {
 
+  private static final Logger LOG = LoggerFactory.getLogger(FineoWrapperJdbcMeta.class);
   private static final List<String> DISALLOWED_KEYS = new ArrayList<>();
 
   static {
@@ -33,6 +36,7 @@ public class FineoWrapperJdbcMeta extends JdbcMeta {
     MetricsSystem metrics, String org) throws SQLException {
     super(url, info, metrics);
     this.org = org;
+    LOG.debug("Creating Fineo Wrapper Metadata");
   }
 
   @Override

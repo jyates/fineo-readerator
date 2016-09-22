@@ -79,7 +79,12 @@ public class FineoJdbcMeta extends JdbcMeta {
 
   @Override
   public void openConnection(ConnectionHandle ch, Map<String, String> info) {
-    super.openConnection(ch, info);
+    try {
+      super.openConnection(ch, info);
+    } catch (RuntimeException e) {
+      LOG.error("Failed to open connection: {}", ch, e);
+    }
+
     this.connectionPropertyCache.put(ch.id, info);
   }
 
