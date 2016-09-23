@@ -83,6 +83,7 @@ public class FineoJdbcMeta extends JdbcMeta {
       super.openConnection(ch, info);
     } catch (RuntimeException e) {
       LOG.error("Failed to open connection: {}", ch, e);
+      throw e;
     }
 
     this.connectionPropertyCache.put(ch.id, info);
