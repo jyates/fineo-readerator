@@ -26,10 +26,37 @@ public abstract class Command {
   }
 
   protected void runQuery(String stmt) throws Exception {
-    Connection conn = connection();
-    try (ResultSet results = conn.createStatement().executeQuery(stmt);
-         FileOutputStream os = new FileOutputStream(opts.outputFile);
-         BufferedOutputStream bos = new BufferedOutputStream(os)) {
+    int i = 0;
+    boolean success = false;
+    // try 10 times
+    while (i++ < 10) {
+      try (Connection conn = connection();
+           FileOutputStream os = new FileOutputStream(opts.outputFile);
+           BufferedOutputStream bos = new BufferedOutputStream(os)) {
+        List<Map<String, Object>> events = tryRequest(conn, stmt);
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.writeValue(bos, events);
+        success = true;
+        return;
+      } catch (RuntimeException e) {
+        if (!e.getMessage().contains("Failure setting up ZK for client")) {
+          throw e;
+        } else {
+          LOG.error("Failed to connect!", e);
+          LOG.info(" ---- Sleeping to await connection...");
+          Thread.sleep(5000);
+        }
+      } finally {
+        LOG.info("{}, Done running query: {}", stmt, success ? "[SUCCESS]" : "[FAILURE]");
+      }
+    }
+
+    LOG.info("And finished with query method - **** FAILED ****");
+    System.exit(1);
+  }
+
+  private List<Map<String, Object>> tryRequest(Connection conn, String stmt) throws Exception {
+    try (ResultSet results = conn.createStatement().executeQuery(stmt)) {
       List<Map<String, Object>> events = new ArrayList<>();
       while (results.next()) {
         Map<String, Object> map = new HashMap<>();
@@ -39,13 +66,8 @@ public abstract class Command {
         }
         events.add(map);
       }
-      ObjectMapper mapper = new ObjectMapper();
-      mapper.writeValue(bos, events);
-    } finally {
-      conn.close();
-      LOG.info("Done running query: {}", stmt);
+      return events;
     }
-    LOG.info("And finished with query method");
   }
 
   private Connection connection() throws Exception {
