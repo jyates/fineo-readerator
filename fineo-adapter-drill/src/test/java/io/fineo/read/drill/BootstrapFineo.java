@@ -32,13 +32,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.lang.String.format;
+
 public class BootstrapFineo {
 
   private static final Logger LOG = LoggerFactory.getLogger(BootstrapFineo.class);
-  private static final String URL = "http://127.0.0.1:8047";
+  private static final String URL = "http://127.0.0.1:%s";
 
   // fineo plugin configuration
   public final Map<String, Object> plugin = new HashMap<>();
+  private final String url;
   private SchemaRepositoryConfig repository = null;
   private final List<DynamoSourceTable> dynamoTables = new ArrayList<>();
   private final List<FsSourceTable> sources = new ArrayList<>();
@@ -49,6 +52,10 @@ public class BootstrapFineo {
   private DynamoEndpoint dynamoEndpoint;
   private Map<String, Object> credentials;
   private Map<String, DynamoKeyMapperSpec> mappers = new HashMap<>();
+
+  public BootstrapFineo(int webPort) {
+    this.url = format(URL, webPort);
+  }
 
   public DrillConfigBuilder builder() {
     return new DrillConfigBuilder();
@@ -148,7 +155,7 @@ public class BootstrapFineo {
 
   private boolean bootstrap(String storagePluginJson, String plugin) throws IOException {
     CloseableHttpClient httpclient = HttpClients.createDefault();
-    HttpPost post = new HttpPost(URL + storagePluginJson);
+    HttpPost post = new HttpPost(url + storagePluginJson);
     post.setHeader("Content-type", "application/json");
     LOG.debug("Updating " + storagePluginJson + " with config: " + plugin);
     post.setEntity(new StringEntity(plugin, ContentType.APPLICATION_JSON));

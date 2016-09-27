@@ -155,7 +155,7 @@ public class BaseFineoTest extends BaseDynamoTableTest {
   }
 
   protected void bootstrap(FsSourceTable... files) throws IOException {
-    BootstrapFineo bootstrap = new BootstrapFineo();
+    BootstrapFineo bootstrap = newBootstrap();
     BootstrapFineo.DrillConfigBuilder builder = basicBootstrap(bootstrap.builder());
 
     for (FsSourceTable file : files) {
@@ -285,5 +285,9 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     wrote.put(AvroSchemaProperties.ORG_ID_KEY, org);
     wrote.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
     return wrote;
+  }
+
+  protected BootstrapFineo newBootstrap() {
+    return new BootstrapFineo(drill.getWebPort());
   }
 }

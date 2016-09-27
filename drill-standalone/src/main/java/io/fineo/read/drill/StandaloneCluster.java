@@ -5,6 +5,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
+import java.util.Properties;
+
+import static java.lang.String.format;
 
 /**
  * Wrapper around a {@link LocalDrillCluster} that allows us to run a local semi-distributed
@@ -39,14 +42,17 @@ public class StandaloneCluster extends Thread {
   }
 
   public void runWithException() throws Throwable {
-    this.drill = new LocalDrillCluster(1);
+    Properties props = new Properties();
+    // set zk port back to a standard
+    props.put("drill.exec.zk.connect", format("localhost:%s", 2181));
+    this.drill = new LocalDrillCluster(1, props);
     drill.setup();
 
     Connection conn = drill.getConnection();
     FineoDrillStartupSetup setup = new FineoDrillStartupSetup(conn);
     setup.run();
 
-    LOG.info("Cluster started! JDBC Url: "+drill.getUrl());
+    LOG.info("Cluster started! JDBC Url: " + drill.getUrl());
   }
 
   public Connection getConnection() throws Exception {

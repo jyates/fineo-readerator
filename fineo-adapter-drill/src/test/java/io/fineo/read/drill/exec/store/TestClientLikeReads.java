@@ -17,6 +17,7 @@ import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.drill.common.logical.data.Writer;
 import org.apache.drill.exec.store.parquet.ParquetFormatConfig;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -373,6 +374,6 @@ public class TestClientLikeReads extends BaseFineoTest {
   }
 
   private BootstrapFineo.DrillConfigBuilder bootstrapper() {
-    return basicBootstrap(new BootstrapFineo().builder());
+    return basicBootstrap(newBootstrap().builder());
   }
 }

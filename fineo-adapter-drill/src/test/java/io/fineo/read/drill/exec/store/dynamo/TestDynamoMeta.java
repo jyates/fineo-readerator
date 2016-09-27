@@ -16,10 +16,10 @@ public class TestDynamoMeta extends BaseFineoTest {
   public void testReadTableNamesInMetadata() throws Exception {
     register();
     // setup schema for dynamo with no tables
-    BootstrapFineo bootstrap = new BootstrapFineo();
+    BootstrapFineo bootstrap = newBootstrap();
     BootstrapFineo.DrillConfigBuilder builder = basicBootstrap(bootstrap.builder());
     builder.bootstrap();
     Connection conn = drill.getConnection();
-    ResultSet r = conn.getMetaData().getCatalogs();
+    conn.getMetaData().getCatalogs();
   }
 }

@@ -327,7 +327,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
   }
 
   private void bootstrap(Table... tables) throws IOException {
-    BootstrapFineo bootstrap = new BootstrapFineo();
+    BootstrapFineo bootstrap = newBootstrap();
     BootstrapFineo.DrillConfigBuilder builder =
       basicBootstrap(bootstrap.builder())
         .withDynamoKeyMapper();

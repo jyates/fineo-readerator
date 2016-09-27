@@ -44,4 +44,8 @@ public class DrillClusterRule extends ExternalResource {
   public Connection getConnection() throws Exception {
     return drill.getConnection();
   }
+
+  public int getWebPort(){
+    return drill.getWebPort();
+  }
 }
