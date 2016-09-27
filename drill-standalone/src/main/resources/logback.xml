@@ -22,6 +22,7 @@
   <logger name="org.apache.zookeeper.server" level="WARN"/>
   <logger name="org.apache.zookeeper.ZooKeeper" level="WARN"/>
   <logger name="org.apache.drill.common.scanner.persistence" level="WARN"/>
+  <logger name="io.fineo.read.drill" level="TRACE"/>
   <!--<logger name="io.fineo.read.drill.exec.store.rel.recombinator.physical.batch" level="DEBUG"/>-->
   <root level="INFO">
     <appender-ref ref="CONSOLE"/>

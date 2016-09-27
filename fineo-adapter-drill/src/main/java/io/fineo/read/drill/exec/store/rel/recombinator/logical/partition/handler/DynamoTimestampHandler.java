@@ -8,6 +8,8 @@ import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableFi
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TimestampExpressionBuilder;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 
@@ -15,6 +17,8 @@ import static java.time.Instant.ofEpochMilli;
 import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;
 
 public class DynamoTimestampHandler implements TimestampHandler {
+
+  private static final Logger LOG = LoggerFactory.getLogger(DynamoTimestampHandler.class);
 
   private final RexBuilder rexer;
 
@@ -55,13 +59,15 @@ public class DynamoTimestampHandler implements TimestampHandler {
     private final RexBuilder builder;
 
     public DynamoTableNameIncludedConditionBuilder(String tableName, RexBuilder builder) {
-      this.parts = DynamoTableNameParts.parse(tableName, false);
+      this.parts = DynamoTableNameParts.parse(tableName, true);
       this.builder = builder;
     }
 
     @Override
     public RexNode buildGreaterThan(SingleFunctionProcessor processor) {
       long epoch = asEpoch(processor);
+      LOG.trace("Checking if epoch ts [{}] greater than end time [{}] to include table: {}",
+        epoch, parts.getEnd(), parts.getName());
       return parts.getEnd() > epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);
@@ -76,6 +82,8 @@ public class DynamoTimestampHandler implements TimestampHandler {
     @Override
     public RexNode buildLessThan(SingleFunctionProcessor processor) {
       long epoch = asEpoch(processor);
+      LOG.trace("Checking if epoch ts [{}] < start time [{}] to include table: {}",
+        epoch, parts.getStart(), parts.getName());
       return parts.getStart() < epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);
@@ -84,6 +92,8 @@ public class DynamoTimestampHandler implements TimestampHandler {
     @Override
     public RexNode buildLessThanOrEquals(SingleFunctionProcessor processor) {
       long epoch = asEpoch(processor);
+      LOG.trace("Checking if epoch ts [{}] <= start time [{}] to include table: {}",
+        epoch, parts.getStart(), parts.getName());
       return parts.getStart() <= epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);
@@ -93,6 +103,8 @@ public class DynamoTimestampHandler implements TimestampHandler {
     public RexNode buildEquals(SingleFunctionProcessor processor) {
       long epoch = asEpoch(processor);
       // interval CONTAINS
+      LOG.trace("Checking if epoch ts [{}] with within table time range[{},{}] to incl. table:{}",
+        epoch, parts.getStart(), parts.getEnd(), parts.getName());
       return parts.getStart() >= epoch && parts.getEnd() < epoch ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);

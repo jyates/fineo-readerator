@@ -34,6 +34,8 @@ import org.apache.calcite.rex.RexVisitorImpl;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.drill.common.expression.LogicalExpression;
 import org.apache.drill.exec.planner.logical.DrillParseContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -63,6 +65,9 @@ import static org.apache.drill.exec.planner.physical.PrelUtil.getPlannerSettings
  * Rule that pushes a timerange filter (WHERE) past the recombinator and into the actual scan
  */
 public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRule {
+
+  private static final Logger LOG =
+    LoggerFactory.getLogger(ConvertFineoMarkerIntoFilteredInputTables.class);
 
   private ConvertFineoMarkerIntoFilteredInputTables(RelOptRuleOperand operand, String name) {
     super(operand, name);
@@ -211,15 +216,18 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
       for (RelNode s : scans) {
         builder.reset();
         GroupedScan group = group(fmr.getTraitSet(), s);
+        LOG.debug("Got group: {}", group);
         TimestampHandler handler = handlers.get(group.source);
 
         RexNode shouldScan =
           builder.lift(conditionExp, rexer, handler.getShouldScanBuilder(group.tableName));
         Range<Instant> range = handler.getTableTimeRange(group.tableName);
+        LOG.debug("With range: {}", range);
         if (builder.isScanAll() || shouldScan == null) {
           // we have to scan everything b/c we didn't understand all the timestamp constraints
           //    OR
           // there is no timestamp constraint, in which case we need to scan everything
+          LOG.debug("Have to scan everything!");
           translatedScans.put(group.source, new RelAndRange(group.scan, range));
         } else if (shouldScan != null && evaluate(shouldScan)) {
           // we can make a pretty good guess about the scan
@@ -229,6 +237,8 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
           RelNode translated = wfb.buildFilter(builder, conditionExp);
           if (translated != null) {
             translatedScans.put(group.source, new RelAndRange(translated, range));
+          } else {
+            LOG.debug("Skipping scan because filter builder ignored it.");
           }
         }
       }
@@ -297,12 +307,14 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
       List<RelNode> scans = call.getChildRels(fmr);
       for (RelNode node : scans) {
         GroupedScan group = group(fmr.getTraitSet(), node);
+        LOG.debug("Found table group: {}", group);
         SourceType type = group.source;
         TimestampHandler handler = handlers.get(type);
         types.put(type,
           new RelAndRange(group.scan, handler.getTableTimeRange(group.tableName)));
       }
 
+      LOG.debug("Found tables/ranges: \n{}", types);
       return types;
     }
   }
@@ -369,6 +381,15 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
       this.source = source;
       this.tableName = tableName;
       this.scan = scan;
+    }
+
+    @Override
+    public String toString() {
+      return "GroupedScan{" +
+             "source=" + source +
+             ", tableName='" + tableName + '\'' +
+             ", scan=" + scan +
+             '}';
     }
   }
 }
