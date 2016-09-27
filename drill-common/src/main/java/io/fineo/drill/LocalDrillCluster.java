@@ -2,7 +2,6 @@ package io.fineo.drill;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.drill.exec.ExecConstants;
-import org.apache.drill.exec.ZookeeperHelper;
 import org.apache.drill.exec.metrics.DrillMetrics;
 import org.apache.drill.exec.server.Drillbit;
 import org.apache.drill.jdbc.ConnectionFactory;
@@ -15,6 +14,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Properties;
+import java.util.Random;
 
 import static java.lang.String.format;
 
@@ -28,7 +28,15 @@ public class LocalDrillCluster {
 
   {
     props.put(ExecConstants.SYS_STORE_PROVIDER_LOCAL_ENABLE_WRITE, "false");
+    // turn off http to avoid conflicts between drill bits
     props.put(ExecConstants.HTTP_ENABLE, "false");
+    // pick a random ephemeral port for the bit/user
+    int port = new Random().nextInt(65535 - 49152) + 49152;
+    props.put("drill.exec.zk.connect", format("localhost:%s", ++port));
+    // ++port because that matches how Drill looks for ports. Also user port before bit port
+    props.put(ExecConstants.INITIAL_USER_PORT, Integer.toString(++port));
+    props.put(ExecConstants.INITIAL_BIT_PORT, Integer.toString(++port));
+
   }
 
   public LocalDrillCluster(int serverCount) {
@@ -40,14 +48,12 @@ public class LocalDrillCluster {
         return DriverManager.getConnection(info.getUrl(), info.getParamsAsProperties());
       }
     });
-    zkHelper = new ZookeeperHelper();
+    zkHelper = new ZookeeperHelper(props, false);
   }
 
   public void setup() throws Throwable {
     zkHelper.startZookeeper(1);
 
-    // turn off the HTTP server to avoid port conflicts between the drill bits
-    System.setProperty(ExecConstants.HTTP_ENABLE, "false");
     ImmutableList.Builder<Drillbit> servers = ImmutableList.builder();
     for (int i = 0; i < serverCount; i++) {
       servers.add(Drillbit.start(zkHelper.getConfig()));
