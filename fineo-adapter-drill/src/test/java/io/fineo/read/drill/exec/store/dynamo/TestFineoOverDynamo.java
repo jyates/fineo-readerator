@@ -18,6 +18,7 @@ import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -161,6 +162,52 @@ public class TestFineoOverDynamo extends BaseFineoTest {
       .withNextStep("filter")
       .done()
       .validate(drill.getConnection());
+  }
+
+  /**
+   * Simple check for a single table that we always include it when filtering by timestamp.
+   * Covers regression testing for dynamo range filtering
+   *
+   * @throws Exception on failure
+   */
+  @Test
+  @Ignore
+  public void testFilterRangeOneTable() throws Exception {
+    TestState state = register();
+    long ts = FineoTestUtil.get1980();
+
+    Map<String, Object> wrote = prepareItem();
+    wrote.put(Schema.SORT_KEY_NAME, ts);
+    wrote.put("field1", true);
+    Table table = state.writeToDynamo(wrote);
+    bootstrap(table);
+
+    Map<String, Object> expected = new HashMap<>();
+    expected.put(AvroSchemaProperties.ORG_ID_KEY, org);
+    expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
+    expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
+    expected.put("field1", true);
+    verifySelectStar(
+      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " < " + (ts + 1)),
+      withNext(expected));
+    verifySelectStar(
+      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " <= " + (ts + 1)),
+      withNext(expected));
+
+    verifySelectStar(
+      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " = " + ts),
+      withNext(expected));
+
+    verifySelectStar(
+      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " <> " + (ts + 1)),
+      withNext(expected));
+
+    verifySelectStar(
+      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " > " + (ts - 1)),
+      withNext(expected));
+    verifySelectStar(
+      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " >= " + (ts - 1)),
+      withNext(expected));
   }
 
   /**

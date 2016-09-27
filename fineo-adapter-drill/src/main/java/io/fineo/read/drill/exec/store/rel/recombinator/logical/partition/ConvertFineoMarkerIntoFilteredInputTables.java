@@ -222,7 +222,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
         RexNode shouldScan =
           builder.lift(conditionExp, rexer, handler.getShouldScanBuilder(group.tableName));
         Range<Instant> range = handler.getTableTimeRange(group.tableName);
-        LOG.debug("With range: {}", range);
+        LOG.debug("With range: {} - {}", range.getStart(), range.getEnd());
         if (builder.isScanAll() || shouldScan == null) {
           // we have to scan everything b/c we didn't understand all the timestamp constraints
           //    OR

@@ -29,7 +29,7 @@ public class LocalDrillCluster {
   {
     props.put(ExecConstants.SYS_STORE_PROVIDER_LOCAL_ENABLE_WRITE, "false");
     // turn off http to avoid conflicts between drill bits
-    props.put(ExecConstants.HTTP_ENABLE, "false");
+//    props.put(ExecConstants.HTTP_ENABLE, "false");
     // pick a random ephemeral port for the bit/user
     int port = new Random().nextInt(65535 - 49152) + 49152;
     props.put("drill.exec.zk.connect", format("localhost:%s", ++port));
