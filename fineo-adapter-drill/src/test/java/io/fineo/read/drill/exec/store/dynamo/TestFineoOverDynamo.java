@@ -171,7 +171,6 @@ public class TestFineoOverDynamo extends BaseFineoTest {
    * @throws Exception on failure
    */
   @Test
-  @Ignore
   public void testFilterRangeOneTable() throws Exception {
     TestState state = register();
     long ts = FineoTestUtil.get1980();

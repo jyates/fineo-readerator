@@ -54,6 +54,7 @@ public class LocalReadCommand extends Command {
     cluster = new StandaloneCluster();
     cluster.runWithException();
     LOG.info("Cluster started!");
+    opts.webPort = cluster.getWebPort();
     new Bootstrap(opts, store).run();
   }
 }

@@ -18,4 +18,6 @@ public class DrillArguments {
 
   @ParametersDelegate
   public DynamoArgument dynamo = new DynamoArgument();
+
+  public int webPort = 8147;
 }

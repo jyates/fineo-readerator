@@ -23,7 +23,7 @@ public class Bootstrap {
   @ParametersDelegate
   protected final LocalSchemaStoreOptions store;
 
-  public Bootstrap(){
+  public Bootstrap() {
     this(new DrillArguments(), new LocalSchemaStoreOptions());
   }
 
@@ -36,7 +36,7 @@ public class Bootstrap {
     LOG.info("Bootstrapping Fineo adapter...");
 
     // ensure the fineo plugin is setup
-    BootstrapFineo bootstrap = new BootstrapFineo();
+    BootstrapFineo bootstrap = new BootstrapFineo(opts.webPort);
     BootstrapFineo.DrillConfigBuilder builder =
       bootstrap.builder()
                .withCredentials(new FakeAwsCredentialsModule().getCredentials())

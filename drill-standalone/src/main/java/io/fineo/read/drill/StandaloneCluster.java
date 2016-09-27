@@ -1,6 +1,7 @@
 package io.fineo.read.drill;
 
 import io.fineo.drill.LocalDrillCluster;
+import org.apache.drill.exec.ExecConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +16,7 @@ import static java.lang.String.format;
  */
 public class StandaloneCluster extends Thread {
   private static final Logger LOG = LoggerFactory.getLogger(StandaloneCluster.class);
+  private static final int WEB_PORT = 8147;
   private LocalDrillCluster drill;
 
   public static void main(String[] args) throws InterruptedException {
@@ -43,8 +45,9 @@ public class StandaloneCluster extends Thread {
 
   public void runWithException() throws Throwable {
     Properties props = new Properties();
-    // set zk port back to a standard
+    // set some standard ports so we can connect with the defaults
     props.put("drill.exec.zk.connect", format("localhost:%s", 2181));
+    props.put(ExecConstants.HTTP_PORT, Integer.toString(WEB_PORT));
     this.drill = new LocalDrillCluster(1, props);
     drill.setup();
 
@@ -57,6 +60,13 @@ public class StandaloneCluster extends Thread {
 
   public Connection getConnection() throws Exception {
     return drill.getConnection();
+  }
+
+  public int getWebPort() {
+    int port = this.drill.getWebPort();
+    assert port == WEB_PORT :
+      format("Running web server on port [%] that doens't match configured [%s]", port, WEB_PORT);
+    return port;
   }
 
   public void shutdown() {
