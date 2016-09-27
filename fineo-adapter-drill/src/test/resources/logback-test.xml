@@ -20,6 +20,7 @@
   <logger name="org.apache.drill.common.config" level="DEBUG"/>
   <logger name="io.fineo.read.drill.exec.store.rel.expansion.phyiscal" level="TRACE"/>
   <logger name="io.fineo.lambda.dynamo" level="TRACE"/>
+  <logger name="io.fineo.read.drill" level="TRACE"/>
   <!--<logger name="io.fineo.read.drill.exec.store.rel.recombinator.physical.batch" level="DEBUG"/>-->
   <root level="INFO">
     <appender-ref ref="CONSOLE"/>

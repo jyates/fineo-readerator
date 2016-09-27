@@ -105,7 +105,7 @@ public class DynamoTimestampHandler implements TimestampHandler {
       // interval CONTAINS
       LOG.trace("Checking if epoch ts [{}] with within table time range[{},{}] to incl. table:{}",
         epoch, parts.getStart(), parts.getEnd(), parts.getName());
-      return parts.getStart() >= epoch && parts.getEnd() < epoch ?
+      return parts.getStart() <= epoch && epoch < parts.getEnd() ?
              builder.makeLiteral(true) :
              builder.makeLiteral(false);
     }
