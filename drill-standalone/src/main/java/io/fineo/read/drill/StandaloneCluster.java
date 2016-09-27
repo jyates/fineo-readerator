@@ -46,7 +46,7 @@ public class StandaloneCluster extends Thread {
   public void runWithException() throws Throwable {
     Properties props = new Properties();
     // set some standard ports so we can connect with the defaults
-    props.put("drill.exec.zk.connect", format("localhost:%s", 2181));
+    props.put(ExecConstants.ZK_CONNECTION, format("localhost:%s", 2181));
     props.put(ExecConstants.HTTP_PORT, Integer.toString(WEB_PORT));
     this.drill = new LocalDrillCluster(1, props);
     drill.setup();

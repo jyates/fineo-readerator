@@ -36,7 +36,7 @@ public class LocalDrillCluster {
     webPort = ++port;
     props.put(ExecConstants.HTTP_PORT, Integer.toString(webPort));
     props.put(ExecConstants.HTTP_ENABLE, "true");
-    props.put("drill.exec.zk.connect", format("localhost:%s", ++port));
+    props.put(ExecConstants.ZK_CONNECTION, format("localhost:%s", ++port));
     // ++port because that matches how Drill looks for ports. Also user port before bit port
     props.put(ExecConstants.INITIAL_USER_PORT, Integer.toString(++port));
     props.put(ExecConstants.INITIAL_BIT_PORT, Integer.toString(++port));
@@ -103,7 +103,7 @@ public class LocalDrillCluster {
   }
 
   public String getUrl() {
-    String zkConnection = zkHelper.getConfig().getString("drill.exec.zk.connect");
+    String zkConnection = zkHelper.getConfig().getString(ExecConstants.ZK_CONNECTION);
     return format("jdbc:drill:zk=%s", zkConnection);
   }
 
