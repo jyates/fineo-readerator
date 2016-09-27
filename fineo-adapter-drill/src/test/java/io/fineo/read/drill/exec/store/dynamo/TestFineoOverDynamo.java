@@ -34,6 +34,7 @@ import static io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils.lte;
 import static io.fineo.read.drill.FineoTestUtil.get1980;
 import static io.fineo.read.drill.FineoTestUtil.p;
 import static io.fineo.read.drill.FineoTestUtil.withNext;
+import static java.lang.String.format;
 import static org.apache.calcite.util.ImmutableNullableList.of;
 import static org.junit.Assert.assertNotEquals;
 
@@ -186,26 +187,22 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     expected.put(AvroSchemaProperties.ORG_METRIC_TYPE_KEY, metrictype);
     expected.put(AvroSchemaProperties.TIMESTAMP_KEY, ts);
     expected.put("field1", true);
-    verifySelectStar(
-      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " < " + (ts + 1)),
-      withNext(expected));
-    verifySelectStar(
-      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " <= " + (ts + 1)),
-      withNext(expected));
+    verifySelectStarWhereTimestamp("<", ts + 1, expected);
+    verifySelectStarWhereTimestamp("<=", ts + 1, expected);
+    verifySelectStarWhereTimestamp("=", ts, expected);
 
-    verifySelectStar(
-      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " = " + ts),
-      withNext(expected));
+    verifySelectStarWhereTimestamp("<>", ts + 1, expected);
+    verifySelectStarWhereTimestamp("<>", ts - 1, expected);
+    verifySelectStarWhereTimestamp("<>", ts);
 
-    verifySelectStar(
-      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " <> " + (ts + 1)),
-      withNext(expected));
+    verifySelectStarWhereTimestamp(">=", ts - 1, expected);
+    verifySelectStarWhereTimestamp(">", ts - 1, expected);
+  }
 
+  private void verifySelectStarWhereTimestamp(String op, Object value, Map<String, Object>...
+    expected) throws Exception {
     verifySelectStar(
-      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " > " + (ts - 1)),
-      withNext(expected));
-    verifySelectStar(
-      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + " >= " + (ts - 1)),
+      of(FineoTestUtil.bt(AvroSchemaProperties.TIMESTAMP_KEY) + format(" %s %s", op, value)),
       withNext(expected));
   }
 
