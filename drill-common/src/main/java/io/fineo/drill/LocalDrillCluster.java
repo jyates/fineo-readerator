@@ -112,6 +112,6 @@ public class LocalDrillCluster {
   }
 
   public int getWebPort() {
-    return this.webPort;
+    return this.servers.get(0).getContext().getConfig().getInt(ExecConstants.HTTP_PORT);
   }
 }
