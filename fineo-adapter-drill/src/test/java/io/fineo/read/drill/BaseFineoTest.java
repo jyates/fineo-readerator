@@ -15,14 +15,13 @@ import io.fineo.lambda.dynamo.LocalDynamoTestUtil;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.lambda.dynamo.rule.BaseDynamoTableTest;
 import io.fineo.lambda.handle.schema.SchemaStoreModuleForTesting;
-import io.fineo.lambda.handle.schema.inject.SchemaStoreModule;
+import io.fineo.lambda.handle.schema.inject.DynamoDBRepositoryProvider;
 import io.fineo.read.drill.exec.store.dynamo.DynamoTranslator;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.OldSchemaException;
 import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.AvroSchemaProperties;
 import io.fineo.schema.store.SchemaStore;
-import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import io.fineo.test.rule.TestOutput;
 import org.apache.commons.lang3.tuple.Pair;
@@ -205,7 +204,8 @@ public class BaseFineoTest extends BaseDynamoTableTest {
     // setup the schema repository
     SchemaStoreModuleForTesting module = new SchemaStoreModuleForTesting();
     Injector inject = Guice.createInjector(module, tables.getDynamoModule(), InstanceToNamed
-      .namedInstance(SchemaStoreModule.DYNAMO_SCHEMA_STORE_TABLE, tables.getTestTableName()));
+      .namedInstance(DynamoDBRepositoryProvider.DYNAMO_SCHEMA_STORE_TABLE,
+        tables.getTestTableName()));
     return inject.getInstance(SchemaStore.class);
   }
 
