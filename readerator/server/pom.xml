@@ -13,8 +13,8 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.fineo.read</groupId>
-      <artifactId>readerator-common</artifactId>
+      <groupId>io.fineo.connection</groupId>
+      <artifactId>common</artifactId>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>

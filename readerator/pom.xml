@@ -14,16 +14,15 @@
   <packaging>pom</packaging>
   <modules>
     <module>server</module>
-    <module>readerator-common</module>
     <module>readerator-it</module>
   </modules>
 
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>io.fineo.read</groupId>
-        <artifactId>readerator-common</artifactId>
-        <version>${project.version}</version>
+        <groupId>io.fineo.connection</groupId>
+        <artifactId>common</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
