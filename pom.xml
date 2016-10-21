@@ -32,6 +32,11 @@
       <name>MapR Drill Optiq Snapshots</name>
       <url>http://repository.mapr.com/nexus/content/repositories/drill/</url>
     </repository>
+    <repository>
+      <id>Fineo-release</id>
+      <name>Fineo client release</name>
+      <url>http://maven.fineo.io/release</url>
+    </repository>
   </repositories>
 
   <properties>
@@ -42,7 +47,7 @@
     <aws.dynamodb.local.version>1.10.5.1</aws.dynamodb.local.version>
     <aws.android.sdk.version>2.3.0</aws.android.sdk.version>
 
-    <fineo.client.version>1.0.2-SNAPSHOT</fineo.client.version>
+    <fineo.client.version>1.1.1</fineo.client.version>
     <fineo.ingest.version>2.0-SNAPSHOT</fineo.ingest.version>
     <fineo.schema.version>2.0-SNAPSHOT</fineo.schema.version>
     <avatica.version>1.8.0-fineo-1.0-SNAPSHOT</avatica.version>
