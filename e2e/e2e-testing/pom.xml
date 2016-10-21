@@ -59,6 +59,8 @@
                   <shadedClassifierName>aws</shadedClassifierName>
                   <artifactSet>
                     <includes>
+                      <include>ch.qos.logback:logback-classic</include>
+                      <include>ch.qos.logback:logback-core</include>
                       <include>io.fineo.read:drill-standalone:aws</include>
                       <include>io.fineo.read.e2e:e2e-common</include>
                       <include>io.fineo.e2e:e2e-parsing</include>

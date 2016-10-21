@@ -129,7 +129,7 @@
 
     <dependency>
       <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk</artifactId>
+      <artifactId>aws-java-sdk-core</artifactId>
     </dependency>
     <dependency>
       <groupId>io.fineo.schema</groupId>
