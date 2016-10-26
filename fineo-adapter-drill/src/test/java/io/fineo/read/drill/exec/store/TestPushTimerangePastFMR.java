@@ -32,6 +32,7 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,13 +89,13 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
     long start = FineoTestUtil.get1980();
     Pair<FsSourceTable, File> j1 = FineoTestUtil
       .writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
-      start, newArrayList(values));
+        start, newArrayList(values));
     Pair<FsSourceTable, File> j2 = FineoTestUtil
       .writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
-      start + (ONE_DAY_MILLIS * 2), newArrayList(values));
+        start + (ONE_DAY_MILLIS * 2), newArrayList(values));
     Pair<FsSourceTable, File> j3 = FineoTestUtil
       .writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
-      start + (ONE_DAY_MILLIS * 3), newArrayList(values2));
+        start + (ONE_DAY_MILLIS * 3), newArrayList(values2));
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(j1.getKey(), j2.getKey(), j3.getKey());
@@ -136,7 +137,7 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
     long start = FineoTestUtil.get1980();
     Pair<FsSourceTable, File> j1 = FineoTestUtil
       .writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
-      start, newArrayList(values));
+        start, newArrayList(values));
 
     // ensure that the fineo-test plugin is enabled
     bootstrap(j1.getKey());
@@ -178,7 +179,10 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
   private void validatePlan(Map<String, Object> scan, Class<? extends FormatPluginConfig>
     pluginFormat, List<String> files, File selectionRoot, List<String> columns)
     throws IOException {
-    assertEquals(files, scan.get("files"));
+    List<String> readFiles = (List<String>) scan.get("files");
+    Collections.sort(readFiles);
+    Collections.sort(files);
+    assertEquals(files, readFiles);
 
     String filePrefix = "file:";
     assertEquals(filePrefix + selectionRoot, scan.get("selectionRoot"));
@@ -202,11 +206,11 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
     // partitions
     long start = FineoTestUtil.get1980();
     Pair<FsSourceTable, File> json =
-      FineoTestUtil.writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype, start, of(values));
+      FineoTestUtil
+        .writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype, start, of(values));
     Pair<FsSourceTable, File> json2 = FineoTestUtil
-      .writeJsonAndGetOutputFile(state.getStore(), tmp, org,
-      metrictype,
-      start + (ONE_DAY_MILLIS * 2), of(values));
+      .writeJsonAndGetOutputFile(state.getStore(), tmp, org, metrictype,
+        start + (ONE_DAY_MILLIS * 2), of(values));
 
     // apply parquet that is different
     Map<String, Object> values2 = newHashMap(values);
