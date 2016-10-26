@@ -1,6 +1,6 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler;
 
-import io.fineo.lambda.dynamo.Range;
+import com.google.common.collect.Range;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableFilterBuilder;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TimestampExpressionBuilder;
 

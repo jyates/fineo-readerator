@@ -1,8 +1,8 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler;
 
+import com.google.common.collect.Range;
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
 import io.fineo.lambda.dynamo.DynamoTableNameParts;
-import io.fineo.lambda.dynamo.Range;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableFilterBuilder;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TimestampExpressionBuilder;
@@ -50,7 +50,7 @@ public class DynamoTimestampHandler implements TimestampHandler {
   @Override
   public Range<Instant> getTableTimeRange(String tableName) {
     DynamoTableNameParts parts = DynamoTableNameParts.parse(tableName, false);
-    return new Range<>(ofEpochMilli(parts.getStart()), ofEpochMilli(parts.getEnd()));
+    return Range.closedOpen(ofEpochMilli(parts.getStart()), ofEpochMilli(parts.getEnd()));
   }
 
   private class DynamoTableNameIncludedConditionBuilder

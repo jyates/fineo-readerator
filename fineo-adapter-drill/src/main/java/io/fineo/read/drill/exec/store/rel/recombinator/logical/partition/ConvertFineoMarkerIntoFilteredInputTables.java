@@ -3,7 +3,7 @@ package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import io.fineo.lambda.dynamo.Range;
+import com.google.common.collect.Range;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.exec.store.rel.expansion.logical.DynamoRowFieldExpanderRel;
 import io.fineo.read.drill.exec.store.rel.recombinator.FineoRecombinatorMarkerRel;
@@ -222,7 +222,13 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
         RexNode shouldScan =
           builder.lift(conditionExp, rexer, handler.getShouldScanBuilder(group.tableName));
         Range<Instant> range = handler.getTableTimeRange(group.tableName);
-        LOG.debug("With range: {} - {}", range.getStart(), range.getEnd());
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("With range: {} - {}",
+            range.hasLowerBound() ? range.lowerEndpoint().toString() :
+            range.lowerBoundType().toString(),
+            range.hasUpperBound() ? range.upperEndpoint().toString() :
+            range.upperBoundType().toString());
+        }
         if (builder.isScanAll() || shouldScan == null) {
           // we have to scan everything b/c we didn't understand all the timestamp constraints
           //    OR
@@ -332,7 +338,7 @@ public abstract class ConvertFineoMarkerIntoFilteredInputTables extends RelOptRu
 
     public RelAndRange(RelNode translated, Range<Instant> tableTimeRange) {
       this.rel = translated;
-      this.start = tableTimeRange.getStart();
+      this.start = tableTimeRange.lowerEndpoint();
     }
 
     public RelNode getRel() {

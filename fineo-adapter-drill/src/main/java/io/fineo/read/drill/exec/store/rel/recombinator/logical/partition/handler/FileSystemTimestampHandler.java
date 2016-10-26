@@ -1,7 +1,8 @@
 package io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.handler;
 
+import com.google.common.collect.BoundType;
+import com.google.common.collect.Range;
 import io.fineo.drill.exec.store.dynamo.filter.SingleFunctionProcessor;
-import io.fineo.lambda.dynamo.Range;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TableFilterBuilder;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition.TimestampExpressionBuilder;
@@ -76,7 +77,7 @@ public class FileSystemTimestampHandler implements TimestampHandler {
 
   @Override
   public Range<Instant> getTableTimeRange(String tableName) {
-    return new Range<>(Instant.EPOCH, Instant.now());
+    return Range.closedOpen(Instant.EPOCH, Instant.now());
   }
 
   public static RexNode fileScanOpToRef(RexBuilder builder, RelNode scan, RelDataTypeField dirField,
