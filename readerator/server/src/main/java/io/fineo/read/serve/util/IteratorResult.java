@@ -10,6 +10,7 @@ import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
+import java.sql.Connection;
 import java.sql.Date;
 import java.sql.NClob;
 import java.sql.Ref;
@@ -25,9 +26,10 @@ import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- *
+ * Iterator of a result
  */
 public class IteratorResult implements ResultSet {
   private final Iterator<Object[]> rows;
@@ -36,12 +38,22 @@ public class IteratorResult implements ResultSet {
   private int lastIndex = -1;
   private Statement statement;
 
-  public IteratorResult(ResultSetMetaData metaData, Iterator<Object[]> rows) {
+  public static IteratorResult fulfilledResult(ResultSetMetaData metaData, Iterator<Object[]> rows,
+    Connection conn){
+    //create the simple result
+    IteratorResult result = new IteratorResult(metaData, rows);
+    // fir the result a statement, bound to a connection. Necessary to ensure that the result is
+    // actually created 'correctly'
+    new FulfilledStatement(result, conn);
+    return result;
+  }
+
+  IteratorResult(ResultSetMetaData metaData, Iterator<Object[]> rows) {
     this.meta = metaData;
     this.rows = rows;
   }
 
-  public IteratorResult withStatement(Statement statement) {
+  IteratorResult withStatement(Statement statement) {
     this.statement = statement;
     return this;
   }
@@ -64,6 +76,7 @@ public class IteratorResult implements ResultSet {
         throw new SQLException(e);
       }
     }
+    Objects.requireNonNull(this.statement, "Statement for result iterator was never set!");
     if (this.statement.isCloseOnCompletion()) {
       this.statement.close();
     }

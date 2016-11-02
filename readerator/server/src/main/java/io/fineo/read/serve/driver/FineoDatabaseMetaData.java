@@ -2,14 +2,14 @@ package io.fineo.read.serve.driver;
 
 
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.ImmutableList;
-import io.fineo.read.serve.util.FulfilledStatement;
 import io.fineo.read.serve.util.IteratorResult;
+import io.fineo.read.serve.util.RegexpUtil;
 import io.fineo.read.serve.util.SimpleMetadata;
-import io.fineo.read.serve.util.TableMetadataTranslatingResultSet;
 import org.apache.calcite.avatica.AvaticaDatabaseMetaData;
 import org.apache.calcite.avatica.ColumnMetaData;
 import org.apache.calcite.avatica.MetaImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -18,10 +18,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import static java.lang.String.format;
-
 public class FineoDatabaseMetaData extends AvaticaDatabaseMetaData {
 
+  private static final Logger LOG = LoggerFactory.getLogger(FineoDatabaseMetaData.class);
   public static final String FINEO_CATALOG = "FINEO";
   static final String FINEO_INFO = "INFO";
   static final String FINEO_SCHEMA = "FINEO";
@@ -30,10 +29,6 @@ public class FineoDatabaseMetaData extends AvaticaDatabaseMetaData {
   static final String TABLE_SCHEMA_COLUMN = "TABLE_SCHEM";
   static final String TABLE_COLUMN = "TABLE";
   static final String COLUMN_COLUMN = "COLUMN_NAME";
-
-  // TODO this is common with the fineo-adapter-drill/.../FineoInternalProperties class, but
-  // don't have the time right now to ensure they match
-  static final String FINEO_DRILL_SCHEMA_NAME = "fineo";
   private final FineoConnection conn;
 
   protected FineoDatabaseMetaData(FineoConnection connection) {
@@ -48,18 +43,12 @@ public class FineoDatabaseMetaData extends AvaticaDatabaseMetaData {
 
   @Override
   public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-    return stringResults(TABLE_SCHEMA_COLUMN,
-      matchesCatalogAndSchema(catalog, schemaPattern) ?
-      new String[]{FINEO_SCHEMA} : new String[0]);
+    return getDelegateConnection().getMetaData().getSchemas(catalog, schemaPattern);
   }
 
   @Override
   public ResultSet getSchemas() throws SQLException {
-    List<ColumnMetaData> meta = new ArrayList<>(2);
-    meta.add(MetaImpl.columnMetaData(TABLE_CATALOG_COLUMN, 1, String.class));
-    meta.add(MetaImpl.columnMetaData(TABLE_SCHEMA_COLUMN, 1, String.class));
-    return wrap(new IteratorResult(new SimpleMetadata(FINEO_CATALOG, FINEO_SCHEMA,
-      FINEO_INFO, meta), ImmutableList.of(new Object[]{FINEO_CATALOG, FINEO_SCHEMA}).iterator()));
+    return getDelegateConnection().getMetaData().getSchemas();
   }
 
   @Override
@@ -71,13 +60,13 @@ public class FineoDatabaseMetaData extends AvaticaDatabaseMetaData {
   public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern,
     String[] types) throws SQLException {
     if (!matchesCatalogAndSchema(catalog, schemaPattern)) {
+      LOG.debug("Skipping actual read - schema/catalog pattern doesn't match!");
       return stringResults(TABLE_COLUMN);
     }
 
-    Connection internal = conn.getMetaConnection();
-    return wrap(new TableMetadataTranslatingResultSet(FINEO_SCHEMA, FINEO_CATALOG,
-      internal.getMetaData()
-              .getTables(conn.getDelegateCatalog(), getInternalSchema(), tableNamePattern, types)));
+    // Fineo translator in Drill execution ensures that we match the Fineo schema/catalog
+    return getDelegateConnection().getMetaData().getTables(catalog, schemaPattern,
+      tableNamePattern, types);
   }
 
   @Override
@@ -86,16 +75,21 @@ public class FineoDatabaseMetaData extends AvaticaDatabaseMetaData {
     if (!matchesCatalogAndSchema(catalog, schemaPattern)) {
       return stringResults(COLUMN_COLUMN);
     }
-    return super
-      .getColumns(conn.getDelegateCatalog(), getInternalSchema(), tableNamePattern,
-        columnNamePattern);
+    return getDelegateConnection().getMetaData().getColumns(catalog, schemaPattern,
+      tableNamePattern, columnNamePattern);
+  }
+
+  @Override
+  public ResultSet getTypeInfo() throws SQLException {
+    Connection internal = conn.getMetaConnection();
+    return internal.getMetaData().getTypeInfo();
   }
 
   private ResultSet stringResults(String columnName, String... values) throws SQLException {
     List<ColumnMetaData> meta = new ArrayList<>(values.length);
     meta.add(MetaImpl.columnMetaData(columnName, 1, String.class));
-    return wrap(new IteratorResult(new SimpleMetadata(FINEO_CATALOG, FINEO_SCHEMA,
-      FINEO_INFO, meta),
+    return IteratorResult.fulfilledResult(new SimpleMetadata(FINEO_CATALOG, FINEO_SCHEMA,
+        FINEO_INFO, meta),
       new AbstractIterator<Object[]>() {
         int index = 0;
 
@@ -107,36 +101,21 @@ public class FineoDatabaseMetaData extends AvaticaDatabaseMetaData {
           }
           return new Object[]{values[index++]};
         }
-      }));
-  }
-
-  /**
-   * Ensure the output result is wrapped in a {@link FulfilledStatement} to make jdbc meta
-   * wrapper happy
-   */
-  private ResultSet wrap(IteratorResult result) throws SQLException {
-    new FulfilledStatement(result, this.getConnection());
-    return result;
+      }, this.getConnection());
   }
 
   private boolean matchesCatalogAndSchema(String catalog, String schemaPattern) {
-    return (catalog == null || FINEO_CATALOG.equals(catalog)) &&
-           (schemaPattern == null || matchesSchema(schemaPattern));
+    return matches(catalog, FINEO_CATALOG) && matches(schemaPattern, FINEO_SCHEMA);
   }
 
-  private boolean matchesSchema(String schemaPattern) {
-    if (schemaPattern == null) {
+  private boolean matches(String pattern, String text) {
+    if (pattern == null) {
       return true;
     }
-    Pattern pattern = Pattern.compile(schemaPattern);
-    return pattern.matcher(FINEO_SCHEMA).matches();
+    return Pattern.matches(RegexpUtil.sqlToRegexLike(pattern), text);
   }
 
-  private String getInternalSchema() {
-    return format("%s.%s", FINEO_DRILL_SCHEMA_NAME, getOrg());
-  }
-
-  private String getOrg() {
-    return conn.getOrg();
+  private Connection getDelegateConnection() throws SQLException {
+    return conn.getMetaConnection();
   }
 }

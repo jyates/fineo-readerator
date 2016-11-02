@@ -17,6 +17,28 @@
 -->
 
 /**
+ * Parses statement SHOW {DATABASES | SCHEMAS} [LIKE 'pattern' | WHERE expr]
+ */
+SqlNode SqlShowSchemas() :
+{
+    SqlParserPos pos;
+    SqlNode likePattern = null;
+    SqlNode where = null;
+}
+{
+    <SHOW> { pos = getPos(); }
+    (<DATABASES> | <SCHEMAS>)
+    [
+        <LIKE> { likePattern = StringLiteral(); }
+        |
+        <WHERE> { where = Expression(ExprContext.ACCEPT_SUBQUERY); }
+    ]
+    {
+        return new SqlShowSchemas(pos, likePattern, where);
+    }
+}
+
+/**
  * Parses statement
  *   SHOW TABLES [{FROM | IN} db_name] [LIKE 'pattern' | WHERE expr]
  */
@@ -39,50 +61,30 @@ SqlNode SqlShowTables() :
         <WHERE> { where = Expression(ExprContext.ACCEPT_SUBQUERY); }
     ]
     {
-        return new SqlShowTables(pos, db, likePattern, where);
+        return new io.fineo.read.parse.SqlShowTables(pos, db, likePattern, where);
     }
 }
 
 /**
  * Parses statement
- * SHOW FILES [{FROM | IN} schema]
+ *    USE <schema name>
+ * But replaces the schema name with fineo.<org id> since that is the only schema we current support
  */
-SqlNode SqlShowFiles() :
+SqlNode SqlUseSchema():
 {
-    SqlParserPos pos = null;
-    SqlIdentifier db = null;
-}
-{
-    <SHOW> { pos = getPos(); }
-    <FILES>
-    [
-        (<FROM> | <IN>) { db = CompoundIdentifier(); }
-    ]
-    {
-        return new SqlShowFiles(pos, db);
-    }
-}
-
-
-/**
- * Parses statement SHOW {DATABASES | SCHEMAS} [LIKE 'pattern' | WHERE expr]
- */
-SqlNode SqlShowSchemas() :
-{
+    DrillCompoundIdentifier.Builder builder = DrillCompoundIdentifier.newBuilder();
+    SqlIdentifier schema;
     SqlParserPos pos;
-    SqlNode likePattern = null;
-    SqlNode where = null;
 }
 {
-    <SHOW> { pos = getPos(); }
-    (<DATABASES> | <SCHEMAS>)
-    [
-        <LIKE> { likePattern = StringLiteral(); }
-        |
-        <WHERE> { where = Expression(ExprContext.ACCEPT_SUBQUERY); }
-    ]
+    <USE> { pos = getPos(); }
+    schema = CompoundIdentifier()
     {
-        return new SqlShowSchemas(pos, likePattern, where);
+      builder.addString("fineo", schema.getComponentParserPosition(0));
+      builder.addString(this.org, schema.getComponentParserPosition(0));
+      // schema can only ever be set to fineo.<org>
+      schema = builder.build();
+      return new SqlUseSchema(pos, schema);
     }
 }
 
@@ -109,19 +111,6 @@ SqlNode SqlDescribeTable() :
     )
     {
         return new SqlDescribeTable(pos, table, column, columnPattern);
-    }
-}
-
-SqlNode SqlUseSchema():
-{
-    SqlIdentifier schema;
-    SqlParserPos pos;
-}
-{
-    <USE> { pos = getPos(); }
-    schema = CompoundIdentifier()
-    {
-        return new SqlUseSchema(pos, schema);
     }
 }
 

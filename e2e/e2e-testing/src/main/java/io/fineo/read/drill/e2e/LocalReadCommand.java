@@ -9,14 +9,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.SQLException;
-
-import static java.lang.String.format;
 
 public class LocalReadCommand extends Command {
   private static final Logger LOG = LoggerFactory.getLogger(LocalReadCommand.class);
 
-  private static final Joiner AND = Joiner.on(" AND ");
   private StandaloneCluster cluster;
 
   private final LocalSchemaStoreOptions store;
@@ -30,12 +26,7 @@ public class LocalReadCommand extends Command {
   public void run() throws Throwable {
     try {
       start();
-
-      String from = format(" FROM fineo.%s.%s", opts.org.get(), opts.metric.get());
-      String[] wheres = null;
-      String where = wheres == null ? "" : " WHERE " + AND.join(wheres);
-      String stmt = "SELECT *" + from + where + " ORDER BY `timestamp` ASC";
-      runQuery(stmt);
+      runQuery(opts.sql.getQuery());
     } finally {
       LOG.info("Command failed = shutting down cluster!");
       if (this.cluster != null) {

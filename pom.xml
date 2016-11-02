@@ -40,7 +40,7 @@
   </repositories>
 
   <properties>
-    <drill.version>1.6.0</drill.version>
+    <drill.version>1.6.0-fineo-1.0.1-SNAPSHOT</drill.version>
     <drill.calcite.version>1.4.0-drill-r10</drill.calcite.version>
 
     <aws.java.sdk.version>1.11.33</aws.java.sdk.version>
@@ -144,6 +144,25 @@
             <exclude>${test.exclude.pattern}</exclude>
           </excludes>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>2.19.1</version>
+        <configuration>
+          <redirectTestOutputToFile>${test.output.to.file}</redirectTestOutputToFile>
+          <includes>
+            <include>**/IT*.java</include>
+          </includes>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
       <!-- Add a build-number property -->
       <plugin>

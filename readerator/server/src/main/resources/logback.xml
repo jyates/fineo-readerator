@@ -13,21 +13,7 @@
       <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5p %c{3}[%L] - %m%n</pattern>
     </encoder>
   </appender>
-  <!-- Tune down -->
-  <logger name="org.reflections" level="ERROR"/>
-  <logger name="org.apache.zookeeper.server" level="WARN"/>
-  <logger name="org.apache.zookeeper.ZooKeeper" level="WARN"/>
-  <logger name="org.apache.drill.common.scanner.persistence" level="WARN"/>
-
-  <!-- Tune up -->
-  <logger name="org.apache.drill.exec.planner.sql.handlers.DefaultSqlHandler" level="DEBUG"/>
-  <logger name="org.apache.drill.common.config" level="DEBUG"/>
-  <logger name="org.apache.calcite.plan" level="TRACE"/>
-  <logger name="io.fineo.read.drill" level="TRACE"/>
-  <logger name="org.apache.drill.exec.store.ischema" level="TRACE"/>
-
-  <!--<logger name="io.fineo.read.drill.exec.store.rel.recombinator.physical.batch" level="TRACE"/>-->
-  <!--<logger name="io.fineo.read.drill.BootstrapFineo" level="DEBUG"/>-->
+  <logger name="org.apache.calcite.avatica.jdbc.FineoJdbcMeta" level="TRACE"/>
   <root level="INFO">
     <appender-ref ref="CONSOLE"/>
   </root>

@@ -25,7 +25,8 @@ import static org.junit.Assert.assertTrue;
 
 public class ITServerAndClient {
 
-  private static final String ORG = "orgid";
+  // org has to match the HsqlDB user (the underlying DB user!)
+  private static final String ORG = ScottHsqldb.USER;
   private static FineoServer SERVER;
   private static int port;
 
@@ -74,9 +75,19 @@ public class ITServerAndClient {
 
       try (ResultSet rs = meta.getSchemas()) {
         assertTrue("No schemas found!", rs.next());
-        assertEquals("No schemas found!", "FINEO", rs.getString("TABLE_SCHEM"));
-        assertFalse("More than one schema found!", rs.next());
+        assertEquals("Missing info schema", "INFORMATION_SCHEMA", rs.getString("TABLE_SCHEM"));
+        assertTrue("Should have two schemas", rs.next());
+        assertEquals("Did not just delegate schema lookup to internal jdbc metadata",
+          "PUBLIC", rs.getString("TABLE_SCHEM"));
       }
+    }
+  }
+
+  @Test
+  public void testGetTypeInfo() throws Exception {
+    try (Connection conn = connect()) {
+      ResultSet set = conn.getMetaData().getTypeInfo();
+      assertTrue(set.next());
     }
   }
 

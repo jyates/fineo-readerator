@@ -43,7 +43,7 @@ public class FineoWrapperJdbcMeta extends JdbcMeta {
   public void openConnection(ConnectionHandle ch, Map<String, String> info) {
     if (containsDisallowedKey(info)) {
       info = info.entrySet().stream()
-                 .filter(e -> DISALLOWED_KEYS.contains(e.getKey()))
+                 .filter(e -> !DISALLOWED_KEYS.contains(e.getKey()))
                  .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
     String specifiedOrg = info.get(FineoJdbcProperties.COMPANY_KEY_PROPERTY);

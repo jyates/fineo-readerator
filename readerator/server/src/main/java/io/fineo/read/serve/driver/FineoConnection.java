@@ -3,7 +3,6 @@ package io.fineo.read.serve.driver;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.fineo.read.FineoJdbcProperties;
-import io.fineo.read.serve.FineoServer;
 import org.apache.calcite.avatica.AvaticaConnection;
 import org.apache.calcite.avatica.AvaticaStatement;
 import org.apache.calcite.avatica.Meta;
@@ -24,7 +23,6 @@ import java.util.Properties;
 public class FineoConnection extends AvaticaConnection {
 
   private final String org;
-  private final String delegateCatalog;
 
   /**
    * Creates an AvaticaConnection.
@@ -40,24 +38,24 @@ public class FineoConnection extends AvaticaConnection {
   protected FineoConnection(FineoServerDriver driver,
     FineoJdbc41Factory factory, String url, Properties info) throws SQLException {
     //TODO why can't we copy the info here for HsqlDB?
-    super(driver, factory, url, info);
-    this.org =
-      Preconditions.checkNotNull(info.getProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY),
-        "No org specified when creating connection!");
+    super(driver, factory, url, setUser(info));
+    // we just overrode the user, to orgID, so we just query as that user
+    this.org = info.getProperty("user");
 
-    // kind of an ugly hack - we want to pass in the delegateCatalog we are using in Drill.
-    // However, this is really should be the delegateCatalog of this connection, but its accessed
-    // from the external facing FineoDatabaseMetaData as the delegateCatalog that the real
-    // underlying connection should use... confusing, I know. See
-    // TestFineoServerDriver#testGetTables for how this works out
-    this.delegateCatalog =
-      Preconditions.checkNotNull(info.getProperty(FineoServer.DRILL_CATALOG_PARAMETER_KEY));
     Map<String, String> props = new HashMap<>();
     for (String name : info.stringPropertyNames()) {
       props.put(name, info.getProperty(name));
     }
     // open the internal connection and leave it open
     this.meta.openConnection(this.handle, props);
+  }
+
+  private static Properties setUser(Properties info) {
+    String org =
+      Preconditions.checkNotNull(info.getProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY),
+        "No org specified when creating connection!");
+    info.setProperty("user", org);
+    return info;
   }
 
   private static Properties cloneAndOverrideProperties(Properties info) {
@@ -72,10 +70,6 @@ public class FineoConnection extends AvaticaConnection {
 
   public String getOrg() {
     return org;
-  }
-
-  public String getDelegateCatalog() {
-    return delegateCatalog;
   }
 
   public Properties getInfo() {

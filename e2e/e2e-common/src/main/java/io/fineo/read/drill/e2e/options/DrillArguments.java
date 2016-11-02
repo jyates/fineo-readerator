@@ -11,7 +11,7 @@ public class DrillArguments {
   public BatchOutputArgument input = new BatchOutputArgument();
 
   @ParametersDelegate
-  public MetricArgument metric = new MetricArgument();
+  public SqlArgument sql = new SqlArgument();
 
   @ParametersDelegate
   public OrgArgument org = new OrgArgument();

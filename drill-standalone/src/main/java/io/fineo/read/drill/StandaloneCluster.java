@@ -1,6 +1,7 @@
 package io.fineo.read.drill;
 
 import io.fineo.drill.LocalDrillCluster;
+import io.fineo.read.drill.exec.store.ischema.FineoInfoSchemaUserFilters;
 import org.apache.drill.exec.ExecConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +50,8 @@ public class StandaloneCluster extends Thread {
     props.put(ExecConstants.ZK_CONNECTION, format("localhost:%s", 2181));
     props.put(ExecConstants.HTTP_PORT, Integer.toString(WEB_PORT));
     this.drill = new LocalDrillCluster(1, props);
-    drill.setup();
+    // make sure we override with our user filters
+    drill.setup(FineoInfoSchemaUserFilters::overrideWithInfoSchemaFilters);
 
     Connection conn = drill.getConnection();
     FineoDrillStartupSetup setup = new FineoDrillStartupSetup(conn);

@@ -29,9 +29,7 @@ public class ReadCommand extends Command {
 
   @Override
   public void run() throws Exception {
-    String from = format(" FROM %s", opts.metric.get());
-    String stmt = "SELECT *" + from + " ORDER BY `timestamp` ASC";
-    runQuery(stmt);
+    runQuery(opts.sql.getQuery());
   }
 
   @Override

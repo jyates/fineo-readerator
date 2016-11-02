@@ -240,7 +240,7 @@ public class FineoTestUtil {
     return new ImmutablePair<>(t, v);
   }
 
-  protected static Pair<FsSourceTable, File> writeParquet(BaseFineoTest.TestState state,
+  public static Pair<FsSourceTable, File> writeParquet(BaseFineoTest.TestState state,
     Connection conn, File
     dir, String
     orgid,

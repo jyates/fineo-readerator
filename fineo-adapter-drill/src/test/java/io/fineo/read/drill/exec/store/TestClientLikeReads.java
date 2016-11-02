@@ -2,7 +2,6 @@ package io.fineo.read.drill.exec.store;
 
 import com.amazonaws.services.dynamodbv2.document.Table;
 import io.fineo.drill.ClusterTest;
-import io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
 import io.fineo.lambda.dynamo.Schema;
@@ -10,14 +9,12 @@ import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
-import io.fineo.read.drill.exec.store.dynamo.TestFineoOverDynamo;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import io.fineo.schema.store.AvroSchemaProperties;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.drill.common.logical.data.Writer;
 import org.apache.drill.exec.store.parquet.ParquetFormatConfig;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -101,7 +98,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     Map<String, Object> parquet = new HashMap<>();
     parquet.put(fieldname, 2);
     File drill = folder.newFolder("drill");
-    FsSourceTable source = state.writeParquet(drill, ts, parquet);
+    FsSourceTable source = writeParquet(state, drill, ts, parquet);
     bootstrapper().withDynamoKeyMapper().withDynamoTable(table).withLocalSource(source).bootstrap();
 
     Map<String, Object> expected = new HashMap<>();
@@ -133,7 +130,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     // apply some parquet data in the future
     Map<String, Object> parquet2 = new HashMap<>();
     parquet.put(fieldname, 3);
-    state.writeParquet(drillDir, ts + ONE_DAY_MILLIS * 35, parquet2);
+    writeParquet(state, drillDir, ts + ONE_DAY_MILLIS * 35, parquet2);
 
     builder.bootstrap();
 
@@ -180,7 +177,7 @@ public class TestClientLikeReads extends BaseFineoTest {
     File drill = folder.newFolder("drill");
     Map<String, Object> values = new HashMap<>();
     values.put(storeFieldName, false);
-    FsSourceTable out = state.writeParquet(drill, 1, values);
+    FsSourceTable out = writeParquet(state, drill, 1, values);
 
     bootstrap(out);
 
@@ -371,9 +368,5 @@ public class TestClientLikeReads extends BaseFineoTest {
 
   private void verifyNoRows() throws Exception {
     verifySelectStar(withNext());
-  }
-
-  private BootstrapFineo.DrillConfigBuilder bootstrapper() {
-    return basicBootstrap(newBootstrap().builder());
   }
 }

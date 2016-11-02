@@ -75,6 +75,5 @@ public class FineoSqlRewriter {
     public SqlParserImplFactory parserFactory() {
       return factory;
     }
-
   }
 }

@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Properties;
 import java.util.Random;
+import java.util.function.Function;
 
 import static java.lang.String.format;
 
@@ -55,8 +56,7 @@ public class LocalDrillCluster {
     this.factory = new SingleConnectionCachingFactory(new ConnectionFactory() {
       @Override
       public Connection getConnection(ConnectionInfo info) throws Exception {
-        Class.forName("org.apache.drill.jdbc.Driver");
-        return DriverManager.getConnection(info.getUrl(), info.getParamsAsProperties());
+        return getUnmanagedConnection(info.getUrl(), info.getParamsAsProperties());
       }
     });
     // override properties
@@ -68,13 +68,13 @@ public class LocalDrillCluster {
     zkHelper = new ZookeeperHelper(props, false);
   }
 
-  public void setup() throws Throwable {
+  public void setup(Function<DrillConfig, DrillConfig> hook) throws Throwable {
     zkHelper.startZookeeper(1);
 
     ImmutableList.Builder<Drillbit> servers = ImmutableList.builder();
     for (int i = 0; i < serverCount; i++) {
       DrillConfig config = i == 0 ? zkHelper.getConfig() : DrillConfig.create(nonBootstrapProps);
-      servers.add(Drillbit.start(config));
+      servers.add(Drillbit.start(hook == null ? config : hook.apply(config)));
     }
     this.servers = servers.build();
   }
@@ -109,6 +109,15 @@ public class LocalDrillCluster {
 
   public Connection getConnection() throws Exception {
     return factory.getConnection(new ConnectionInfo(getUrl(), new Properties()));
+  }
+
+  public Connection getUnmanagedConnection(Properties props) throws Exception {
+    return getUnmanagedConnection(getUrl(), props);
+  }
+
+  private Connection getUnmanagedConnection(String url, Properties props) throws Exception {
+    Class.forName("org.apache.drill.jdbc.Driver");
+    return DriverManager.getConnection(url, props);
   }
 
   public int getWebPort() {

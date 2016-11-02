@@ -3,7 +3,6 @@ package io.fineo.read.serve;
 import fineo.client.org.asynchttpclient.DefaultAsyncHttpClient;
 import fineo.client.org.asynchttpclient.Response;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static java.lang.String.format;
@@ -13,7 +12,7 @@ public class TestServerHealthChecks {
 
   private static String org = "ORGID";
   @ClassRule
-  public static StandaloneServerRule SERVER = new StandaloneServerRule(org, ServerTestUtils.LOAD_DRIVER);
+  public static StandaloneServerRule SERVER = new StandaloneServerRule(ServerTestUtils.LOAD_DRIVER);
 
   @Test
   public void testRoot() throws Exception {

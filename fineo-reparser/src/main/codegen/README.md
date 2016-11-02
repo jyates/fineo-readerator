@@ -16,9 +16,9 @@ custom parser factory.
 ## Updating
 
 Unfortunately, Drill doesn't make their calcite fork easily available. Thus, you need to run:
-```mvn clean initialize -Pextract-drill-parser``` to extract the existing parser (Parser.jj) into 
-```target```. From there, you need to move it to ```main/codegen/templates``` and apply our 
-custom features on top of it. These features are:
+```mvn clean initialize -Pextract-drill-parser``` in the Drill repo to extract the existing parser 
+(Parser.jj) into ```target```. From there, you need to move it to ```main/codegen/templates``` and
+apply our custom features on top of it. These features include:
 
   * Supporting custom settings in parser via flag + include/.ftl
   * Supporting special handling for tableIdentifiers
@@ -36,3 +36,13 @@ seamless as possible with the existing parsing. We explicitly don't include:
   * DropView
   * ShowFiles
   * RefreshMetadata
+
+And we don't includen command/key words:
+
+  * USE
+  * FILES
+  * DATABASES
+  * SCHEMAS
+  
+As they prevent us from hiding information from the customers about other customers and 
+potentially accessing data they shouldn't be able to access.

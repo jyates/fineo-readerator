@@ -15,19 +15,17 @@ import static com.google.common.collect.Lists.newArrayList;
 public class StandaloneServerRule extends ExternalResource {
 
   private final List<Runnable> befores;
-  private final String org;
+  private final String org = ScottHsqldb.USER;
   private FineoServer server;
   private int port = -1;
 
 
-  public StandaloneServerRule(String org, Runnable... befores) {
+  public StandaloneServerRule(Runnable... befores) {
     this.befores = newArrayList(befores);
-    this.org = org;
   }
 
-  public StandaloneServerRule(String org, int port, Runnable... befores) {
+  public StandaloneServerRule(int port, Runnable... befores) {
     this.befores = newArrayList(befores);
-    this.org = org;
     this.port = port;
   }
 

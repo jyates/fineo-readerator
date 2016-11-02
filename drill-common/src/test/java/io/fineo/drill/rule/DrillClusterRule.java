@@ -1,23 +1,14 @@
 package io.fineo.drill.rule;
 
-import com.google.common.collect.ImmutableList;
 import io.fineo.drill.LocalDrillCluster;
-import org.apache.drill.exec.ExecConstants;
-import org.apache.drill.exec.server.Drillbit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.drill.exec.metrics.DrillMetrics;
-import org.apache.drill.jdbc.ConnectionFactory;
-import org.apache.drill.jdbc.ConnectionInfo;
-import org.apache.drill.jdbc.SingleConnectionCachingFactory;
+import org.apache.drill.common.config.DrillConfig;
 import org.junit.rules.ExternalResource;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
-import java.util.List;
 import java.util.Properties;
-
-import static java.lang.String.format;
+import java.util.function.Function;
 
 /**
  * Create and destroy a drill cluster as a junit rule
@@ -26,14 +17,19 @@ public class DrillClusterRule extends ExternalResource {
 
   private static final Log LOG = LogFactory.getLog(DrillClusterRule.class);
   private final LocalDrillCluster drill;
+  private Function<DrillConfig, DrillConfig> hook = Function.identity();
 
   public DrillClusterRule(int serverCount) {
     drill = new LocalDrillCluster(serverCount);
   }
 
+  public void overrideConfigHook(Function<DrillConfig, DrillConfig> hook){
+    this.hook = hook;
+  }
+
   @Override
   protected void before() throws Throwable {
-    drill.setup();
+    drill.setup(hook);
   }
 
   @Override
@@ -43,6 +39,10 @@ public class DrillClusterRule extends ExternalResource {
 
   public Connection getConnection() throws Exception {
     return drill.getConnection();
+  }
+
+  public Connection getUnmanagedConnection(Properties props) throws Exception{
+    return drill.getUnmanagedConnection(props);
   }
 
   public int getWebPort(){

@@ -19,11 +19,9 @@ import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLSyntaxErrorException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.Callable;
 
 import static io.fineo.read.serve.driver.FineoDatabaseMetaData.FINEO_CATALOG;
 import static io.fineo.read.serve.driver.FineoDatabaseMetaData.FINEO_SCHEMA;
@@ -91,49 +89,16 @@ public class TestFineoServerDriver {
     }
   }
 
-  @Test
-  public void testSchemaName() throws Exception {
-    Connection conn = getConnection();
-    assertEquals(FINEO_SCHEMA, conn.getSchema());
-    assertOneSchema(conn);
-    createTable("table");
-    assertOneSchema(conn);
-  }
-
-  static void assertOneSchema(Connection conn) throws SQLException {
-    try (ResultSet schemas = conn.getMetaData().getSchemas()) {
-      assertTrue(schemas.next());
-      assertEquals("TABLE_CAT", schemas.getMetaData().getColumnName(1));
-      assertEquals(FINEO_CATALOG, schemas.getString(1));
-      assertEquals(FINEO_SCHEMA, schemas.getString(2));
-      assertEquals("TABLE_SCHEM", schemas.getMetaData().getColumnName(2));
-      assertFalse(schemas.next());
-    }
-  }
-
+  /**
+   * Ensures that we have requests that match the fineo catalog and schema. However, this is kind
+   * of a false equivalence as the catalog/schema matching happens in Drill and is actually
+   * transformed after we do the filtering, so its a bit messed up honestly.
+   * @throws Exception
+   */
   @Test
   public void testGetTables() throws Exception {
     Connection conn = getConnection();
     try (ResultSet tables = conn.getMetaData().getTables(FINEO_CATALOG, FINEO_SCHEMA, null, null)) {
-      assertFalse(tables.next());
-    }
-    String table = "metrictype";
-    createTable(table);
-    assertOneTable(table,
-      () -> conn.getMetaData().getTables(null, null, null, null));
-    assertOneTable(table,
-      () -> conn.getMetaData().getTables(FINEO_CATALOG, null, null, null));
-    assertOneTable(table,
-      () -> conn.getMetaData().getTables(FINEO_CATALOG, FINEO_SCHEMA, null, null));
-  }
-
-  private static void assertOneTable(String table, Callable<ResultSet> supp)
-    throws Exception {
-    try (ResultSet tables = supp.call()) {
-      assertTrue(tables.next());
-      assertEquals(table.toUpperCase(), tables.getString("TABLE_NAME"));
-      assertEquals(FINEO_CATALOG, tables.getString("TABLE_CAT"));
-      assertEquals(FINEO_SCHEMA, tables.getString("TABLE_SCHEM"));
       assertFalse(tables.next());
     }
   }
@@ -153,7 +118,7 @@ public class TestFineoServerDriver {
     meta.setRewriterForTesting(new FineoSqlRewriter(ORG) {
       @Override
       public String rewrite(String sql) throws SQLException {
-        return "SELECT * FROM \"fineo.orgid\".metric1";
+        return format("SELECT * FROM \"fineo.%s\".%s", ORG, table);
       }
     });
     // try to read that row from the table
@@ -168,7 +133,7 @@ public class TestFineoServerDriver {
   /**
    * Suppose that someone accidentally messed up and sets their schema - make sure they can't
    * read another table. This does not cover the case of intentionally setting the COMPANY_KEY in
-   * the propertiesand stealing credentials
+   * the properties and stealing credentials
    *
    * @throws Exception on failure
    */
@@ -181,12 +146,8 @@ public class TestFineoServerDriver {
     String org2 = "another_org";
     createTable(table, org2);
 
-    Connection conn = getConnection(org2);
-    String schema = getSchema(ORG);
-    // strip the start/end quotes
-    conn.setSchema(schema.substring(1, schema.length() - 1));
-    thrown.expect(SQLSyntaxErrorException.class);
-    conn.createStatement().executeQuery("SELECT * FROM " + table);
+    thrown.expect(RuntimeException.class);
+    getConnection(org2);
   }
 
   private void createTableAndWriteRow(String table) throws SQLException {
@@ -225,7 +186,7 @@ public class TestFineoServerDriver {
   }
 
   private String getSchema(String org) {
-    return format("\"%s.%s\"", FineoDatabaseMetaData.FINEO_DRILL_SCHEMA_NAME, org);
+    return format("\"%s.%s\"", "fineo", org);
   }
 
   public static String toString(ResultSet resultSet) throws SQLException {
@@ -251,7 +212,7 @@ public class TestFineoServerDriver {
   }
 
   private Connection getConnection() throws SQLException {
-    return getConnection(ORG);
+    return getConnection(ScottHsqldb.USER);
   }
 
   private Connection getConnection(String org) throws SQLException {

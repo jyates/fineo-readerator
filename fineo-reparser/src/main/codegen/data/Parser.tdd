@@ -5,23 +5,24 @@
 
   # List of import statements.
   imports: [
-    "org.apache.drill.exec.planner.sql.parser.*"
+    "org.apache.drill.exec.planner.sql.parser.*",
+    "io.fineo.read.parse.*"
   ]
 
   # List of keywords.
   keywords: [
-    "SCHEMAS",
     "SHOW",
-    "TABLES",
-    "FILES",
+    "USE",
+    "SCHEMAS",
     "DATABASES",
-    "USE"
+    "TABLES",
   ]
 
   # List of methods for parsing custom SQL statements.
   statementParserMethods: [
     "SqlShowTables()",
     "SqlShowSchemas()",
+    "SqlUseSchema()",
     "SqlDescribeTable()"
   ]
 

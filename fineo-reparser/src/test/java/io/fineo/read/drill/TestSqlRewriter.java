@@ -26,4 +26,10 @@ public class TestSqlRewriter {
     assertEquals("Rewrite a rewrite changed the output!", expected,
       rewriter.rewrite(rewriter.rewrite(sql)));
   }
+
+  @Test
+  public void testNoRewriteShow() throws Exception {
+    String sql = "SHOW tables in Fineo";
+    assertEquals("SHOW TABLES IN `Fineo`", rewriter.rewrite(sql));
+  }
 }

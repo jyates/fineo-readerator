@@ -23,7 +23,7 @@ SqlIdentifier build_fineo_compound_ident(DrillCompoundIdentifier.Builder builder
 
 /**
  * Parses a Drill compound identifier.
- * Uses a varargs to support the existing implementations
+ * Uses a varargs to support the existing implementations and also prefixing with Fineo
  */
 SqlIdentifier CompoundIdentifier(boolean ... flag) :
 {
@@ -61,7 +61,14 @@ SqlIdentifier CompoundIdentifier(boolean ... flag) :
     ) *
     {
       SqlIdentifier standard = builder.build();
-      // prepend the fineo parts, if we need to
+      // information schema doesn't get modified
+      if(standard.names.get(0).equals("INFORMATION_SCHEMA")){
+        return standard;
+      }
+      // prepend the fineo parts, if we need to:
+      // 1. Compound flag is enabled
+      // 2. We aren't already prefixing with 'fineo'
+      // 3. Prefixing with 'fineo', but not followed by the org id
       if(flag != null && flag.length > 0 && flag[0] == true) {
         if(standard.names.size() <= 2 ||
            !(standard.names.get(0).equals("fineo") && standard.names.get(1).equals(this.org))){

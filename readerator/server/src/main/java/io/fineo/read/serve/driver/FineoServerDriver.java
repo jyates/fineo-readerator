@@ -1,6 +1,5 @@
 package io.fineo.read.serve.driver;
 
-import io.fineo.read.FineoJdbcProperties;
 import io.fineo.read.serve.FineoServer;
 import org.apache.calcite.avatica.AvaticaConnection;
 import org.apache.calcite.avatica.DriverVersion;
@@ -68,9 +67,9 @@ public class FineoServerDriver extends UnregisteredDriver {
     FineoConnection conn = (FineoConnection) connection;
     Properties props = conn.getInfo();
     String url = props.getProperty(FineoServer.DRILL_CONNECTION_PARAMETER_KEY);
-    String org = props.getProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY);
+    String org = props.getProperty("user");
     try {
-      LOG.debug("Creating Fineo JDBC Metadata");
+      LOG.debug("Creating Fineo JDBC Metadata for user: {}", org);
       return new FineoJdbcMeta(url, props, metrics, org);
     } catch (SQLException e) {
       throw new RuntimeException(e);

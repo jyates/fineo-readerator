@@ -131,7 +131,9 @@ public class FineoJdbcMeta extends JdbcMeta {
     Preconditions.checkArgument(this.org.equals(org),
       "Routing error! Customer got routed to the wrong JDBC server.");
     try {
+      LOG.trace("Rewriting original SQL: {}", sql);
       String wrote = rewrite.rewrite(sql);
+      LOG.trace("    to: {}", wrote);
       return wrote;
     } catch (Exception e) {
       throw new RuntimeException(e);
@@ -170,7 +172,7 @@ public class FineoJdbcMeta extends JdbcMeta {
   private void throwWriteOp() {
     throw new UnsupportedOperationException(
       "This adapter can only be used for READ operations, not write operations. See API at "
-      + "http://api.fineo.io for how to write data.");
+      + "http://c.fineo.io for how to write data.");
   }
 
   public Connection getConnection(ConnectionHandle handle) throws SQLException {
