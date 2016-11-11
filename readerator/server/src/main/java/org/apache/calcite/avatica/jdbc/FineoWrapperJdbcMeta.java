@@ -47,8 +47,9 @@ public class FineoWrapperJdbcMeta extends JdbcMeta {
                  .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
     String specifiedOrg = info.get(FineoJdbcProperties.COMPANY_KEY_PROPERTY);
-    Preconditions
-      .checkArgument(org.equals(specifiedOrg), "Got the wrong org id: %s", specifiedOrg);
+    Preconditions.checkArgument(org.equals(specifiedOrg),
+      "Got an invalid API KEY: %s. Check that you copied the correct key",
+        specifiedOrg);
     super.openConnection(ch, info);
   }
 
