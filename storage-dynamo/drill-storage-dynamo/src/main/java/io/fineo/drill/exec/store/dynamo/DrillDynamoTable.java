@@ -1,5 +1,7 @@
 package io.fineo.drill.exec.store.dynamo;
 
+import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.KeyType;
@@ -79,5 +81,21 @@ public class DrillDynamoTable extends DynamicDrillTable {
   @Override
   public Statistic getStatistic() {
     return Statistics.of(desc.getItemCount(), ImmutableList.of(), ImmutableList.of());
+  }
+
+  public static boolean checkAccessible(Table table) {
+    try {
+      table.describe();
+    } catch (AmazonDynamoDBException e) {
+      // user not allowed to see this table
+      if (e.getErrorCode().equals("AccessDeniedException")) {
+        return false;
+      }
+      // lookup failed for some other reason
+      throw e;
+    }
+
+    // describe was fine. assume if user has describe, they also have read.
+    return true;
   }
 }

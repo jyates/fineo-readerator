@@ -85,7 +85,7 @@ private static final Logger LOG = LoggerFactory.getLogger(LocalDynamoTestUtil.cl
   }
 
   private <T extends AmazonWebServiceClient> T withProvider(T client) {
-    client.setEndpoint("http://localhost:" + port);
+    client.setEndpoint(getUrl());
     return client;
   }
 

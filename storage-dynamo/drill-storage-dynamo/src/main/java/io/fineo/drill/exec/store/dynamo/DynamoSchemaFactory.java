@@ -43,7 +43,10 @@ public class DynamoSchemaFactory implements SchemaFactory {
     public Set<String> getTableNames() {
       return StreamSupport.stream(plugin.getModel().listTables().pages().spliterator(), false)
                           .flatMap(page -> StreamSupport.stream(page.spliterator(), false))
+                          // sometimes, null tables happen
                           .filter(table -> table != null)
+                          // ensure that we can read (well, describe) the table
+                          .filter(DrillDynamoTable::checkAccessible)
                           .map(table -> table.getTableName())
                           .collect(Collectors.toSet());
     }

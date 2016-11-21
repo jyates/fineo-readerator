@@ -69,7 +69,7 @@ public class BaseDynamoTest extends BaseTestQuery {
         storagePluginConfig.setEndpointForTesting(endpoint);
 
         Map<String, Object> credentials = new HashMap<>();
-        AWSCredentials creds = BaseDynamoTableTest.STATIC_CREDENTIALS_PROVIDER.getCredentials();
+        AWSCredentials creds = dynamo.getCredentialsProvider().getCredentials();
         StaticCredentialsConfig credentialsConfig = new StaticCredentialsConfig(creds
           .getAWSAccessKeyId(), creds.getAWSSecretKey());
         credentialsConfig.setCredentials(credentials);
