@@ -20,6 +20,7 @@ import org.apache.drill.exec.expr.holders.VarBinaryHolder;
 import org.apache.drill.exec.expr.holders.VarCharHolder;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.ValueVector;
+import org.apache.drill.exec.vector.complex.impl.NullReader;
 import org.apache.drill.exec.vector.complex.reader.FieldReader;
 import org.apache.drill.exec.vector.complex.writer.BaseWriter;
 
@@ -52,7 +53,7 @@ public class VectorUtils {
         writeRequired(type, outputName, BasicTypeHelper.getValue(vector, inIndex), writer);
         break;
       case OPTIONAL:
-        FieldReader reader = vector.getReader();
+        FieldReader reader =  vector == null ? NullReader.INSTANCE : vector.getReader();
         reader.setPosition(inIndex);
         writeNullable(type, outputName, reader, writer);
     }

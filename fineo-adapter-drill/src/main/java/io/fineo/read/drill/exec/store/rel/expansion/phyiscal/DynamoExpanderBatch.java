@@ -103,6 +103,7 @@ public class DynamoExpanderBatch extends AbstractSingleRecordBatch<DynamoExpande
             MapVector vector = (MapVector) wrapper.getValueVector();
             String idName = idObj.toString();
             ValueVector in = vector.getChild(idName);
+            LOG.debug("Got field: {}, vector: {}", field.getName(), in != null);
             VectorUtils.write(field.getName(), in, fieldMap.get(field.getName()).getType(),
               writer.rootAsMap(), incomingRowCount, outgoingRowCount);
           }

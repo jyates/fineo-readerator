@@ -189,6 +189,74 @@ public class TestClientLikeReads extends BaseFineoTest {
   }
 
   @Test
+  public void testStoredNumericalFieldBeforeSchemaCreatedButReadableAfter() throws Exception {
+    TestState state = register();
+
+    // write a new event with the field
+    String storeFieldName = "other-field-name";
+    Map<String, Object> values = prepareItem();
+    values.put(Schema.SORT_KEY_NAME, get1980());
+    values.put(storeFieldName, 1);
+    Table table = state.writeToDynamo(values);
+
+    bootstrapper()
+      // dynamo
+      .withDynamoKeyMapper()
+      .withDynamoTable(table)
+      .bootstrap();
+
+    // add the schema for the row
+    SchemaStore store = state.getStore();
+    StoreManager manager = new StoreManager(store);
+    manager.updateOrg(org)
+           .updateMetric(metrictype)
+           .newField().withType(StoreManager.Type.INTEGER).withName(storeFieldName).build()
+           .build()
+           .commit();
+
+    values.put(fieldname, null);
+    verifySelectStar(FineoTestUtil.withNext(values));
+  }
+
+  @Test
+  public void testMissingValueForFieldInOldWrite() throws Exception {
+    TestState state = register();
+
+    String storeFieldName = "late-added-field";
+    Map<String, Object> values = prepareItem();
+    values.put(Schema.SORT_KEY_NAME, get1980());
+    values.put(fieldname, true);
+    Table table = state.writeToDynamo(values);
+
+    Map<String, Object> values2 = prepareItem();
+    values2.put(Schema.SORT_KEY_NAME, get1980() + 1);
+    values2.put(storeFieldName, 1);
+    values2.put(fieldname, true);
+    // same table as above, so skip adding it. It actually causes an error if we add it again.
+    // TODO #startup figure out why we can't add the same table again in bootstrap
+    state.writeToDynamo(values2);
+
+    bootstrapper()
+      // dynamo
+      .withDynamoKeyMapper()
+      .withDynamoTable(table)
+      .bootstrap();
+
+    // add the schema for the row
+    SchemaStore store = state.getStore();
+    StoreManager manager = new StoreManager(store);
+    manager.updateOrg(org)
+           .updateMetric(metrictype)
+           .newField().withType(StoreManager.Type.INTEGER).withName(storeFieldName).build()
+           .build()
+           .commit();
+
+    values.put(fieldname, true);
+    values.put(storeFieldName, null);
+    verifySelectStar(FineoTestUtil.withNext(values, values2));
+  }
+
+  @Test
   public void testReadCanonicalNamedField() throws Exception {
     TestState state = register(p(fieldname, StoreManager.Type.INT));
     StoreClerk clerk = new StoreClerk(state.getStore(), org);
