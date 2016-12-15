@@ -210,6 +210,7 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       for (int i = 0; i < incomingRecordCount; i++) {
         // only write non-null values
         if (!wrapper.getValueVector().getAccessor().isNull(i)) {
+          LOG.trace("{}) Copying field from {} because not null", i, name);
           VectorUtils.write(name, wrapper, this.writer.rootAsMap(), i);
         }
       }
