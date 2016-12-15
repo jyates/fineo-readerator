@@ -206,12 +206,13 @@ public class RecombinatorRecordBatch extends AbstractSingleRecordBatch<Recombina
       // #startup - we can be even smarter and not copy the fields at all if all the values are
       // set for all positions in the vector. Even even smarter would be figuring out how to
       // slice parts of a vector and then transferring the non-null bits from each alias
-      LOG.trace("Manually copying fields for {}", name);
+      String outputName = aliasMap.getOutputName(name);
+      LOG.trace("Manually copying fields for {} -> ", name, outputName);
       for (int i = 0; i < incomingRecordCount; i++) {
         // only write non-null values
         if (!wrapper.getValueVector().getAccessor().isNull(i)) {
           LOG.trace("{}) Copying field from {} because not null", i, name);
-          VectorUtils.write(name, wrapper, this.writer.rootAsMap(), i);
+          VectorUtils.write(outputName, wrapper, this.writer.rootAsMap(), i);
         }
       }
     }

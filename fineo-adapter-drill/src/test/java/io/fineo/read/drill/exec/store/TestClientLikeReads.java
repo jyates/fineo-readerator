@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils.lte;
 import static io.fineo.read.drill.FineoTestUtil.bt;
 import static io.fineo.read.drill.FineoTestUtil.get1980;
@@ -253,6 +254,44 @@ public class TestClientLikeReads extends BaseFineoTest {
 
     values.put(fieldname, true);
     values.put(storeFieldName, null);
+    verifySelectStar(FineoTestUtil.withNext(values, values2));
+  }
+
+  @Test
+  public void testReadOnlyNonNullValueForField() throws Exception {
+    TestState state = register();
+
+    String storeFieldName = "field-name", aliasName = "alias-field-name";
+    Map<String, Object> values = prepareItem();
+    values.put(Schema.SORT_KEY_NAME, get1980());
+    values.put(fieldname, true);
+    values.put(storeFieldName, 1);
+    Table table = state.writeToDynamo(values);
+
+    Map<String, Object> values2 = prepareItem();
+    values2.put(Schema.SORT_KEY_NAME, get1980() + 1);
+    values2.put(fieldname, true);
+    values2.put(aliasName, 2);
+    state.writeToDynamo(values2);
+
+    bootstrapper()
+      // dynamo
+      .withDynamoKeyMapper()
+      .withDynamoTable(table)
+      .bootstrap();
+
+    // add the schema for the row
+    SchemaStore store = state.getStore();
+    StoreManager manager = new StoreManager(store);
+    manager.updateOrg(org)
+           .updateMetric(metrictype)
+           .newField()
+           .withType(StoreManager.Type.INTEGER)
+           .withName(storeFieldName)
+           .withAliases(newArrayList(aliasName)).build().build().commit();
+
+    values2.remove(aliasName);
+    values2.put(storeFieldName, 2);
     verifySelectStar(FineoTestUtil.withNext(values, values2));
   }
 
