@@ -33,7 +33,7 @@ public class LocalDrillCluster {
   {
     props.put(ExecConstants.SYS_STORE_PROVIDER_LOCAL_ENABLE_WRITE, "false");
     // pick a random ephemeral port for all the resources to start at
-    int port = new Random().nextInt(65535 - 49152) + 49152;
+    int port = new Random().nextInt(65530 - 49152) + 49152;
     webPort = ++port;
     props.put(ExecConstants.HTTP_PORT, Integer.toString(webPort));
     props.put(ExecConstants.HTTP_ENABLE, "true");
