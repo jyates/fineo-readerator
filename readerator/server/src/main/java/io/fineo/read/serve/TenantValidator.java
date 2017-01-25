@@ -14,7 +14,8 @@ public class TenantValidator {
   private boolean noOrg;
 
   public TenantValidator(String orgId, boolean noOrg) {
-    Preconditions.checkArgument((orgId == null && noOrg) || (orgId != null && !noOrg),
+    boolean hasOrgId = orgId != null && orgId.length() > 0;
+    Preconditions.checkArgument((!hasOrgId && noOrg) || (hasOrgId && !noOrg),
       "Either specify an org id or that there is no org, not both!");
     this.org = orgId;
     this.noOrg = noOrg;

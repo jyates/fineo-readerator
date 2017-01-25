@@ -21,6 +21,12 @@ public class TestTenantValidator {
   }
 
   @Test
+  public void testNoOrgAndOrgIdZerLengthOrg() throws Exception {
+    thrown.expect(IllegalArgumentException.class);
+    new TenantValidator("", false);
+  }
+
+  @Test
   public void testOrgIdOrNoOrg() throws Exception {
     new TenantValidator(orgid, false);
     new TenantValidator(null, true);
