@@ -10,7 +10,6 @@ import static org.junit.Assert.assertEquals;
 
 public class TestServerHealthChecks {
 
-  private static String org = "ORGID";
   @ClassRule
   public static StandaloneServerRule SERVER = new StandaloneServerRule(ServerTestUtils.LOAD_DRIVER);
 

@@ -2,6 +2,7 @@ package org.apache.calcite.avatica.jdbc;
 
 import com.google.common.base.Preconditions;
 import io.fineo.read.FineoJdbcProperties;
+import io.fineo.read.serve.TenantValidator;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,12 +31,12 @@ public class FineoWrapperJdbcMeta extends JdbcMeta {
     DISALLOWED_KEYS.add("password");
   }
 
-  private final String org;
+  private final TenantValidator validator;
 
   public FineoWrapperJdbcMeta(String url, Properties info,
-    MetricsSystem metrics, String org) throws SQLException {
+    MetricsSystem metrics, TenantValidator validator) throws SQLException {
     super(url, info, metrics);
-    this.org = org;
+    this.validator = validator;
     LOG.debug("Creating Fineo Wrapper Metadata");
   }
 
@@ -46,10 +47,7 @@ public class FineoWrapperJdbcMeta extends JdbcMeta {
                  .filter(e -> !DISALLOWED_KEYS.contains(e.getKey()))
                  .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
-    String specifiedOrg = info.get(FineoJdbcProperties.COMPANY_KEY_PROPERTY);
-    Preconditions.checkArgument(org.equals(specifiedOrg),
-      "Got an invalid API KEY: %s. Check that you copied the correct key",
-        specifiedOrg);
+    validator.validateConnection(info);
     super.openConnection(ch, info);
   }
 

@@ -39,6 +39,8 @@ import org.apache.calcite.avatica.server.HttpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 /**
@@ -55,6 +57,7 @@ public class FineoServer {
 
   // environment key
   private static final String ORG_ID_ENV_KEY = "FINEO_ORG_ID";
+  private static final String NO_ORG_ID_ENV_KEY = "NO_FINEO_ORG_ID";
   private static final String DRILL_CONNECTION_ENV_KEY = "FINEO_DRILL_CONNECTION";
   private static final String DRILL_CONNECTION_CATALOG_KEY = "FINEO_DRILL_CATALOG";
   private static final String PORT_KEY = "PORT";
@@ -62,6 +65,16 @@ public class FineoServer {
   @Parameter(names = "--org-id",
              description = "Org ID served by this server. Only 1 org per server allowed.")
   private String org = System.getenv(ORG_ID_ENV_KEY);
+
+  @Parameter(names = "--no-org-id",
+             description = "Don't enforce a matching Org ID, just that one is present.")
+  private boolean noOrg = false;
+  {
+    String set = System.getenv(NO_ORG_ID_ENV_KEY);
+    if(set != null){
+      noOrg = Boolean.parseBoolean(set);
+    }
+  }
 
   @Parameter(names = {"-p", "--port"},
              description = "Port the server should bind")
@@ -94,7 +107,8 @@ public class FineoServer {
       // setup the connection delegation properties
       props.setProperty(DRILL_CATALOG_PARAMETER_KEY, catalog);
       props.setProperty(DRILL_CONNECTION_PARAMETER_KEY, drill);
-      props.setProperty(FineoJdbcProperties.COMPANY_KEY_PROPERTY, org);
+
+      TenantValidator validator = new TenantValidator(org, noOrg);
 
       // its "just" a jdbc connection... to a driver which creates its own jdbc connection from the
       // specified connection key. This ensures that we encapsulate the schema and tables from
@@ -103,18 +117,22 @@ public class FineoServer {
         (metrics);
       MetricsSystem metrics = new DropwizardMetricsSystemFactory().create(metricsConf);
       JdbcMeta meta =
-        new FineoWrapperJdbcMeta(FineoServerDriver.CONNECT_PREFIX, props, metrics, org);
+        new FineoWrapperJdbcMeta(FineoServerDriver.CONNECT_PREFIX, props, metrics, validator);
       LocalService service = new LocalService(meta, metrics);
+
+      List<BaseInternalHandler> requestHandlers = new ArrayList<>(4);
+      requestHandlers.add(new RootHealthCheck());
+      requestHandlers.add(new IsAliveHealthCheck());
+      requestHandlers.add(new IsDrillAliveCheck(meta));
+      if(org != null){
+        requestHandlers.add(new IsFineoAliveCheck(meta, org));
+      }
 
       // custom translator so we can interop with AWS
       ProtobufTranslation translator = new AwsStringBytesDecodingTranslator();
       AvaticaProtobufHandler handler =
         new AvaticaProtobufHandler(service, metrics, null, translator)
-          .withRequestHandlers(
-            new RootHealthCheck(),
-            new IsAliveHealthCheck(),
-            new IsFineoAliveCheck(meta, org),
-            new IsDrillAliveCheck(meta));
+          .withRequestHandlers(requestHandlers.toArray(new BaseInternalHandler[0]));
 
       // Construct the server
       this.server = new HttpServer.Builder()
