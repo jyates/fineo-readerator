@@ -7,8 +7,8 @@ import com.google.common.collect.Multimap;
 import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.read.drill.exec.store.FineoCommon;
 import io.fineo.read.drill.exec.store.rel.expansion.logical.DynamoRowFieldExpanderConverter;
-import io.fineo.read.drill.exec.store.rel.expansion.phyiscal.DynamoRowFieldExpanderPrule;
 import io.fineo.read.drill.exec.store.rel.expansion.optimize.PushFilterPastDynamoRowExpander;
+import io.fineo.read.drill.exec.store.rel.expansion.phyiscal.DynamoRowFieldExpanderPrule;
 import io.fineo.read.drill.exec.store.rel.fixed.physical.FixedSchemaPrule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.FineoRecombinatorRule;
 import io.fineo.read.drill.exec.store.rel.recombinator.logical.partition
@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.apache.calcite.plan.RelOptRule.any;
 import static org.apache.calcite.plan.RelOptRule.operand;
@@ -119,7 +120,16 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   }
 
   protected FineoSchemaFactory getFactory(String name) {
-    return new FineoSchemaFactory(this, name, this.config.getOrgs());
+    OrgLoader loader =
+      new OrgLoader(this.config.getOrgs(), this.config.getDynamoTenantTable(),
+        // this needs to be an object for Drill to be happy. Not entirely sure why, its a JDK thing.
+        new Supplier<AmazonDynamoDBAsyncClient>() {
+          @Override
+          public AmazonDynamoDBAsyncClient get() {
+            return FineoStoragePlugin.this.getDynamoClient();
+          }
+        });
+    return new FineoSchemaFactory(this, name, loader);
   }
 
   // definitely don't support a physical scan

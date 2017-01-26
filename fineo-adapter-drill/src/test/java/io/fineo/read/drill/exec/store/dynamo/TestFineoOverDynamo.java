@@ -18,7 +18,6 @@ import io.fineo.schema.store.StoreClerk;
 import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -325,7 +324,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
   private void bootstrap(Table... tables) throws IOException {
     BootstrapFineo bootstrap = newBootstrap();
     BootstrapFineo.DrillConfigBuilder builder =
-      basicBootstrap(bootstrap.builder())
+      simpleBootstrap(bootstrap.builder())
         .withDynamoKeyMapper();
     for (Table table : tables) {
       builder.withDynamoTable(table);

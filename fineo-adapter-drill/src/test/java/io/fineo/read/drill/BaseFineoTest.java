@@ -44,6 +44,12 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
     void verify(T obj) throws SQLException;
   }
 
+  public QueryRunnable selectStarForOrg(String org, Verify<ResultSet> verify){
+    QueryRunnable runnable = new QueryRunnable(verify);
+    runnable.rewriter = new FineoSqlRewriter(org);
+    return runnable;
+  }
+
   protected class QueryRunnable {
     private FineoSqlRewriter rewriter = new FineoSqlRewriter(org);
     List<String> wheres;
@@ -127,7 +133,7 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
 
   protected void bootstrap(FsSourceTable... files) throws IOException {
     BootstrapFineo bootstrap = newBootstrap();
-    BootstrapFineo.DrillConfigBuilder builder = basicBootstrap(bootstrap.builder());
+    BootstrapFineo.DrillConfigBuilder builder = simpleBootstrap(bootstrap.builder());
 
     for (FsSourceTable file : files) {
       builder.withLocalSource(file);
@@ -155,6 +161,6 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
   }
 
   protected BootstrapFineo.DrillConfigBuilder bootstrapper() {
-   return basicBootstrap(newBootstrap(drill).builder());
+   return simpleBootstrap(newBootstrap(drill).builder());
   }
 }

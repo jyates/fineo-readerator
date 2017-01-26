@@ -219,6 +219,6 @@ public class TestFineoInfoSchema extends BaseFineoDynamoTest {
   }
 
   private BootstrapFineo.DrillConfigBuilder bootstrapper() {
-    return basicBootstrap(newBootstrap(drill).builder());
+    return simpleBootstrap(newBootstrap(drill).builder());
   }
 }

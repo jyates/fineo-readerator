@@ -4,20 +4,19 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClient;
 import io.fineo.read.drill.FineoInternalProperties;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
+import io.fineo.read.drill.exec.store.plugin.OrgLoader;
 import io.fineo.read.drill.exec.store.plugin.source.SourceTable;
 import io.fineo.schema.aws.dynamodb.DynamoDBRepository;
 import io.fineo.schema.store.SchemaStore;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.drill.exec.store.SchemaConfig;
 import org.apache.drill.exec.store.SchemaFactory;
-import org.apache.parquet.Preconditions;
 import org.schemarepo.ValidatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -30,15 +29,14 @@ public class FineoSchemaFactory implements SchemaFactory {
 
   protected final FineoStoragePlugin plugin;
   protected final String name;
-  private final Collection<String> orgs;
+  private final OrgLoader orgs;
   private SchemaStore store;
 
-  public FineoSchemaFactory(FineoStoragePlugin fineoStoragePlugin, String name, Collection<String>
+  public FineoSchemaFactory(FineoStoragePlugin fineoStoragePlugin, String name, OrgLoader
     orgs) {
     this.plugin = fineoStoragePlugin;
     this.name = name;
-    this.orgs = Preconditions.checkNotNull(orgs, "No org ids specified on factory creation!");
-    Preconditions.checkArgument(!orgs.isEmpty(), "No org ids specified on factory creation!");
+    this.orgs = orgs;
   }
 
   @Override

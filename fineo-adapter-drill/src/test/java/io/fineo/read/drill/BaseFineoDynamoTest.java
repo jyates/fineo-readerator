@@ -56,6 +56,11 @@ public class BaseFineoDynamoTest extends BaseDynamoTableTest {
   protected void registerSchema(SchemaStore store, boolean newOrg,
     Pair<String, StoreManager.Type>...
       fields) throws IOException, OldSchemaException {
+    registerSchema(store, newOrg, org, fields);
+  }
+
+  protected void registerSchema(SchemaStore store, boolean newOrg, String org, Pair<String,
+    StoreManager.Type>... fields) throws IOException, OldSchemaException {
     StoreManager manager = new StoreManager(store);
     StoreManager.OrganizationBuilder builder =
       newOrg ? manager.newOrg(org) : manager.updateOrg(org);
@@ -149,12 +154,25 @@ public class BaseFineoDynamoTest extends BaseDynamoTableTest {
     return wrote;
   }
 
-  protected BootstrapFineo.DrillConfigBuilder basicBootstrap(
+  protected BootstrapFineo.DrillConfigBuilder simpleBootstrap(
     BootstrapFineo.DrillConfigBuilder builder) {
+    return basicBootstrapWithExplicitOrg(builder);
+  }
+
+  protected BootstrapFineo.DrillConfigBuilder basicBootstrapWithExplicitOrg(
+    BootstrapFineo.DrillConfigBuilder builder) {
+    return withOrg(basicBootstrap(builder));
+  }
+
+  protected BootstrapFineo.DrillConfigBuilder basicBootstrap(BootstrapFineo.DrillConfigBuilder
+    builder) {
     LocalDynamoTestUtil util = dynamo.getUtil();
     return builder.withLocalDynamo(util.getUrl())
                   .withRepository(tables.getTestTableName())
-                  .withOrgs(org)
                   .withCredentials(dynamo.getCredentials().getFakeProvider());
+  }
+
+  protected BootstrapFineo.DrillConfigBuilder withOrg(BootstrapFineo.DrillConfigBuilder builder) {
+    return builder.withOrgs(org);
   }
 }

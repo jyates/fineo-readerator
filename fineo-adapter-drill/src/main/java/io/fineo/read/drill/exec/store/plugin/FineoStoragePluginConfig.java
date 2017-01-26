@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.plugin;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
@@ -11,26 +12,36 @@ import org.apache.drill.common.logical.StoragePluginConfigBase;
 import java.util.List;
 import java.util.Map;
 
+import static io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig.DYNAMO_TENANT_TABLE;
+
 @JsonIgnoreProperties
 @JsonTypeName(FineoStoragePluginConfig.NAME)
 public class FineoStoragePluginConfig extends StoragePluginConfigBase {
 
   public static final String NAME = "fineo";
+  public static final String FS_SOURCES = "fs-sources";
+  public static final String DYNAMO_SOURCES = "dynamo-sources";
+  public static final String ORGS = "orgs";
+  public static final String DYNAMO_TENANT_TABLE = "dynamo-tenant-table";
+
   private final SchemaRepositoryConfig repository;
   private final List<FsSourceTable> fsTables;
   private final List<DynamoSourceTable> dynamoSources;
   private final List<String> orgs;
+  private final String tenantTable;
 
   @JsonCreator
   public FineoStoragePluginConfig(
     @JsonProperty(SchemaRepositoryConfig.NAME) SchemaRepositoryConfig repository,
-    @JsonProperty("orgs") List<String> orgs,
-    @JsonProperty("fs-sources") List<FsSourceTable> fsSources,
-    @JsonProperty("dynamo-sources") List<DynamoSourceTable> dynamoSources) {
+    @JsonProperty(ORGS) List<String> orgs,
+    @JsonProperty(FS_SOURCES) List<FsSourceTable> fsSources,
+    @JsonProperty(DYNAMO_SOURCES) List<DynamoSourceTable> dynamoSources,
+    @JsonProperty(DYNAMO_TENANT_TABLE) String tenantTable) {
     this.orgs = orgs;
     this.repository = repository;
     this.fsTables = fsSources;
     this.dynamoSources = dynamoSources;
+    this.tenantTable = tenantTable;
   }
 
   @JsonProperty(SchemaRepositoryConfig.NAME)
@@ -38,19 +49,24 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
     return repository;
   }
 
-  @JsonProperty("fs-sources")
+  @JsonProperty(FS_SOURCES)
   public List<FsSourceTable> getFsSources() {
     return fsTables;
   }
 
-  @JsonProperty("dynamo-sources")
+  @JsonProperty(DYNAMO_SOURCES)
   public List<DynamoSourceTable> getDynamoSources() {
     return dynamoSources;
   }
 
-  @JsonProperty("orgs")
+  @JsonProperty(ORGS)
   public List<String> getOrgs() {
     return orgs;
+  }
+
+  @JsonProperty(DYNAMO_TENANT_TABLE)
+  public String getDynamoTenantTable() {
+    return this.tenantTable;
   }
 
   @Override
@@ -62,23 +78,27 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
 
     FineoStoragePluginConfig that = (FineoStoragePluginConfig) o;
 
-    if (!getRepository().equals(that.getRepository()))
+    if (getRepository() != null ? !getRepository().equals(that.getRepository()) :
+        that.getRepository() != null)
       return false;
     if (fsTables != null ? !fsTables.equals(that.fsTables) : that.fsTables != null)
       return false;
     if (getDynamoSources() != null ? !getDynamoSources().equals(that.getDynamoSources()) :
         that.getDynamoSources() != null)
       return false;
-    return getOrgs().equals(that.getOrgs());
+    if (getOrgs() != null ? !getOrgs().equals(that.getOrgs()) : that.getOrgs() != null)
+      return false;
+    return tenantTable != null ? tenantTable.equals(that.tenantTable) : that.tenantTable == null;
 
   }
 
   @Override
   public int hashCode() {
-    int result = getRepository().hashCode();
+    int result = getRepository() != null ? getRepository().hashCode() : 0;
     result = 31 * result + (fsTables != null ? fsTables.hashCode() : 0);
     result = 31 * result + (getDynamoSources() != null ? getDynamoSources().hashCode() : 0);
-    result = 31 * result + getOrgs().hashCode();
+    result = 31 * result + (getOrgs() != null ? getOrgs().hashCode() : 0);
+    result = 31 * result + (tenantTable != null ? tenantTable.hashCode() : 0);
     return result;
   }
 }

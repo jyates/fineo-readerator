@@ -9,6 +9,7 @@ import io.fineo.drill.exec.store.dynamo.config.DynamoStoragePluginConfig;
 import io.fineo.drill.exec.store.dynamo.config.StaticCredentialsConfig;
 import io.fineo.drill.exec.store.dynamo.key.DynamoKeyMapperSpec;
 import io.fineo.read.drill.exec.store.dynamo.DynamoFineoCompoundKeySpec;
+import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
 import io.fineo.read.drill.exec.store.plugin.SchemaRepositoryConfig;
 import io.fineo.read.drill.exec.store.plugin.source.DynamoSourceTable;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
@@ -46,6 +47,7 @@ public class BootstrapFineo {
   private final List<DynamoSourceTable> dynamoTables = new ArrayList<>();
   private final List<FsSourceTable> sources = new ArrayList<>();
   private final List<String> orgs = new ArrayList<>();
+  private String dynamoTenantTable = "";
 
   // dynamo plugin configuration
   private final Map<String, Object> dynamo = new HashMap<>();
@@ -90,6 +92,11 @@ public class BootstrapFineo {
       return this;
     }
 
+    public DrillConfigBuilder withDynamoTenantTable(String tableName) {
+      dynamoTenantTable = tableName;
+      return this;
+    }
+
     public DrillConfigBuilder withDynamoTable(Table table) {
       String name = table.getTableName();
       String prefix = name.substring(0, name.length() - 2);
@@ -118,16 +125,17 @@ public class BootstrapFineo {
 
     private void buildInternal() throws IOException {
       // build the plugin
-      plugin.put("name", "fineo");
+      plugin.put("name", FineoStoragePluginConfig.NAME);
       Map<String, Object> config = new HashMap<>();
       plugin.put("config", config);
 
-      config.put("type", "fineo");
+      config.put("type", FineoStoragePluginConfig.NAME);
       config.put("enabled", "true");
       config.put(SchemaRepositoryConfig.NAME, repository);
-      config.put("dynamo-sources", dynamoTables);
-      config.put("fs-sources", sources);
-      config.put("orgs", orgs);
+      config.put(FineoStoragePluginConfig.DYNAMO_SOURCES, dynamoTables);
+      config.put(FineoStoragePluginConfig.FS_SOURCES, sources);
+      config.put(FineoStoragePluginConfig.DYNAMO_TENANT_TABLE, dynamoTenantTable);
+      config.put(FineoStoragePluginConfig.ORGS, orgs);
 
       // build dynamo
       dynamo.put("name", "dynamo");

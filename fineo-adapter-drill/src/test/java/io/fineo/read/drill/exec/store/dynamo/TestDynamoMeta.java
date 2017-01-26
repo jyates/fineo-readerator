@@ -7,7 +7,6 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
 
 @Category(ClusterTest.class)
 public class TestDynamoMeta extends BaseFineoTest {
@@ -17,7 +16,7 @@ public class TestDynamoMeta extends BaseFineoTest {
     register();
     // setup schema for dynamo with no tables
     BootstrapFineo bootstrap = newBootstrap();
-    BootstrapFineo.DrillConfigBuilder builder = basicBootstrap(bootstrap.builder());
+    BootstrapFineo.DrillConfigBuilder builder = simpleBootstrap(bootstrap.builder());
     builder.bootstrap();
     Connection conn = drill.getConnection();
     conn.getMetaData().getCatalogs();
