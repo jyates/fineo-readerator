@@ -38,16 +38,16 @@ SqlIdentifier CompoundIdentifier(boolean ... flag) :
     }
     (
         (
-        <DOT>
-        (
-            p = Identifier() {
-                builder.addString(p, getPos());
-            }
-        |
-            <STAR> {
-                builder.addString("*", getPos());
-            }
-        )
+          <DOT>
+          (
+              p = Identifier() {
+                  builder.addString(p, getPos());
+              }
+          |
+              <STAR> {
+                  builder.addString("*", getPos());
+              }
+          )
         )
         |
         (

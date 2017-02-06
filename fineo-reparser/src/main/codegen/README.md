@@ -37,7 +37,7 @@ seamless as possible with the existing parsing. We explicitly don't include:
   * ShowFiles
   * RefreshMetadata
 
-And we don't includen command/key words:
+And we don't include command/key words:
 
   * USE
   * FILES

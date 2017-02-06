@@ -1685,7 +1685,11 @@ SqlNode TableRef() :
 {
     (
         LOOKAHEAD(2)
-        tableRef = CompoundTableIdentifier()
+        // For some reason, if we use CompoundTableIdentifier here, we end up with the wrong amount
+        // of if nesting, leading to broken parsing. Has something to do with how the compound
+        // table idenitifier picks the next element to parse. We do a little hack here to support
+        // correct parsing. #startup
+        tableRef = CompoundIdentifier(true)
         [
             [ <EXTEND> ]
             extendList = ExtendList() {
@@ -3565,7 +3569,7 @@ SqlNodeList ParenthesizedSimpleIdentifierList() :
 }
 
 <#if parser.includeCompoundTableIdentifier>
-SqlIdenfitier CompoundTableIdentifier():
+SqlIdenfitier CompoundTableIdentifier() :
 {
 }
 {
