@@ -20,6 +20,10 @@ public class StandaloneServerRule extends ExternalResource {
   private int port = -1;
 
 
+  public static StandaloneServerRule create(){
+    return new StandaloneServerRule(ServerTestUtils.LOAD_DRIVER);
+  }
+
   public StandaloneServerRule(Runnable... befores) {
     this.befores = newArrayList(befores);
   }
@@ -56,5 +60,9 @@ public class StandaloneServerRule extends ExternalResource {
 
   public int port() {
     return this.port;
+  }
+
+  public String getOrg(){
+    return this.org;
   }
 }

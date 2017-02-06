@@ -11,7 +11,7 @@ import static org.junit.Assert.assertEquals;
 public class TestServerHealthChecks {
 
   @ClassRule
-  public static StandaloneServerRule SERVER = new StandaloneServerRule(ServerTestUtils.LOAD_DRIVER);
+  public static StandaloneServerRule SERVER = StandaloneServerRule.create();
 
   @Test
   public void testRoot() throws Exception {

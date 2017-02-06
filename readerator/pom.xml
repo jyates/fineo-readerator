@@ -15,7 +15,7 @@
   <modules>
     <module>server</module>
     <module>readerator-it</module>
-    <module>client-server</module>
+    <module>proxy</module>
   </modules>
 
   <dependencyManagement>

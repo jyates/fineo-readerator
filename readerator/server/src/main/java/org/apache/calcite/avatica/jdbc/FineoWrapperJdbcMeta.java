@@ -1,7 +1,5 @@
 package org.apache.calcite.avatica.jdbc;
 
-import com.google.common.base.Preconditions;
-import io.fineo.read.FineoJdbcProperties;
 import io.fineo.read.serve.TenantValidator;
 import org.apache.calcite.avatica.metrics.MetricsSystem;
 import org.slf4j.Logger;
