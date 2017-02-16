@@ -69,9 +69,10 @@ public class FineoServer {
   @Parameter(names = "--no-org-id",
              description = "Don't enforce a matching Org ID, just that one is present.")
   private boolean noOrg = false;
+
   {
     String set = System.getenv(NO_ORG_ID_ENV_KEY);
-    if(set != null){
+    if (set != null) {
       noOrg = Boolean.parseBoolean(set);
     }
   }
@@ -124,7 +125,7 @@ public class FineoServer {
       requestHandlers.add(new RootHealthCheck());
       requestHandlers.add(new IsAliveHealthCheck());
       requestHandlers.add(new IsDrillAliveCheck(meta));
-      if(org != null){
+      if (org != null) {
         requestHandlers.add(new IsFineoAliveCheck(meta, org));
       }
 
@@ -166,7 +167,11 @@ public class FineoServer {
     final FineoServer server = new FineoServer();
     new JCommander(server, args);
 
-    Preconditions.checkNotNull(server.org, "Missing ORG ID specification!");
+    if (!server.noOrg) {
+      Preconditions.checkNotNull(server.org, "Missing ORG ID specification!");
+    } else {
+      LOG.debug("Not tied to a specific org. Got org specification: '{}'", server.org);
+    }
     Preconditions.checkNotNull(server.drill, "Missing DRILL CONNECTION specification!");
     // Try to clean up when the server is stopped.
     Runtime.getRuntime().addShutdownHook(

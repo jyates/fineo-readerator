@@ -60,6 +60,7 @@ public class FineoSchemaFactory implements SchemaFactory {
     List<String> parentName = of(FineoInternalProperties.FINEO_DRILL_SCHEMA_NAME);
     for (String org : orgs) {
       SubTableScanBuilder scanner = new SubTableScanBuilder(org, sources, plugin.getDynamo());
+      LOG.debug("Registering schemas for: {}", org);
       parent.add(org, new FineoSchema(parentName, org, this.plugin, scanner, store));
     }
   }

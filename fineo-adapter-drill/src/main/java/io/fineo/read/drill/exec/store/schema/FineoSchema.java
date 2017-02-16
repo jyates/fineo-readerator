@@ -5,6 +5,8 @@ import io.fineo.schema.exception.SchemaNotFoundException;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
 import org.apache.calcite.schema.Table;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.List;
@@ -14,6 +16,8 @@ import java.util.Set;
  * Manages the actual schema for Fineo tables
  */
 public class FineoSchema extends FineoBaseSchema {
+  private static final Logger LOG = LoggerFactory.getLogger(FineoSchema.class);
+
   private final FineoStoragePlugin plugin;
   private final SubTableScanBuilder scanner;
   private final StoreClerk clerk;
@@ -32,6 +36,7 @@ public class FineoSchema extends FineoBaseSchema {
     for (StoreClerk.Metric metric : clerk.getMetrics()) {
       names.add(metric.getUserName());
     }
+    LOG.debug("Got table names {}: {}", this.getName(), names);
     return names;
   }
 
