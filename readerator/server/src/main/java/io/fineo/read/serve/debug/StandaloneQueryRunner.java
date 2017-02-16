@@ -41,13 +41,16 @@ public class StandaloneQueryRunner {
     try (Connection conn = DriverManager.getConnection(format("jdbc:drill:zk=%s", this.url));
          Statement stmt = conn.createStatement();
          ResultSet set = stmt.executeQuery(this.query)) {
+      System.out.println("Running query: " + this.query);
+      int row = 0;
       while (set.next()) {
+        System.out.println((row++) + "---------------------------");
         ResultSetMetaData md = set.getMetaData();
         for (int i = 1; i <= md.getColumnCount(); i++) {
           System.out.println(i + ") [" + md.getColumnName(i) + "] " + set.getObject(i));
         }
-        System.out.println("---------------------------");
       }
+      System.out.println(" ** DONE **");
     }
   }
 }
