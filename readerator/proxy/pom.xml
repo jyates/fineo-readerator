@@ -101,6 +101,7 @@
                       <exclude>commons-logging:commons-logging</exclude>
                       <exclude>io.fineo.client:common</exclude>
                       <exclude>io.fineo.client.models:common-models</exclude>
+                      <exclude>org.slf4j:jcl-over-slf4j</exclude>
                     </excludes>
                   </artifactSet>
                   <filters>
