@@ -43,7 +43,15 @@ public class FineoInfoSchemaUserTranslator extends InfoSchemaTranslator {
     if (input.SCHEMA_NAME.equals(INFO_SCHEMA)) {
       return new Records.Schema(FINEO, input.SCHEMA_NAME, "system", input.TYPE, false);
     }
-    return new Records.Schema(FINEO, FINEO, "user", input.TYPE, input.IS_MUTABLE.equals("YES"));
+
+    // switch for the fineo error records
+    String[] parts = input.SCHEMA_NAME.split("[.]");
+    if(parts.length == 0){
+      throw new IllegalStateException("Got an internal schema without a separator!");
+    }
+    String name = parts[1].equals("errors")? "errors": parts[0];
+    return new Records.Schema(FINEO, name.toUpperCase(), "user", FINEO,
+      input.IS_MUTABLE.equals("YES"));
   }
 
   @Override
@@ -77,6 +85,8 @@ public class FineoInfoSchemaUserTranslator extends InfoSchemaTranslator {
   private Function<String, String> schemaConversion = (value) -> {
     if (value.equals("fineo." + user)) {
       return "FINEO";
+    } else if(value.equals("fineo.errors.default")){
+      return "ERRORS";
     } else if (value.equals(InfoSchemaConstants.IS_SCHEMA_NAME)) {
       return value;
     } else {

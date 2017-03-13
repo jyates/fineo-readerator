@@ -3569,7 +3569,7 @@ SqlNodeList ParenthesizedSimpleIdentifierList() :
 }
 
 <#if parser.includeCompoundTableIdentifier>
-SqlIdenfitier CompoundTableIdentifier() :
+SqlIdentifier CompoundTableIdentifier() :
 {
 }
 {
@@ -3585,7 +3585,7 @@ SqlIdenfitier CompoundTableIdentifier() :
 /**
  * Parses a compound identifier.
  */
-SqlIdentifier CompoundIdentifier() :
+SqlIdentifier CompoundIdentifier(boolean ... flag) :
 {
     List<String> list = new ArrayList<String>();
     List<SqlParserPos> posList = new ArrayList<SqlParserPos>();
@@ -5077,7 +5077,7 @@ SqlPostfixOperator PostfixRowOperator() :
     | < STATIC: "STATIC" >
     | < STDDEV_POP: "STDDEV_POP" >
     | < STDDEV_SAMP: "STDDEV_SAMP" >
-    | < STREAM: "STREAM" >
+    | < STREAM: "STREAM_OF" >
     | < STRUCTURE: "STRUCTURE" >
     | < STYLE: "STYLE" >
     | < SUBCLASS_ORIGIN: "SUBCLASS_ORIGIN" >

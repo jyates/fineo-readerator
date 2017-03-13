@@ -42,6 +42,7 @@ public class TestFineoInfoSchema extends BaseFineoDynamoTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestFineoInfoSchema.class);
   private static final String FINEO = "FINEO";
   private static final String IS = "INFORMATION_SCHEMA";
+  private static final String ERROR = "ERRORS";
 
   @ClassRule
   public static DrillClusterRule drill = new DrillClusterRule(1);
@@ -77,9 +78,10 @@ public class TestFineoInfoSchema extends BaseFineoDynamoTest {
   }
 
   @Test
-  public void testTenantUserCanSeeInfoAndFineoSchema() throws Exception {
+  public void testTenantUserSchemas() throws Exception {
     verifyForUser(org, "SHOW SCHEMAS", FineoTestUtil.withNext(
       map("SCHEMA_NAME", "INFORMATION_SCHEMA"),
+      map("SCHEMA_NAME", ERROR),
       map("SCHEMA_NAME", FINEO)));
   }
 
@@ -112,8 +114,12 @@ public class TestFineoInfoSchema extends BaseFineoDynamoTest {
         map("SCHEMA_NAME", "dfs.root"),
         map("SCHEMA_NAME", "dfs.tmp"),
         map("SCHEMA_NAME", "dfs_test.default"),
+        map("SCHEMA_NAME", "dfs_test.fixed"),
+        map("SCHEMA_NAME", "dfs_test.fixed1"),
+        map("SCHEMA_NAME", "dfs_test.fixedNoSubdir"),
         map("SCHEMA_NAME", "dfs_test.home"),
         map("SCHEMA_NAME", "dynamo"),
+        map("SCHEMA_NAME", "fineo.errors.default"),
         map("SCHEMA_NAME", "fineo." + org),
         map("SCHEMA_NAME", "fineo"),
         map("SCHEMA_NAME", "sys")
@@ -145,13 +151,18 @@ public class TestFineoInfoSchema extends BaseFineoDynamoTest {
     verifyForUser(org,
       "SELECT * FROM INFORMATION_SCHEMA.SCHEMATA",
       FineoTestUtil.withNext(
-        map("CATALOG_NAME", "FINEO",
+        map("CATALOG_NAME", FINEO,
           "SCHEMA_NAME", "INFORMATION_SCHEMA",
           "SCHEMA_OWNER", "system",
           "TYPE", "ischema",
           "IS_MUTABLE", "NO"),
-        map("CATALOG_NAME", "FINEO",
-          "SCHEMA_NAME", "FINEO",
+        map("CATALOG_NAME", FINEO,
+          "SCHEMA_NAME", ERROR,
+          "SCHEMA_OWNER", "user",
+          "TYPE", "FINEO",
+          "IS_MUTABLE", "NO"),
+        map("CATALOG_NAME", FINEO,
+          "SCHEMA_NAME", FINEO,
           "SCHEMA_OWNER", "user",
           "TYPE", "FINEO",
           "IS_MUTABLE", "NO")
@@ -209,12 +220,16 @@ public class TestFineoInfoSchema extends BaseFineoDynamoTest {
     wrote.put(fieldname, 2);
     Table table = state.writeToDynamo(wrote);
 
+    File errors = folder.newFolder(tmp.getName(), "errors", "stream");
+
     bootstrapper()
       // dynamo
       .withDynamoKeyMapper()
       .withDynamoTable(table)
       // fs
       .withLocalSource(parquet.getKey())
+      // errors
+      .withError().withTable(new FsSourceTable("json", errors.getAbsolutePath())).done()
       .bootstrap();
   }
 

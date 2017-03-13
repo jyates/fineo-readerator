@@ -54,10 +54,12 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
     private FineoSqlRewriter rewriter = new FineoSqlRewriter(org);
     List<String> wheres;
     Verify<ResultSet> verify;
-    boolean withUnion = true;
+    public boolean withUnion = true;
     private String statement;
     private List<String> select = new ArrayList<>();
-    private List<String> sorts = newArrayList("`timestamp` ASC");
+    public List<String> sorts = newArrayList("`timestamp` ASC");
+    public boolean rewrite = true;
+    private String from = null;
 
     public QueryRunnable(Verify<ResultSet> verify) {
       this(null, verify);
@@ -81,14 +83,23 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
 
     public String getStatement() throws Exception {
       if (statement == null) {
-        String from = format(" FROM %s", metrictype);
+        String from = format(" FROM %s", this.from != null ? this.from : metrictype);
         String where = wheres == null || wheres.size() == 0 ? "" :
-                       " WHERE " + join(" AND ", wheres);
+                       " WHERE " + join(" AND ", paren(wheres));
         String fields = select.size() == 0 ? "*" : join(",", select);
         statement =
-          format("SELECT %s %s %s ORDER BY %s", fields, from, where, join(" , ", sorts));
+          format("SELECT %s %s %s %s", fields, from, where,
+            sorts.isEmpty() ? "" : format("ORDER BY %s", join(" , ", sorts)));
       }
-      return rewriter.rewrite(statement);
+      if (rewrite) {
+        statement = rewriter.rewrite(statement);
+      }
+      return this.statement;
+    }
+
+    public QueryRunnable from(String table){
+      this.from = table;
+      return this;
     }
 
     public QueryRunnable sortBy(String field) {
@@ -99,6 +110,17 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
     private String join(String joiner, Collection<?> parts) {
       return Joiner.on(joiner).join(parts);
     }
+  }
+
+  private List<String> paren(List<String> parts) {
+    for (int i = 0; i < parts.size(); i++) {
+      String part = parts.get(i);
+      if(part.startsWith("(") && part.endsWith(")")){
+        continue;
+      }
+      parts.set(i, format("(%s)", part));
+    }
+    return parts;
   }
 
   protected String equals(String left, String right) {
@@ -152,7 +174,7 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
       .writeParquet(state, drill.getConnection(), dir, orgid, metricType, ts, rows);
   }
 
-  protected BootstrapFineo newBootstrap() {
+  protected static BootstrapFineo newBootstrap() {
     return newBootstrap(drill);
   }
 

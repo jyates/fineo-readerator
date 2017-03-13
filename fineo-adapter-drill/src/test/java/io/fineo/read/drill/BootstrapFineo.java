@@ -14,6 +14,9 @@ import io.fineo.read.drill.exec.store.plugin.SchemaRepositoryConfig;
 import io.fineo.read.drill.exec.store.plugin.source.DynamoSourceTable;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.apache.commons.io.IOUtils;
+import org.apache.drill.exec.store.dfs.FileSystemSchemaFactory;
+import org.apache.drill.exec.store.dfs.WorkspaceConfig;
+import org.apache.drill.exec.store.dfs.strategy.dir.FixedDirectoriesStrategy;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -54,6 +57,9 @@ public class BootstrapFineo {
   private DynamoEndpoint dynamoEndpoint;
   private Map<String, Object> credentials;
   private Map<String, DynamoKeyMapperSpec> mappers = new HashMap<>();
+
+  // fs plugin config
+  private Map<String, Object> errorSources = null;
 
   public BootstrapFineo(int webPort) {
     this.url = format(URL, webPort);
@@ -150,10 +156,84 @@ public class BootstrapFineo {
     public void bootstrap() throws IOException {
       BootstrapFineo.this.strap(this);
     }
+
+    public ErrorReadBootstrap withError() {
+      return new ErrorReadBootstrap(this);
+    }
+  }
+
+  /**
+   * Only supports a single workspace for errors. Below that should be properly named directories
+   * for each of the tables, e.g. stream, batch, etc.
+   */
+  public class ErrorReadBootstrap {
+    private final DrillConfigBuilder bootstrap;
+    private FsSourceTable source;
+    private String[] dirs = new String[]{"stage", "type", "year", "month", "day"};
+
+    public ErrorReadBootstrap(DrillConfigBuilder bootstrap) {
+      this.bootstrap = bootstrap;
+    }
+
+    public ErrorReadBootstrap withTable(FsSourceTable source) {
+      this.source = source;
+      return this;
+    }
+
+    /**
+     * Overwrite the default fixed directory column naming
+     *
+     * @param dirs ordered directory names
+     * @return <tt>this</tt>
+     */
+    public ErrorReadBootstrap withSubdirs(String... dirs) {
+      this.dirs = dirs;
+      return this;
+    }
+
+    public DrillConfigBuilder done() {
+      // transform the fs source tables in a fs config plugin
+      Map<String, Object> config = new HashMap<>();
+      config.put("type", "file");
+      config.put("enabled", true);
+      config.put("connection", "file:///");
+      Map<String, WorkspaceConfig> workspaces = new HashMap<>();
+      config.put("workspaces", workspaces);
+      Map<String, Object> formats = new HashMap<>();
+      config.put("formats", formats);
+
+      FixedDirectoriesStrategy strategy = new FixedDirectoriesStrategy(this.dirs, false);
+      WorkspaceConfig wsc =
+        new WorkspaceConfig(source.getBasedir(), false, source.getFormat(), strategy);
+      workspaces.put(FileSystemSchemaFactory.DEFAULT_WS_NAME, wsc);
+      Object format;
+      switch (source.getFormat()) {
+        case "json":
+          format = new HashMap<>();
+          ((Map) format).put("type", "json");
+          break;
+        default:
+          throw new IllegalArgumentException("Error source format: " + source.getFormat() + " not "
+                                             + "supported");
+      }
+      formats.put(source.getFormat(), format);
+      Map<String, Object> toSend = new HashMap<>();
+      toSend.put("name", "errors");
+      toSend.put("config", config);
+      BootstrapFineo.this.errorSources = toSend;
+      return this.bootstrap;
+    }
   }
 
   public boolean strap(DrillConfigBuilder config) throws IOException {
     config.buildInternal();
+    // load errors at least before fineo to ensure we can get the FS
+    if (this.errorSources != null) {
+      if (!bootstrap("/storage/fs.json", config.build(this.errorSources))) {
+        return false;
+      }
+    }
+
     // load dynamo first so we ge the right dynamo credentials
     if (bootstrap("/storage/dynamo.json", config.build(this.dynamo))) {
       return bootstrap("/storage/fineo.json", config.build(this.plugin));

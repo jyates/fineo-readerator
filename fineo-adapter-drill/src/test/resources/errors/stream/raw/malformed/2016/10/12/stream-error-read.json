@@ -1,0 +1,2 @@
+{"apikey": "somekey", "event": "{\"the event\": \"event malformed data\"}" }
+{"apikey": "somekey", "event": "{\"the event\": \"more malformed data\"}" }

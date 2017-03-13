@@ -42,7 +42,7 @@ public class BaseFineoDynamoTest extends BaseDynamoTableTest {
   @Rule
   public TestOutput folder = new TestOutput(false);
 
-  protected final String org = "orgid1", metrictype = "metricid1", fieldname = "field1";
+  protected static final String org = "orgid1", metrictype = "metricid1", fieldname = "field1";
   private static final String DYNAMO_TABLE_PREFIX = "test-dynamo-client-";
 
   protected TestState register(Pair<String, StoreManager.Type>... fields)

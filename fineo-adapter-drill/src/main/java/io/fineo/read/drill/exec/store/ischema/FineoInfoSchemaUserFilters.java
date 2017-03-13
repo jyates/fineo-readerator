@@ -27,7 +27,7 @@ public class FineoInfoSchemaUserFilters {
     Map<String, Map<String, Collection<String>>> filters = new HashMap<>();
     Map<String, Collection<String>> userSchemaMap = new HashMap<>();
     // users can only see their own schemas, which get translated to a hidden value
-    userSchemaMap.put("^(?!anonymous).*$", newArrayList("INFORMATION_SCHEMA", "FINEO"));
+    userSchemaMap.put("^(?!anonymous).*$", newArrayList("INFORMATION_SCHEMA", "FINEO", "ERRORS"));
     // anonymous cannot see anything
     userSchemaMap.put("anonymous", newArrayList(""));
     // fineo-internal can see all the table definitions as they are specified (partially implemented

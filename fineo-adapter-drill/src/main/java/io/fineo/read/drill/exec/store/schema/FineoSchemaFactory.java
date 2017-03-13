@@ -39,14 +39,19 @@ public class FineoSchemaFactory implements SchemaFactory {
     this.orgs = orgs;
   }
 
-  @Override
-  public void registerSchemas(SchemaConfig schemaConfig, SchemaPlus parent) throws IOException {
-    FineoStoragePluginConfig config = (FineoStoragePluginConfig) this.plugin.getConfig();
-    this.store = createSchemaStore(config);
+  public SchemaPlus registerSchemasWithNewParent(SchemaConfig schemaConfig, SchemaPlus parent) throws IOException {
     // we need a 'parent' schema, even if it doesn't have any sub-tables
     parent = parent.add(FineoInternalProperties.FINEO_DRILL_SCHEMA_NAME, new FineoBaseSchema(of(),
       FineoInternalProperties.FINEO_DRILL_SCHEMA_NAME) {
     });
+    this.registerSchemas(schemaConfig, parent);
+    return parent;
+  }
+
+  @Override
+  public void registerSchemas(SchemaConfig schemaConfig, SchemaPlus parent) throws IOException {
+    FineoStoragePluginConfig config = (FineoStoragePluginConfig) this.plugin.getConfig();
+    this.store = createSchemaStore(config);
 
     // add the non-null sources
     Set<SourceTable> sources = new HashSet<>();
@@ -58,6 +63,8 @@ public class FineoSchemaFactory implements SchemaFactory {
     }
 
     List<String> parentName = of(FineoInternalProperties.FINEO_DRILL_SCHEMA_NAME);
+    // if there are no orgs, or things are really borked and we can't get a connection this fails.
+    // this should be bad and we should know right away if things are wrong.
     for (String org : orgs) {
       SubTableScanBuilder scanner = new SubTableScanBuilder(org, sources, plugin.getDynamo());
       LOG.debug("Registering schemas for: {}", org);

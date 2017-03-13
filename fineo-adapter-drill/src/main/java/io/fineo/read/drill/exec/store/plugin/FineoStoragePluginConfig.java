@@ -1,18 +1,15 @@
 package io.fineo.read.drill.exec.store.plugin;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import io.fineo.read.drill.exec.store.plugin.source.DynamoSourceTable;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.apache.drill.common.logical.StoragePluginConfigBase;
+import org.apache.drill.exec.store.dfs.FileSystemConfig;
 
 import java.util.List;
-import java.util.Map;
-
-import static io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig.DYNAMO_TENANT_TABLE;
 
 @JsonIgnoreProperties
 @JsonTypeName(FineoStoragePluginConfig.NAME)
@@ -23,12 +20,14 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
   public static final String DYNAMO_SOURCES = "dynamo-sources";
   public static final String ORGS = "orgs";
   public static final String DYNAMO_TENANT_TABLE = "dynamo-tenant-table";
+  public static final String WRITE_ERRORS = "write-errors";
 
   private final SchemaRepositoryConfig repository;
   private final List<FsSourceTable> fsTables;
   private final List<DynamoSourceTable> dynamoSources;
   private final List<String> orgs;
   private final String tenantTable;
+//  private final FileSystemConfig writeErrors;
 
   @JsonCreator
   public FineoStoragePluginConfig(
@@ -42,6 +41,7 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
     this.fsTables = fsSources;
     this.dynamoSources = dynamoSources;
     this.tenantTable = tenantTable;
+//    this.writeErrors = errors;
   }
 
   @JsonProperty(SchemaRepositoryConfig.NAME)
@@ -68,6 +68,11 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
   public String getDynamoTenantTable() {
     return this.tenantTable;
   }
+
+//  @JsonProperty(WRITE_ERRORS)
+//  public FileSystemConfig getWriteErrors() {
+//    return writeErrors;
+//  }
 
   @Override
   public boolean equals(Object o) {

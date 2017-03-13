@@ -29,30 +29,42 @@ import java.io.Reader;
 
 public class FineoDrillParserWithCompoundIdConverter extends FineoParseImpl {
 
-  public FineoDrillParserWithCompoundIdConverter(Reader stream) {
+  private final String org;
+
+  public FineoDrillParserWithCompoundIdConverter(Reader stream, String orgId) {
     super(stream);
+    this.org = orgId;
   }
 
+  /**
+   * Enable Drill-like conversions of nested expressions. See {@link CompoundIdentifierConverter}
+   * docs for more information
+   * @return shuttle to update expression
+   */
   protected SqlVisitor<SqlNode> createConverter() {
     return new CompoundIdentifierConverter();
+  }
+
+  protected SqlVisitor<SqlNode> forceApiKeyWhere(){
+    return new FineoErrorWhereForce(this.org);
   }
 
   @Override
   public SqlNode parseSqlExpressionEof() throws Exception {
     SqlNode originalSqlNode = super.parseSqlExpressionEof();
-    return originalSqlNode.accept(createConverter());
+    return originalSqlNode.accept(createConverter()).accept(forceApiKeyWhere());
   }
 
   @Override
   public SqlNode parseSqlStmtEof() throws Exception {
     SqlNode originalSqlNode = super.parseSqlStmtEof();
-    return originalSqlNode.accept(createConverter());
+    return originalSqlNode.accept(createConverter()).accept(forceApiKeyWhere());
   }
 
   public static SqlParserImplFactory Factory(String org) {
     return stream -> {
       FineoDrillParserWithCompoundIdConverter parserImpl =
-        new FineoDrillParserWithCompoundIdConverter(stream);
+        new FineoDrillParserWithCompoundIdConverter(stream, org);
       parserImpl.setOrg(org);
       return parserImpl;
     };

@@ -1,0 +1,2 @@
+{"apikey": "somekey", "event": "{\"the event\": \"batch event data\"}" }
+{"apikey": "somekey", "event": "{\"the event\": \"batch more data\"}" }

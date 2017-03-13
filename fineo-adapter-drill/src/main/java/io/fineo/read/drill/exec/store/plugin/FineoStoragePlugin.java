@@ -32,6 +32,7 @@ import org.apache.drill.exec.planner.PlannerPhase;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.store.AbstractStoragePlugin;
 import org.apache.drill.exec.store.SchemaConfig;
+import org.apache.drill.exec.store.dfs.FileSystemPlugin;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -54,10 +55,12 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   private final FineoSchemaFactory factory;
   private final DrillbitContext context;
   private final Multimap<PlannerPhase, RelOptRule> rules;
+  private final AbstractStoragePlugin writeErrors;
   private final DynamoStoragePluginConfig dynamo;
   private final boolean enableRadio;
   private AmazonDynamoDBAsyncClient client;
   private DynamoDB dynamoClient;
+
 
   public FineoStoragePlugin(FineoStoragePluginConfig configuration, DrillbitContext c,
     String name) throws ExecutionSetupException {
@@ -67,6 +70,8 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
     this.context = c;
     this.enableRadio = FineoCommon.isRadioEnabled();
     this.rules = getRules();
+    FileSystemPlugin fs = (FileSystemPlugin) c.getStorage().getPlugin("errors");
+    this.writeErrors = fs == null ? new EmptyPlugin() : fs;
   }
 
   private Multimap<PlannerPhase, RelOptRule> getRules() {
@@ -116,7 +121,8 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
 
   @Override
   public void registerSchemas(SchemaConfig schemaConfig, SchemaPlus parent) throws IOException {
-    factory.registerSchemas(schemaConfig, parent);
+    parent = factory.registerSchemasWithNewParent(schemaConfig, parent);
+    writeErrors.registerSchemas(schemaConfig, parent);
   }
 
   protected FineoSchemaFactory getFactory(String name) {
@@ -132,17 +138,23 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
     return new FineoSchemaFactory(this, name, loader);
   }
 
-  // definitely don't support a physical scan
   @Override
   public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection,
     List<SchemaPath> columns) throws IOException {
-    throw new UnsupportedOperationException();
+    // any physical scan is delegated to the write errors. However, generally, this is not called
+    // because we handle the work in the FineoTable
+    return this.writeErrors.getPhysicalScan(userName, selection, columns);
   }
 
   @Override
   public Set<? extends RelOptRule> getOptimizerRules(OptimizerRulesContext optimizerContext,
     PlannerPhase phase) {
-    return new HashSet<>(rules.get(phase));
+    Set<RelOptRule> rules = new HashSet<>(this.rules.get(phase));
+    switch (phase) {
+      case PHYSICAL:
+        rules.addAll(this.writeErrors.getPhysicalOptimizerRules(optimizerContext));
+    }
+    return rules;
   }
 
   public DynamoDB getDynamo() {
@@ -174,4 +186,17 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
     return enableRadio;
   }
 
+  private class EmptyPlugin extends AbstractStoragePlugin {
+
+    @Override
+    public StoragePluginConfig getConfig() {
+      return null;
+    }
+
+    @Override
+    public void registerSchemas(SchemaConfig schemaConfig, SchemaPlus schemaPlus)
+      throws IOException {
+      // noop
+    }
+  }
 }
