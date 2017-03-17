@@ -44,7 +44,7 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
     void verify(T obj) throws SQLException;
   }
 
-  public QueryRunnable selectStarForOrg(String org, Verify<ResultSet> verify){
+  public QueryRunnable selectStarForOrg(String org, Verify<ResultSet> verify) {
     QueryRunnable runnable = new QueryRunnable(verify);
     runnable.rewriter = new FineoSqlRewriter(org);
     return runnable;
@@ -97,7 +97,7 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
       return this.statement;
     }
 
-    public QueryRunnable from(String table){
+    public QueryRunnable from(String table) {
       this.from = table;
       return this;
     }
@@ -113,12 +113,13 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
   }
 
   private List<String> paren(List<String> parts) {
+    List<String> ret = new ArrayList<>();
     for (int i = 0; i < parts.size(); i++) {
       String part = parts.get(i);
-      if(part.startsWith("(") && part.endsWith(")")){
+      if (part.startsWith("(") && part.endsWith(")")) {
         continue;
       }
-      parts.set(i, format("(%s)", part));
+      ret.add(format("(%s)", part));
     }
     return parts;
   }
@@ -183,6 +184,6 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
   }
 
   protected BootstrapFineo.DrillConfigBuilder bootstrapper() {
-   return simpleBootstrap(newBootstrap(drill).builder());
+    return simpleBootstrap(newBootstrap(drill).builder());
   }
 }
