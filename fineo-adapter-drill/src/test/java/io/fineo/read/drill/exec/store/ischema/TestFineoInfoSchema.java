@@ -1,6 +1,7 @@
 package io.fineo.read.drill.exec.store.ischema;
 
 import com.amazonaws.services.dynamodbv2.document.Table;
+import io.fineo.drill.ClusterTest;
 import io.fineo.drill.rule.DrillClusterRule;
 import io.fineo.lambda.dynamo.Schema;
 import io.fineo.read.drill.BaseFineoDynamoTest;
@@ -13,6 +14,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +39,7 @@ import static io.fineo.read.drill.exec.store.ischema.FineoInfoSchemaUserFilters
  * We extend off the BaseFineoDynamoTest because we need to modify the drill cluster setup
  * </p>
  */
+@Category(ClusterTest.class)
 public class TestFineoInfoSchema extends BaseFineoDynamoTest {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestFineoInfoSchema.class);
