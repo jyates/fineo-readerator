@@ -1,5 +1,6 @@
 package io.fineo.read.drill.fs;
 
+import io.fineo.drill.ClusterTest;
 import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoDrillStartupSetup;
@@ -7,6 +8,7 @@ import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -22,6 +24,7 @@ import static org.junit.Assert.assertTrue;
  * actual queries that should be run against Drill, rather than the ones that get rewritten as in
  * {@link TestClientErrorRecordReads}
  */
+@Category(ClusterTest.class)
 public class TestReadRawErrorRecords extends BaseFineoTest{
 
   private static final String APIKEY_KEY = "apikey";

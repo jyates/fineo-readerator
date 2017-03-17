@@ -10,6 +10,7 @@ import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
+import io.fineo.read.drill.fs.BaseFineoTestWithErrorReads;
 import io.fineo.schema.store.AvroSchemaProperties;
 import io.fineo.schema.store.SchemaStore;
 import io.fineo.schema.store.StoreClerk;
@@ -44,7 +45,7 @@ import static org.junit.Assert.fail;
  * - combining fields across json and parquet formats
  */
 @Category(ClusterTest.class)
-public class TestClientLikeReads extends BaseFineoTest {
+public class TestClientLikeReads extends BaseFineoTestWithErrorReads {
 
   private static final long ONE_DAY_MILLIS = 24 * 60 * 60 * 1000;
 
