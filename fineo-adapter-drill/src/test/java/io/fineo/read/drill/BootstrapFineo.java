@@ -169,7 +169,7 @@ public class BootstrapFineo {
   public class ErrorReadBootstrap {
     private final DrillConfigBuilder bootstrap;
     private FsSourceTable source;
-    private String[] dirs = new String[]{"stage", "type", "year", "month", "day"};
+    private String[] dirs = new String[]{"stage", "type", "year", "month", "day", "hour"};
 
     public ErrorReadBootstrap(DrillConfigBuilder bootstrap) {
       this.bootstrap = bootstrap;

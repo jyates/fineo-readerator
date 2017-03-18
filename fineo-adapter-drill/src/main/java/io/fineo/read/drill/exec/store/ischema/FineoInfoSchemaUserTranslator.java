@@ -45,12 +45,7 @@ public class FineoInfoSchemaUserTranslator extends InfoSchemaTranslator {
     }
 
     // switch for the fineo error records
-    String[] parts = input.SCHEMA_NAME.split("[.]");
-    if(parts.length == 0){
-      throw new IllegalStateException("Got an internal schema without a separator!");
-    }
-    String name = parts[1].equals("errors")? "errors": parts[0];
-    return new Records.Schema(FINEO, name.toUpperCase(), "user", FINEO,
+    return new Records.Schema(FINEO, getSchema(input.SCHEMA_NAME), "user", FINEO,
       input.IS_MUTABLE.equals("YES"));
   }
 
@@ -63,8 +58,21 @@ public class FineoInfoSchemaUserTranslator extends InfoSchemaTranslator {
       return new Records.Table(FINEO, input.TABLE_SCHEMA, input.TABLE_NAME, input.TABLE_TYPE);
     }
 
-    // schema gets overridden, but table name doesn't change
-    return new Records.Table(FINEO, FINEO, input.TABLE_NAME, input.TABLE_TYPE);
+    return new Records.Table(FINEO, getSchema(input.TABLE_SCHEMA), input.TABLE_NAME, input.TABLE_TYPE);
+  }
+
+  /**
+   * Modify the schema to match the error/fineo schema name.
+   * @param schema
+   * @return
+   */
+  private String getSchema(String schema){
+    String[] parts = schema.split("[.]");
+    if(parts.length == 0){
+      throw new IllegalStateException("Got an internal schema without a separator!");
+    }
+    String name = parts[1].equals("errors")? "errors": parts[0];
+    return name.toUpperCase();
   }
 
   @Override

@@ -22,6 +22,7 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.schema.Table;
 import org.apache.drill.common.JSONOptions;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
@@ -123,6 +124,9 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   public void registerSchemas(SchemaConfig schemaConfig, SchemaPlus parent) throws IOException {
     parent = factory.registerSchemasWithNewParent(schemaConfig, parent);
     writeErrors.registerSchemas(schemaConfig, parent);
+    // ensure the error tables exist. Drill FSPLugin lazy and won't actually get table names until
+    // you ask for the 'table' (e.g. directory)
+    Table t = parent.getSubSchema("errors").getTable("stream");
   }
 
   protected FineoSchemaFactory getFactory(String name) {

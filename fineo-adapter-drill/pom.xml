@@ -331,6 +331,10 @@
                       <exclude>io.fineo.schema:schema-core:tests</exclude>
                       <exclude>io.fineo.etl.pipeline:pipeline-utils</exclude>
                       <exclude>org.hamcrest:hamcrest-core</exclude>
+
+                      <!-- AWS -->
+                      <!-- s3 we want to pull in is done in drill standalone -->
+                      <exclude>com.amazonaws:aws-java-sdk-s3</exclude>
                       <!-- aws transitive dependencies-->
                       <exclude>com.amazonaws:aws-java-sdk-elastic*</exclude>
                       <exclude>com.amazonaws:aws-java-sdk-cloud*</exclude>

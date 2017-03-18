@@ -25,9 +25,6 @@ import static java.lang.String.format;
 import static jersey.repackaged.com.google.common.collect.Lists.newArrayList;
 import static org.junit.Assert.assertTrue;
 
-/**
- *
- */
 public class BaseFineoTestWithErrorReads extends BaseFineoTest {
   protected static final String APIKEY_KEY = "apikey";
   protected static final String EVENT_KEY = "event";
@@ -38,6 +35,7 @@ public class BaseFineoTestWithErrorReads extends BaseFineoTest {
   private static File STREAM_DIR;
   protected static File RAW_STAGE_DIR;
   protected static File STAGED_STAGE_DIR;
+  protected static File ERROR_MARKER;
 
   protected enum ErrorType {
     ERROR("error"), MALFORMED("malformed");
@@ -64,6 +62,10 @@ public class BaseFineoTestWithErrorReads extends BaseFineoTest {
 
     RAW_STAGE_DIR = FOLDERS.newFolder("drill", "errors", "stream", "raw");
     STREAM_DIR = RAW_STAGE_DIR.getParentFile();
+    ERROR_MARKER = new File(STREAM_DIR, "error-marker.json");
+    // the marker file is required b/c json doesn't support directory based data reads.
+    // Therefore, it needs to have a data file before Drill recognizes it as a table
+    assertTrue("Could not create error marker file", ERROR_MARKER.createNewFile());
     STAGED_STAGE_DIR = new File(STREAM_DIR, "staged");
     ERRORS_DIR = STREAM_DIR.getParentFile();
   }

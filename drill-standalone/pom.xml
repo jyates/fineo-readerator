@@ -51,6 +51,12 @@
       <classifier>tests</classifier>
       <scope>compile</scope>
     </dependency>
+
+    <dependency>
+      <groupId>io.fineo.read</groupId>
+      <artifactId>hadoop-aws</artifactId>
+      <version>${project.version}</version>
+    </dependency>
   </dependencies>
   <profiles>
     <profile>
@@ -71,7 +77,6 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-shade-plugin</artifactId>
-            <version>${maven.shade.version}</version>
             <configuration>
               <createDependencyReducedPom>false</createDependencyReducedPom>
               <shadedArtifactAttached>true</shadedArtifactAttached>
@@ -92,6 +97,8 @@
                       <include>io.fineo.read:fineo-adapter-drill:tests</include>
                       <include>io.fineo.e2e:e2e-parsing</include>
                       <include>io.fineo.schema:schema-core:tests</include>
+                      <!-- Access s3 -->
+                      <include>io.fineo.read:hadoop-aws</include>
                       <!-- Need DrillTest -->
                       <include>org.apache.drill:drill-common:tests</include>
                       <!-- And some logging -->
@@ -99,6 +106,14 @@
                     </includes>
                   </artifactSet>
                   <filters>
+                    <!-- Before 1.9 aws bundled everything. Don't do that, just get s3 -->
+                    <filter>
+                      <artifact>com.amazonaws:aws-java-sdk</artifact>
+                      <includes>
+                        <include>com/amazonaws/services/s3/**</include>
+                        <include>com/amazonaws/event/**</include>
+                      </includes>
+                    </filter>
                     <filter>
                       <artifact>org.apache.drill:drill-common:tests</artifact>
                       <excludes>
@@ -142,6 +157,8 @@
                         <X-Compile-Target-JDK>1.8</X-Compile-Target-JDK>
                       </manifestEntries>
                     </transformer>
+                    <!-- Combine any META-INF/service implementation files -->
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                   </transformers>
                 </configuration>
               </execution>

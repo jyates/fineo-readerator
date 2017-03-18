@@ -18,22 +18,31 @@ public class DrillClusterRule extends ExternalResource {
   private static final Log LOG = LogFactory.getLog(DrillClusterRule.class);
   private final LocalDrillCluster drill;
   private Function<DrillConfig, DrillConfig> hook = Function.identity();
+  private boolean running = false;
 
   public DrillClusterRule(int serverCount) {
     drill = new LocalDrillCluster(serverCount);
   }
 
-  public void overrideConfigHook(Function<DrillConfig, DrillConfig> hook){
+  public synchronized void overrideConfigHook(Function<DrillConfig, DrillConfig> hook)
+    throws Throwable {
     this.hook = hook;
+    // every time we update the config, reboot the cluster
+    if (this.running) {
+      LOG.info("Rebooting cluster because of a config hook change!");
+      this.after();
+      this.before();
+    }
   }
 
   @Override
-  protected void before() throws Throwable {
+  protected synchronized void before() throws Throwable {
     drill.setup(hook);
+    running = true;
   }
 
   @Override
-  protected void after() {
+  protected synchronized void after() {
     drill.shutdown();
   }
 
@@ -41,11 +50,11 @@ public class DrillClusterRule extends ExternalResource {
     return drill.getConnection();
   }
 
-  public Connection getUnmanagedConnection(Properties props) throws Exception{
+  public Connection getUnmanagedConnection(Properties props) throws Exception {
     return drill.getUnmanagedConnection(props);
   }
 
-  public int getWebPort(){
+  public int getWebPort() {
     return drill.getWebPort();
   }
 }

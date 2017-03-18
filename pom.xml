@@ -16,6 +16,7 @@
     <module>drill-standalone</module>
     <module>e2e</module>
     <module>readerator</module>
+    <module>hadoop-aws</module>
   </modules>
   <packaging>pom</packaging>
 
@@ -78,6 +79,11 @@
   <build>
     <pluginManagement>
       <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-shade-plugin</artifactId>
+          <version>${maven.shade.version}</version>
+        </plugin>
         <!-- Copy the dependencies into the output directory. Needed for DynamoDB's SQLlite -->
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -297,7 +303,7 @@
         <classifier>tests</classifier>
         <scope>test</scope>
       </dependency>
-       <!-- AWS -->
+      <!-- AWS -->
       <dependency>
         <groupId>com.amazonaws</groupId>
         <artifactId>aws-java-sdk-core</artifactId>

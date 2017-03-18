@@ -9,6 +9,7 @@ import io.fineo.read.drill.BaseFineoTest.Verify;
 import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.exec.store.plugin.source.FsSourceTable;
+import io.fineo.read.drill.fs.BaseFineoTestWithErrorReads;
 import io.fineo.schema.store.StoreManager;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Before;
@@ -40,19 +41,20 @@ import static io.fineo.read.drill.exec.store.ischema.FineoInfoSchemaUserFilters
  * </p>
  */
 @Category(ClusterTest.class)
-public class TestFineoInfoSchema extends BaseFineoDynamoTest {
+public class TestFineoInfoSchema extends BaseFineoTestWithErrorReads {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestFineoInfoSchema.class);
   private static final String FINEO = "FINEO";
   private static final String IS = "INFORMATION_SCHEMA";
   private static final String ERROR = "ERRORS";
 
-  @ClassRule
-  public static DrillClusterRule drill = new DrillClusterRule(1);
-
   // set the Fineo info_schema filter rules
   static {
-    drill.overrideConfigHook(FineoInfoSchemaUserFilters::overrideWithInfoSchemaFilters);
+    try {
+      drill.overrideConfigHook(FineoInfoSchemaUserFilters::overrideWithInfoSchemaFilters);
+    } catch (Throwable throwable) {
+      throw new RuntimeException(throwable);
+    }
   }
 
   @Before
@@ -89,7 +91,7 @@ public class TestFineoInfoSchema extends BaseFineoDynamoTest {
   }
 
   @Test
-  public void testTenantUserCanSeeFineoTable() throws Exception {
+  public void testTenantUserCanSeeFineoTableAndErrorTable() throws Exception {
     verifyForUser(org, "SHOW TABLES IN " + FINEO, FineoTestUtil.withNext(
       map("TABLE_SCHEMA", FINEO, "TABLE_NAME", metrictype)));
 
@@ -99,6 +101,7 @@ public class TestFineoInfoSchema extends BaseFineoDynamoTest {
       table(FINEO, IS, "SCHEMATA"),
       table(FINEO, IS, "TABLES"),
       table(FINEO, IS, "VIEWS"),
+      table(FINEO, ERROR, "stream"),
       table(FINEO, FINEO, metrictype)));
   }
 
@@ -223,20 +226,12 @@ public class TestFineoInfoSchema extends BaseFineoDynamoTest {
     wrote.put(fieldname, 2);
     Table table = state.writeToDynamo(wrote);
 
-    File errors = folder.newFolder(tmp.getName(), "errors", "stream");
-
     bootstrapper()
       // dynamo
       .withDynamoKeyMapper()
       .withDynamoTable(table)
       // fs
       .withLocalSource(parquet.getKey())
-      // errors
-      .withError().withTable(new FsSourceTable("json", errors.getAbsolutePath())).done()
       .bootstrap();
-  }
-
-  private BootstrapFineo.DrillConfigBuilder bootstrapper() {
-    return simpleBootstrap(newBootstrap(drill).builder());
   }
 }
