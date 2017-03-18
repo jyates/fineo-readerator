@@ -22,7 +22,6 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.schema.SchemaPlus;
-import org.apache.calcite.schema.Table;
 import org.apache.drill.common.JSONOptions;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
@@ -126,7 +125,11 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
     writeErrors.registerSchemas(schemaConfig, parent);
     // ensure the error tables exist. Drill FSPLugin lazy and won't actually get table names until
     // you ask for the 'table' (e.g. directory)
-    Table t = parent.getSubSchema("errors").getTable("stream");
+    SchemaPlus child = parent.getSubSchema("errors");
+    // null check for testing where we don't neessarily have the errors impl
+    if(child != null) {
+      child.getTable("stream");
+    }
   }
 
   protected FineoSchemaFactory getFactory(String name) {
@@ -145,9 +148,7 @@ public class FineoStoragePlugin extends AbstractStoragePlugin {
   @Override
   public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection,
     List<SchemaPath> columns) throws IOException {
-    // any physical scan is delegated to the write errors. However, generally, this is not called
-    // because we handle the work in the FineoTable
-    return this.writeErrors.getPhysicalScan(userName, selection, columns);
+    throw new UnsupportedOperationException("Fineo storage plugin does not support direct scans!");
   }
 
   @Override
