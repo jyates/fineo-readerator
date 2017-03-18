@@ -83,8 +83,12 @@ public class BaseFineoDynamoTest extends BaseDynamoTableTest {
     SchemaStoreModuleForTesting module = new SchemaStoreModuleForTesting();
     Injector inject = Guice.createInjector(module, tables.getDynamoModule(), InstanceToNamed
       .namedInstance(DynamoDBRepositoryProvider.DYNAMO_SCHEMA_STORE_TABLE,
-        tables.getTestTableName()));
+        getSchemaStoreTableName()));
     return inject.getInstance(SchemaStore.class);
+  }
+
+  protected String getSchemaStoreTableName(){
+    return tables.getTestTableName();
   }
 
   protected class TestState {

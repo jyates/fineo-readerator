@@ -27,7 +27,6 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
   private final List<DynamoSourceTable> dynamoSources;
   private final List<String> orgs;
   private final String tenantTable;
-//  private final FileSystemConfig writeErrors;
 
   @JsonCreator
   public FineoStoragePluginConfig(
@@ -41,7 +40,6 @@ public class FineoStoragePluginConfig extends StoragePluginConfigBase {
     this.fsTables = fsSources;
     this.dynamoSources = dynamoSources;
     this.tenantTable = tenantTable;
-//    this.writeErrors = errors;
   }
 
   @JsonProperty(SchemaRepositoryConfig.NAME)
