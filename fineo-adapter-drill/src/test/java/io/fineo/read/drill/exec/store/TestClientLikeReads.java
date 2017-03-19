@@ -5,7 +5,6 @@ import io.fineo.drill.ClusterTest;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoFilterSpec;
 import io.fineo.drill.exec.store.dynamo.spec.filter.DynamoQueryFilterSpec;
 import io.fineo.lambda.dynamo.Schema;
-import io.fineo.read.drill.BaseFineoTest;
 import io.fineo.read.drill.BootstrapFineo;
 import io.fineo.read.drill.FineoTestUtil;
 import io.fineo.read.drill.PlanValidator;
@@ -148,6 +147,7 @@ public class TestClientLikeReads extends BaseFineoTestWithErrorReads {
     // validate that we only read the single parquet that we expected and the dynamo table
     DynamoFilterSpec keyFilter = getFilterSpec(state.getStore(), org, metrictype)
       .and(lte(Schema.SORT_KEY_NAME, ts));
+    validateAsOrgUser(
     new PlanValidator(query)
       // dynamo
       .validateDynamoQuery()
@@ -160,8 +160,7 @@ public class TestClientLikeReads extends BaseFineoTestWithErrorReads {
       .withFormat(ParquetFormatConfig.class)
       .withSelectionRoot(
         PlanValidator.getSelectionRoot(state.getStore(), source.getKey(), org, metrictype))
-      .done()
-      .validate(drill.getConnection());
+      .done());
   }
 
   @Test

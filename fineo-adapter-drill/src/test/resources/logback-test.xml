@@ -14,13 +14,15 @@
     </encoder>
   </appender>
   <logger name="org.apache.drill.exec.planner.sql.handlers.DefaultSqlHandler" level="DEBUG"/>
-  <logger name="org.apache.calcite.plan" level="TRACE"/>
-  <logger name="io.fineo.read.drill.exec.store.rel.recombinator.physical.batch" level="TRACE"/>
-  <logger name="io.fineo.read.drill.BootstrapFineo" level="DEBUG"/>
   <logger name="org.apache.drill.common.config" level="DEBUG"/>
+  <logger name="org.apache.calcite.plan" level="TRACE"/>
+
+  <logger name="io.fineo.read.drill" level="TRACE"/>
+  <logger name="io.fineo.read.drill.BootstrapFineo" level="DEBUG"/>
+  <logger name="io.fineo.read.drill.exec.store.rel.recombinator.physical.batch" level="TRACE"/>
   <logger name="io.fineo.read.drill.exec.store.rel.expansion.phyiscal" level="TRACE"/>
   <logger name="io.fineo.lambda.dynamo" level="TRACE"/>
-  <logger name="io.fineo.read.drill" level="TRACE"/>
+
   <logger name="org.reflections.Reflections" level="ERROR"/>
   <logger name="org.apache.zookeeper.ZooKeeper" level="WARN"/>
   <!--<logger name="io.fineo.read.drill.exec.store.rel.recombinator.physical.batch" level="DEBUG"/>-->

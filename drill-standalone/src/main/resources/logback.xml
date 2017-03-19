@@ -26,6 +26,7 @@
   <logger name="org.apache.calcite.plan" level="TRACE"/>
   <logger name="io.fineo.read.drill" level="TRACE"/>
   <logger name="org.apache.drill.exec.store.ischema" level="TRACE"/>
+  <logger name="io.fineo.read.drill.exec.store.schema" level="DEBUG"/>
 
   <!--<logger name="io.fineo.read.drill.exec.store.rel.recombinator.physical.batch" level="TRACE"/>-->
   <!--<logger name="io.fineo.read.drill.BootstrapFineo" level="DEBUG"/>-->

@@ -5,6 +5,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import io.fineo.read.drill.FineoInternalProperties;
+import io.fineo.read.drill.exec.store.ischema.FineoInfoSchemaUserFilters;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePlugin;
 import io.fineo.read.drill.exec.store.plugin.FineoStoragePluginConfig;
 import io.fineo.read.drill.exec.store.plugin.OrgLoader;
@@ -79,9 +80,17 @@ public class FineoSchemaFactory implements SchemaFactory {
 
       // if there are no orgs, or things are really borked and we can't get a connection this fails.
       // this should be bad and we should know right away if things are wrong.
+      String username = schemaConfig.getUserName();
+      boolean superUser = username.equals(FineoInfoSchemaUserFilters.FINEO_HIDDEN_USER_NAME);
+      LOG.trace("User: {}. Type: {}", username, superUser? "super" :"regular");
       for (String org : orgs) {
+        // skip schemas that don't match the current user name (and are not the super user)
+        if(!superUser && !org.matches(schemaConfig.getUserName())){
+          LOG.trace("Skipping registering org: {}", org);
+          continue;
+        }
         SubTableScanBuilder scanner = new SubTableScanBuilder(org, sources, plugin.getDynamo());
-        LOG.debug("Registering schemas for: {}", org);
+        LOG.trace("Registering schemas for: {}", org);
         parent.add(org, new FineoSchema(parentName, org, this.plugin, scanner, store));
       }
     } finally {

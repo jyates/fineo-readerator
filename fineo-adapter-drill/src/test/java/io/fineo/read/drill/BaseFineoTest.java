@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.String.format;
@@ -45,7 +46,7 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
   }
 
   public QueryRunnable selectStarForOrg(String org, Verify<ResultSet> verify) {
-    QueryRunnable runnable = new QueryRunnable(verify);
+    QueryRunnable runnable = new QueryRunnable(verify).withUser(org);
     runnable.rewriter = new FineoSqlRewriter(org);
     return runnable;
   }
@@ -60,6 +61,7 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
     public List<String> sorts = newArrayList("`timestamp` ASC");
     public boolean rewrite = true;
     private String from = null;
+    private String user = org;
 
     public QueryRunnable(Verify<ResultSet> verify) {
       this(null, verify);
@@ -110,6 +112,17 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
     private String join(String joiner, Collection<?> parts) {
       return Joiner.on(joiner).join(parts);
     }
+
+    public QueryRunnable withUser(String user) {
+      this.user = user;
+      return this;
+    }
+
+    public Properties getProperties() {
+      Properties props = new Properties();
+      props.put("user", this.user);
+      return props;
+    }
   }
 
   private List<String> paren(List<String> parts) {
@@ -144,14 +157,16 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
   }
 
   protected static String runAndVerify(QueryRunnable runnable) throws Exception {
-    String stmt = runnable.getStatement();
-    LOG.info("Attempting query: " + stmt);
-    Connection conn = drill.getConnection();
-    runnable.prepare(conn);
-    if (runnable.verify != null) {
-      runnable.verify.verify(conn.createStatement().executeQuery(stmt));
+    String query = runnable.getStatement();
+    LOG.info("Attempting query: " + query);
+    Properties props = runnable.getProperties();
+    try (Connection conn = drill.getUnmanagedConnection(props)) {
+      runnable.prepare(conn);
+      if (runnable.verify != null) {
+        runnable.verify.verify(conn.createStatement().executeQuery(query));
+      }
+      return query;
     }
-    return stmt;
   }
 
   protected void bootstrap(FsSourceTable... files) throws IOException {
@@ -185,5 +200,13 @@ public class BaseFineoTest extends BaseFineoDynamoTest {
 
   protected BootstrapFineo.DrillConfigBuilder bootstrapper() {
     return simpleBootstrap(newBootstrap(drill).builder());
+  }
+
+  protected void validateAsOrgUser(PlanValidator validator) throws Exception {
+    QueryRunnable runnable = new QueryRunnable(null);
+    Properties props = runnable.getProperties();
+    try(Connection conn = drill.getUnmanagedConnection(props)) {
+      validator.validate(conn);
+    }
   }
 }

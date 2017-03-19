@@ -41,8 +41,8 @@ public class FineoSchema extends FineoBaseSchema {
     for (StoreClerk.Metric metric : getClerk().getMetrics()) {
       names.add(metric.getUserName());
     }
-    LOG.debug("({}ms) Got table names {}: {}", timer.elapsed(TimeUnit.MILLISECONDS), this.getName(),
-      names);
+    LOG.debug("({}ms) Got Tenant '{}', table names: {}", timer.elapsed(TimeUnit.MILLISECONDS),
+      this.getName(), names);
     return names;
   }
 
@@ -55,7 +55,8 @@ public class FineoSchema extends FineoBaseSchema {
     } catch (SchemaNotFoundException e) {
       throw new IllegalArgumentException(e);
     } finally {
-      LOG.debug("({}ms) finished getting table: {}", tableName);
+      LOG.debug("({}ms) finished getting table: {}", timer.elapsed(TimeUnit.MILLISECONDS),
+        tableName);
     }
   }
 

@@ -15,7 +15,7 @@ import static com.typesafe.config.ConfigValueFactory.fromMap;
  */
 public class FineoInfoSchemaUserFilters {
 
-  static final String FINEO_HIDDEN_USER_NAME = "fineo_internal_hidden_chunky_monkey";
+  public static final String FINEO_HIDDEN_USER_NAME = "fineo_internal_hidden_chunky_monkey";
 
   public static DrillConfig overrideWithInfoSchemaFilters(DrillConfig conf){
     // translator ensures that we hide information from the user

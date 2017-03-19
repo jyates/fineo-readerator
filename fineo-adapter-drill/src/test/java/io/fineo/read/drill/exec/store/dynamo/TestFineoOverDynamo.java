@@ -22,11 +22,13 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import java.io.IOException;
+import java.sql.Connection;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static io.fineo.drill.exec.store.dynamo.DynamoPlanValidationUtils.lte;
@@ -60,7 +62,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     expected.put("field1", true);
     String query = verifySelectStar(withNext(expected));
     DynamoFilterSpec keyFilter = getFilterSpec(state.getStore(), org, metrictype);
-    new PlanValidator(query)
+    validateAsOrgUser(new PlanValidator(query)
       // dynamo
       .validateDynamoQuery()
       .withTable(table)
@@ -75,8 +77,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
       .withNextStep("selection-vector-remover")
       .withNextStep("project")
       .withNextStep("screen")
-      .done()
-      .validate(drill.getConnection());
+      .done());
   }
 
   public static DynamoFilterSpec getFilterSpec(SchemaStore store, String org, String metricName)
@@ -150,7 +151,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
     // otherwise wouldn't be there.
     DynamoFilterSpec keyFilter = DynamoPlanValidationUtils.equals(Schema.PARTITION_KEY_NAME,
       key).and(lte(Schema.SORT_KEY_NAME, tsLessThan));
-    new PlanValidator(query)
+    validateAsOrgUser(new PlanValidator(query)
       .validateDynamoQuery()
       .withTable(table)
       .withGetOrQueries(
@@ -160,8 +161,7 @@ public class TestFineoOverDynamo extends BaseFineoTest {
       .withNextStep("project")
       .withNextStep("fineo-recomb")
       .withNextStep("filter")
-      .done()
-      .validate(drill.getConnection());
+      .done());
   }
 
   /**

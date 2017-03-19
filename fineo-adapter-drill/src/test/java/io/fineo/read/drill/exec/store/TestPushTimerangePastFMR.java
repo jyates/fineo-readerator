@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Collectors;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -106,18 +107,20 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
 
     // make sure that the base scan only uses 2 of the three possible files from the correct
     // partitions.
-    Connection conn = drill.getConnection();
-    String explain = explain(query);
-    ResultSet plan = conn.createStatement().executeQuery(explain);
-    assertTrue("After successful read, could not get the plan for query: " + explain, plan.next());
-    String jsonPlan = plan.getString("json");
-    Map<String, Object> jsonMap = MAPPER.readValue(jsonPlan, Map.class);
-    List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
-    Map<String, Object> scan = graph.get(0);
+    doWithConnection((conn) -> {
+      String explain = explain(query);
+      ResultSet plan = conn.createStatement().executeQuery(explain);
+      assertTrue("After successful read, could not get the plan for query: " + explain,
+        plan.next());
+      String jsonPlan = plan.getString("json");
+      Map<String, Object> jsonMap = MAPPER.readValue(jsonPlan, Map.class);
+      List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
+      Map<String, Object> scan = graph.get(0);
 
-    File selectionRoot = getSelectionRoot(state.getStore(), j1.getKey());
-    validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class,
-      prefixFilesWithFILE(j2.getValue(), j3.getValue()), selectionRoot, of("`*`"));
+      File selectionRoot = getSelectionRoot(state.getStore(), j1.getKey());
+      validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class,
+        prefixFilesWithFILE(j2.getValue(), j3.getValue()), selectionRoot, of("`*`"));
+    });
   }
 
   /**
@@ -147,18 +150,20 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
 
     // check that we do, in fact, actually scan that one file... even though the partition
     // definitely excludes it.
-    Connection conn = drill.getConnection();
-    String explain = explain(query);
-    ResultSet plan = conn.createStatement().executeQuery(explain);
-    assertTrue("After successful read, could not get the plan for query: " + explain, plan.next());
-    String jsonPlan = plan.getString("json");
-    Map<String, Object> jsonMap = MAPPER.readValue(jsonPlan, Map.class);
-    List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
-    Map<String, Object> scan = graph.get(0);
+    doWithConnection((conn) -> {
+      String explain = explain(query);
+      ResultSet plan = conn.createStatement().executeQuery(explain);
+      assertTrue("After successful read, could not get the plan for query: " + explain,
+        plan.next());
+      String jsonPlan = plan.getString("json");
+      Map<String, Object> jsonMap = MAPPER.readValue(jsonPlan, Map.class);
+      List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
+      Map<String, Object> scan = graph.get(0);
 
-    File selectionRoot = getSelectionRoot(state.getStore(), j1.getKey());
-    List<String> files = prefixFilesWithFILE(j1.getValue());
-    validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class, files, selectionRoot, of("`*`"));
+      File selectionRoot = getSelectionRoot(state.getStore(), j1.getKey());
+      List<String> files = prefixFilesWithFILE(j1.getValue());
+      validatePlan(scan, JSONFormatPlugin.JSONFormatConfig.class, files, selectionRoot, of("`*`"));
+    });
   }
 
   private List<String> prefixFilesWithFILE(File... files) {
@@ -227,25 +232,27 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
     String query =
       verifySelectStar(ImmutableList.of("`timestamp` > " + start), FineoTestUtil
         .withNext(values, values2));
-    Connection conn = drill.getConnection();
-    String explain = explain(query);
-    ResultSet plan = conn.createStatement().executeQuery(explain);
-    assertTrue("After successful read, could not get the plan for query: " + explain, plan.next());
-    String jsonPlan = plan.getString("json");
-    Map<String, Object> jsonMap = MAPPER.readValue(jsonPlan, Map.class);
-    List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
+    doWithConnection((conn) -> {
+      String explain = explain(query);
+      ResultSet plan = conn.createStatement().executeQuery(explain);
+      assertTrue("After successful read, could not get the plan for query: " + explain,
+        plan.next());
+      String jsonPlan = plan.getString("json");
+      Map<String, Object> jsonMap = MAPPER.readValue(jsonPlan, Map.class);
+      List<Map<String, Object>> graph = (List<Map<String, Object>>) jsonMap.get("graph");
 
-    Map<String, Object> parquetScan = getGraphStep(graph, "parquet-scan");
-    File selectionRoot = getSelectionRoot(state.getStore(), parquet.getKey());
-    List<String> files =
-      of(parquet2.getValue()).stream().map(File::toString).collect(Collectors.toList());
-    validatePlan(parquetScan, ParquetFormatConfig.class, files, selectionRoot, of("`*`"));
+      Map<String, Object> parquetScan = getGraphStep(graph, "parquet-scan");
+      File selectionRoot = getSelectionRoot(state.getStore(), parquet.getKey());
+      List<String> files =
+        of(parquet2.getValue()).stream().map(File::toString).collect(Collectors.toList());
+      validatePlan(parquetScan, ParquetFormatConfig.class, files, selectionRoot, of("`*`"));
 
-    Map<String, Object> jsonScan = getGraphStep(graph, "fs-scan");
-    selectionRoot = getSelectionRoot(state.getStore(), json.getKey());
-    files = prefixFilesWithFILE(json2.getValue());
-    validatePlan(jsonScan, JSONFormatPlugin.JSONFormatConfig.class, files, selectionRoot,
-      of("`*`"));
+      Map<String, Object> jsonScan = getGraphStep(graph, "fs-scan");
+      selectionRoot = getSelectionRoot(state.getStore(), json.getKey());
+      files = prefixFilesWithFILE(json2.getValue());
+      validatePlan(jsonScan, JSONFormatPlugin.JSONFormatConfig.class, files, selectionRoot,
+        of("`*`"));
+    });
   }
 
   private String explain(String sql) {
@@ -259,5 +266,24 @@ public class TestPushTimerangePastFMR extends BaseFineoTest {
       }
     }
     return null;
+  }
+
+  private void doWithConnection(WithConnection func) throws Exception {
+    try (Connection conn = getUserConnection()) {
+      func.run(conn);
+    }
+  }
+
+  private Connection getUserConnection() throws Exception {
+    QueryRunnable runnable = new QueryRunnable(null);
+    Properties props = runnable.getProperties();
+    return drill.getUnmanagedConnection(props);
+  }
+
+  @FunctionalInterface
+  private interface WithConnection {
+
+    void run(Connection conn) throws Exception;
+
   }
 }
