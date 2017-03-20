@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
+import java.util.Properties;
 
 public class LocalReadCommand extends Command {
   private static final Logger LOG = LoggerFactory.getLogger(LocalReadCommand.class);
@@ -37,7 +38,9 @@ public class LocalReadCommand extends Command {
 
   @Override
   protected Connection getConnection() throws Exception {
-    return cluster.getConnection();
+    Properties props = new Properties();
+    props.put("user", opts.org.get());
+    return cluster.getConnection(props);
   }
 
   private void start() throws Throwable {

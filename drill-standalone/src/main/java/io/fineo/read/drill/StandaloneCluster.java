@@ -60,8 +60,8 @@ public class StandaloneCluster extends Thread {
     LOG.info("Cluster started! JDBC Url: " + drill.getUrl());
   }
 
-  public Connection getConnection() throws Exception {
-    return drill.getConnection();
+  public Connection getConnection(Properties props) throws Exception {
+    return drill.getUnmanagedConnection(props);
   }
 
   public int getWebPort() {
