@@ -87,7 +87,7 @@ public class FineoDatabaseMetaData extends AvaticaDatabaseMetaData {
 
   private ResultSet stringResults(String columnName, String... values) throws SQLException {
     List<ColumnMetaData> meta = new ArrayList<>(values.length);
-    meta.add(MetaImpl.columnMetaData(columnName, 1, String.class));
+    meta.add(MetaImpl.columnMetaData(columnName, 1, String.class, true));
     return IteratorResult.fulfilledResult(new SimpleMetadata(FINEO_CATALOG, FINEO_SCHEMA,
         FINEO_INFO, meta),
       new AbstractIterator<Object[]>() {

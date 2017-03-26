@@ -144,6 +144,12 @@
     <dependency>
       <groupId>io.fineo.etl.pipeline</groupId>
       <artifactId>dynamo-access</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>log4j</artifactId>
+          <groupId>log4j</groupId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <!-- Drill dependencies -->

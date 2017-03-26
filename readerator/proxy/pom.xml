@@ -9,7 +9,6 @@
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.fineo.read</groupId>
   <artifactId>proxy</artifactId>
   <description>Simple server to get results for web-app requests</description>
 
@@ -47,6 +46,16 @@
       <artifactId>readerator-it</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <artifactId>*</artifactId>
+          <groupId>org.apache.calcite</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>*</artifactId>
+          <groupId>org.apache.drill.exec</groupId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.fineo.read</groupId>
@@ -67,84 +76,75 @@
     </dependency>
   </dependencies>
 
-  <profiles>
-    <profile>
-      <id>deploy</id>
-      <activation>
-        <property>
-          <name>deploy</name>
-        </property>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-shade-plugin</artifactId>
-            <version>${maven.shade.version}</version>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>${maven.shade.version}</version>
+        <configuration>
+          <createDependencyReducedPom>false</createDependencyReducedPom>
+          <shadedArtifactAttached>true</shadedArtifactAttached>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
             <configuration>
-              <createDependencyReducedPom>false</createDependencyReducedPom>
-              <shadedArtifactAttached>true</shadedArtifactAttached>
+              <shadedClassifierName>aws</shadedClassifierName>
+              <artifactSet>
+                <includes>
+                  <include>*:*</include>
+                </includes>
+                <excludes>
+                  <exclude>commons-logging:commons-logging</exclude>
+                  <exclude>io.fineo.client:common</exclude>
+                  <exclude>io.fineo.client.models:common-models</exclude>
+                  <exclude>org.slf4j:jcl-over-slf4j</exclude>
+                </excludes>
+              </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <exclude>.gitkeep</exclude>
+                    <!-- -test.xml overrides our logback.xml -->
+                    <exclude>logback-test.xml</exclude>
+                  </excludes>
+                </filter>
+                <filter>
+                  <artifact>io.fineo.client:jdbc:jar:all</artifact>
+                  <excludes>
+                    <exclude>org/joda/**</exclude>
+                    <exclude>org/slf4j/**</exclude>
+                    <exclude>javassist/**</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <transformers>
+                <transformer
+                   implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                <transformer
+                   implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <manifestEntries>
+                    <Main-Class>io.fineo.read.proxy.FineoJbcProxyServer</Main-Class>
+                    <Build-Number>${buildNumber}</Build-Number>
+                    <X-Compile-Source-JDK>1.8</X-Compile-Source-JDK>
+                    <X-Compile-Target-JDK>1.8</X-Compile-Target-JDK>
+                    <Implementation-Version>${project.version}_${buildNumber}
+                    </Implementation-Version>
+                  </manifestEntries>
+                </transformer>
+              </transformers>
             </configuration>
-            <executions>
-              <execution>
-                <phase>package</phase>
-                <goals>
-                  <goal>shade</goal>
-                </goals>
-                <configuration>
-                  <shadedClassifierName>aws</shadedClassifierName>
-                  <artifactSet>
-                    <includes>
-                      <include>*:*</include>
-                    </includes>
-                    <excludes>
-                      <exclude>commons-logging:commons-logging</exclude>
-                      <exclude>io.fineo.client:common</exclude>
-                      <exclude>io.fineo.client.models:common-models</exclude>
-                      <exclude>org.slf4j:jcl-over-slf4j</exclude>
-                    </excludes>
-                  </artifactSet>
-                  <filters>
-                    <filter>
-                      <artifact>*:*</artifact>
-                      <excludes>
-                        <exclude>META-INF/*.SF</exclude>
-                        <exclude>META-INF/*.DSA</exclude>
-                        <exclude>META-INF/*.RSA</exclude>
-                        <exclude>.gitkeep</exclude>
-                        <!-- -test.xml overrides our logback.xml -->
-                        <exclude>logback-test.xml</exclude>
-                      </excludes>
-                    </filter>
-                    <filter>
-                      <artifact>io.fineo.client:jdbc:jar:all</artifact>
-                      <excludes>
-                        <exclude>org/joda/**</exclude>
-                        <exclude>org/slf4j/**</exclude>
-                        <exclude>javassist/**</exclude>
-                      </excludes>
-                    </filter>
-                  </filters>
-                  <transformers>
-                    <transformer
-                       implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                    <transformer
-                       implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                      <manifestEntries>
-                        <Main-Class>io.fineo.read.proxy.FineoJbcProxyServer</Main-Class>
-                        <Build-Number>${buildNumber}</Build-Number>
-                        <X-Compile-Source-JDK>1.8</X-Compile-Source-JDK>
-                        <X-Compile-Target-JDK>1.8</X-Compile-Target-JDK>
-                        <Implementation-Version>${project.version}_${buildNumber}</Implementation-Version>
-                      </manifestEntries>
-                    </transformer>
-                  </transformers>
-                </configuration>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-  </profiles>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

@@ -9,7 +9,6 @@
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.fineo.read</groupId>
   <artifactId>readerator</artifactId>
   <packaging>pom</packaging>
   <modules>

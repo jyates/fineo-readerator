@@ -3,10 +3,11 @@ package io.fineo.read.serve.driver;
 import io.fineo.read.FineoJdbcProperties;
 import io.fineo.read.drill.FineoSqlRewriter;
 import io.fineo.read.serve.FineoServer;
+import io.fineo.read.serve.Ord;
 import net.hydromatic.scott.data.hsqldb.ScottHsqldb;
 import org.apache.calcite.avatica.jdbc.FineoJdbcMeta;
-import org.apache.calcite.linq4j.Ord;
-import org.apache.calcite.util.Pair;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -175,7 +176,7 @@ public class TestFineoServerDriver {
     cleanup.add(() -> {
       hsqldb.createStatement().execute("DROP SCHEMA " + schema + " IF EXISTS");
     });
-    return new Pair<>(hsqldb, name);
+    return new ImmutablePair<>(hsqldb, name);
   }
 
   private Connection hsqldb() throws SQLException {
