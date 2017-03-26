@@ -29,6 +29,6 @@ public class FineoAwsRead extends Reader {
 
   @Override
   public String getJdbcConnection(String url) {
-    return Driver.CONNECT_PREFIX;
+    return Driver.CONNECT_PREFIX +":";
   }
 }

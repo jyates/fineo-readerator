@@ -26,6 +26,6 @@ public class FineoLocalRead extends Reader {
 
   @Override
   public String getJdbcConnection(String url) {
-    return Driver.CONNECT_PREFIX + url;
+    return Driver.CONNECT_PREFIX +":" + url;
   }
 }
