@@ -32,7 +32,7 @@ public class BaseFineoTestWithErrorReads extends BaseFineoTest {
   @ClassRule
   public static TestOutput FOLDERS = new TestOutput(false);
   protected static File ERRORS_DIR;
-  private static File STREAM_DIR;
+  protected static File STREAM_DIR;
   protected static File RAW_STAGE_DIR;
   protected static File STAGED_STAGE_DIR;
   protected static File ERROR_MARKER;
