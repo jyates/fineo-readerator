@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
@@ -32,7 +33,7 @@ import static io.fineo.read.jdbc.FineoConnectionProperties.API_KEY;
 public class JdbcHandler {
 
   private static final Logger LOG = LoggerFactory.getLogger(JdbcHandler.class);
-  public static final String APIKEY = "apikey";
+  public static final String APIKEY = "x-api-key";
   public static final String REQUEST = "request";
   private final String url;
   private final Properties defaults;
@@ -47,7 +48,7 @@ public class JdbcHandler {
   @Timed
   public List<Map<String, Object>> read(
     @QueryParam(REQUEST) String request,
-    @QueryParam(APIKEY) String apiKey) throws SQLException {
+    @HeaderParam(APIKEY) String apiKey) throws SQLException {
     Properties props = new Properties(defaults);
     props.put(API_KEY.camelName(),
       checkNotNull(apiKey, "Must include API Key as a query param %s!", APIKEY));

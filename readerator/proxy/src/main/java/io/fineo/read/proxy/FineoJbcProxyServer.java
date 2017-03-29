@@ -27,7 +27,13 @@ public class FineoJbcProxyServer extends Application<FineoProxyConfiguration> {
   @Override
   public void run(FineoProxyConfiguration config, Environment environment)
     throws Exception {
-    environment.jersey().register(new JdbcHandler(config.getJdbcUrl(), new Properties()));
+    String url = config.getJdbcUrl();
+    if(config.getJdbcPortFix() > 0){
+      int ind = url.lastIndexOf(":");
+      int port = Integer.valueOf(url.substring(ind+1));
+      url = url.substring(0, ind)+(port -config.getJdbcPortFix());
+    }
+    environment.jersey().register(new JdbcHandler(url, new Properties()));
   }
 
   public static void main(String[] args) throws Exception {

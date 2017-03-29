@@ -2,6 +2,7 @@
 # These should probably be overridden on the command-line
 #  or with and external configuration file.
 jdbcUrl: jdbc:fineo:url=http://localhost:${PORT}
+jdbcPortFix: 0
 
 # Dropwizard configs
 logging:
