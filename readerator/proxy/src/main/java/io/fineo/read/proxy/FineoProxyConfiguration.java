@@ -1,5 +1,6 @@
 package io.fineo.read.proxy;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.dropwizard.Configuration;
 import org.hibernate.validator.constraints.NotEmpty;
@@ -15,6 +16,17 @@ public class FineoProxyConfiguration extends Configuration {
   @JsonProperty
   public String getJdbcUrl() {
     return jdbcUrl;
+  }
+
+  @JsonIgnore
+  public String getUrl() {
+    String url = this.getJdbcUrl();
+    if (this.getJdbcPortFix() > 0) {
+      int ind = url.lastIndexOf(":");
+      int port = Integer.valueOf(url.substring(ind + 1));
+      url = url.substring(0, ind + 1) + (port - this.getJdbcPortFix());
+    }
+    return url;
   }
 
   @JsonProperty
