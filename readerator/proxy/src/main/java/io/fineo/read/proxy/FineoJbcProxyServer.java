@@ -5,6 +5,7 @@ import io.dropwizard.configuration.EnvironmentVariableSubstitutor;
 import io.dropwizard.configuration.SubstitutingSourceProvider;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
+import io.fineo.read.proxy.exception.SqlExceptionMapper;
 
 import java.util.Properties;
 
@@ -26,6 +27,7 @@ public class FineoJbcProxyServer extends Application<FineoProxyConfiguration> {
   @Override
   public void run(FineoProxyConfiguration config, Environment environment)
     throws Exception {
+    environment.jersey().register(new SqlExceptionMapper(environment.metrics()));
     environment.jersey().register(new JdbcHandler(config.getUrl(), new Properties()));
   }
 

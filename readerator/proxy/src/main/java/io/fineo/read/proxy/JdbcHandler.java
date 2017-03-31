@@ -1,6 +1,7 @@
 package io.fineo.read.proxy;
 
 import com.codahale.metrics.annotation.Timed;
+import io.fineo.read.proxy.exception.MissingParameterWebException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-import static fineo.client.com.google.common.base.Preconditions.checkNotNull;
 import static io.fineo.read.jdbc.FineoConnectionProperties.API_KEY;
 
 @Path("/query")
@@ -38,7 +38,8 @@ public class JdbcHandler {
   private final Properties defaults;
 
   public JdbcHandler(String jdbcUrl, Properties defaults) {
-    this.url = checkNotNull(jdbcUrl, "No jdbc url provided!");
+    this.url = fineo.client.com.google.common.base.Preconditions
+      .checkNotNull(jdbcUrl, "No jdbc url provided!");
     this.defaults = defaults;
     LOG.info("Creating handler with url: {}", jdbcUrl);
   }
@@ -48,10 +49,11 @@ public class JdbcHandler {
   public List<Map<String, Object>> read(
     @QueryParam(REQUEST) String request,
     @HeaderParam(APIKEY) String apiKey) throws SQLException {
+    checkNotNull(request, "sql", "Must provide an SQL query");
+
     Properties props = new Properties(defaults);
     props.put(API_KEY.camelName(),
-      checkNotNull(apiKey, "Must include API Key as a query param %s!", APIKEY));
-    checkNotNull(request, "Must provide query as a query parameter %s", REQUEST);
+      checkNotNull(apiKey, "x-api-key", "Must be included in Header"));
     try (Connection conn = DriverManager.getConnection(this.url, props);
          Statement statement = conn.createStatement();
          ResultSet results = statement.executeQuery(request)) {
@@ -71,5 +73,17 @@ public class JdbcHandler {
       }
       return out;
     }
+  }
+
+  private static <T> T checkNotNull(T obj, String param, String message, Object... injectInMessage)
+    throws MissingParameterWebException {
+    if (obj != null) {
+      return obj;
+    }
+    if (injectInMessage != null && injectInMessage.length > 0) {
+      message = String.format(message, injectInMessage);
+    }
+
+    throw new MissingParameterWebException(param, message);
   }
 }
