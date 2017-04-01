@@ -88,15 +88,24 @@ public class JdbcHandler {
     throw new MissingParameterWebException(param, message);
   }
 
+  private static final String QUOTE = "\"";
+  private static final String SLASH_QUOTE = "\\\"";
+
   @VisibleForTesting
   static String decode(String query) throws UnsupportedEncodingException {
     String decoded = URLDecoder.decode(query, "UTF-8");
-    if (decoded.startsWith("\"")) {
-      decoded = decoded.substring(1);
+    int start = 0, end = 0;
+    if (decoded.startsWith(QUOTE)) {
+      start = 1;
+    } else if (decoded.startsWith(SLASH_QUOTE)) {
+      start = 2;
     }
-    if (decoded.endsWith("\"")) {
-      decoded = decoded.substring(0, decoded.length() - 1);
+
+    if (decoded.endsWith(SLASH_QUOTE)) {
+      end = 2;
+    } else if (decoded.endsWith(QUOTE)) {
+      end = 1;
     }
-    return decoded;
+    return decoded.substring(start, decoded.length() - end);
   }
 }

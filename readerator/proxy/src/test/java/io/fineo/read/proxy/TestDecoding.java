@@ -40,5 +40,8 @@ public class TestDecoding {
     String send = format("\"%s\"", actual);
     assertEquals(actual, JdbcHandler.decode(send));
     assertEquals(actual, JdbcHandler.decode(actual));
+
+    send = format("\\\"%s\\\"", actual);
+    assertEquals(actual, JdbcHandler.decode(send));
   }
 }
