@@ -1,17 +1,19 @@
 package io.fineo.read.proxy;
 
 import com.codahale.metrics.annotation.Timed;
+import com.google.common.annotations.VisibleForTesting;
 import io.fineo.read.proxy.exception.MissingParameterWebException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.Consumes;
-import javax.ws.rs.GET;
 import javax.ws.rs.HeaderParam;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -33,7 +35,6 @@ public class JdbcHandler {
 
   private static final Logger LOG = LoggerFactory.getLogger(JdbcHandler.class);
   public static final String APIKEY = "x-api-key";
-  public static final String REQUEST = "request";
   private final String url;
   private final Properties defaults;
 
@@ -44,19 +45,19 @@ public class JdbcHandler {
     LOG.info("Creating handler with url: {}", jdbcUrl);
   }
 
-  @GET
+  @POST
   @Timed
   public List<Map<String, Object>> read(
-    @QueryParam(REQUEST) String request,
+    String body,
     @HeaderParam(APIKEY) String apiKey) throws SQLException {
-    checkNotNull(request, "sql", "Must provide an SQL query");
+    checkNotNull(body, "body", "Must provide an SQL query");
 
     Properties props = new Properties(defaults);
     props.put(API_KEY.camelName(),
       checkNotNull(apiKey, "x-api-key", "Must be included in Header"));
     try (Connection conn = DriverManager.getConnection(this.url, props);
          Statement statement = conn.createStatement();
-         ResultSet results = statement.executeQuery(request)) {
+         ResultSet results = statement.executeQuery(body)) {
       // pretty simple version to buffers all the results in memory... probably not the best, but
       // good enough for now...
       List<Map<String, Object>> out = new ArrayList<>();
@@ -85,5 +86,10 @@ public class JdbcHandler {
     }
 
     throw new MissingParameterWebException(param, message);
+  }
+
+  @VisibleForTesting
+  static String decode(String query) throws UnsupportedEncodingException {
+    return URLDecoder.decode(query, "UTF-8");
   }
 }
