@@ -90,6 +90,13 @@ public class JdbcHandler {
 
   @VisibleForTesting
   static String decode(String query) throws UnsupportedEncodingException {
-    return URLDecoder.decode(query, "UTF-8");
+    String decoded = URLDecoder.decode(query, "UTF-8");
+    if (decoded.startsWith("\"")) {
+      decoded = decoded.substring(1);
+    }
+    if (decoded.endsWith("\"")) {
+      decoded = decoded.substring(0, decoded.length() - 1);
+    }
+    return decoded;
   }
 }

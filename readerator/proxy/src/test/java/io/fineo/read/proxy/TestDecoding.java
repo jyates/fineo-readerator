@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import java.net.URLDecoder;
 
+import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -12,7 +13,7 @@ import static org.junit.Assert.assertEquals;
 public class TestDecoding {
 
   @Test
-  public void test() throws Exception {
+  public void testUrlDecoding() throws Exception {
     String expected = "SELECT type, stage, event, message, handled_timestamp FROM errors.stream  "
                       + "WHERE (stage = 'raw' OR stage = 'staged') AND (type = 'error' OR type = "
                       + "'malformed') AND `timestamp` BETWEEN 0 AND 1491004241121 AND (CAST"
@@ -31,5 +32,13 @@ public class TestDecoding {
     String converted = JdbcHandler.decode(query);
     assertEquals(expected, converted);
     assertEquals(expected, JdbcHandler.decode(converted));
+  }
+
+  @Test
+  public void testRemoveExtraQuoting() throws Exception {
+    String actual = "SELECT * FROM errors.stream";
+    String send = format("\"%s\"", actual);
+    assertEquals(actual, JdbcHandler.decode(send));
+    assertEquals(actual, JdbcHandler.decode(actual));
   }
 }
