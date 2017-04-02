@@ -30,7 +30,8 @@ public class TestJdbcHandler {
   @Test
   public void testReadValues() throws Exception {
     JdbcHandler handler = new JdbcHandler(getUrl(), new Properties());
-    List<Map<String, Object>> result = handler.read("SELECT * FROM (VALUES(1))", SERVER.getOrg());
+    List<Map<String, Object>> result =
+      handler.read(new SqlRequest().setSql("SELECT * FROM (VALUES(1))"), SERVER.getOrg());
     Map<String, Object> expected = new HashMap<>();
     // match the HSQLDB unknown column format of CX
     expected.put("C1", 1);

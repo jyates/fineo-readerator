@@ -48,16 +48,16 @@ public class JdbcHandler {
   @POST
   @Timed
   public List<Map<String, Object>> read(
-    String body,
+    SqlRequest request,
     @HeaderParam(APIKEY) String apiKey) throws SQLException {
-    checkNotNull(body, "body", "Must provide an SQL query");
+    request = checkNotNull(request, "body", "Must provide an SQL query");
 
     Properties props = new Properties(defaults);
     props.put(API_KEY.camelName(),
       checkNotNull(apiKey, "x-api-key", "Must be included in Header"));
     try (Connection conn = DriverManager.getConnection(this.url, props);
          Statement statement = conn.createStatement();
-         ResultSet results = statement.executeQuery(body)) {
+         ResultSet results = statement.executeQuery(request.getSql())) {
       // pretty simple version to buffers all the results in memory... probably not the best, but
       // good enough for now...
       List<Map<String, Object>> out = new ArrayList<>();
