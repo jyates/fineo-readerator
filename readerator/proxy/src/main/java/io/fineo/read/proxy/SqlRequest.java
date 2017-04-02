@@ -13,7 +13,7 @@ public class SqlRequest {
     return sql;
   }
 
-  @JsonProperty("Sql")
+  @JsonProperty("sql")
   public SqlRequest setSql(String sql) {
     this.sql = sql;
     return this;

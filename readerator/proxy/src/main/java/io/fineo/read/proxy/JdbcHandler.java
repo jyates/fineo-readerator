@@ -51,6 +51,7 @@ public class JdbcHandler {
     SqlRequest request,
     @HeaderParam(APIKEY) String apiKey) throws SQLException {
     request = checkNotNull(request, "body", "Must provide an SQL query");
+    LOG.debug("Running request: {}", request.getSql());
 
     Properties props = new Properties(defaults);
     props.put(API_KEY.camelName(),
@@ -72,6 +73,7 @@ public class JdbcHandler {
           row.put(name, value);
         }
       }
+      LOG.debug("Returning {} rows for query: {}", out.size(), request.getSql());
       return out;
     }
   }
